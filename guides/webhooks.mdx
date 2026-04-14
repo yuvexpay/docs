@@ -1,0 +1,146 @@
+---
+title: "Webhooks"
+description: "Receive real-time notifications when payment events occur."
+---
+
+Webhooks let your application receive HTTP POST notifications when events happen in your YuvexPay account, such as a payment being confirmed or a withdrawal completing.
+
+## Setting up webhooks
+
+1. Go to **Settings > Webhooks** in the [dashboard](https://app.yuvexpay.com).
+2. Click **Add webhook** and enter your endpoint URL.
+3. Select the events you want to receive.
+4. Save the webhook secret for signature verification.
+
+## Event types
+
+| Event | Description |
+|-------|-------------|
+| `PAYMENT_CONFIRMED` | Payment has been confirmed by the provider. |
+| `PAYMENT_PAID` | Payment is complete and funds are received. |
+| `PAYMENT_EXPIRED` | Payment expired before being completed. |
+| `PAYMENT_REFUNDED` | A refund was processed for this payment. |
+| `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
+| `PAYMENT_CHARGEBACK` | A chargeback was filed against this payment. |
+| `MED_RECEIVED` | A MED (mediation dispute) was received. |
+| `MED_RESOLVED` | A MED dispute was resolved. |
+| `WITHDRAWAL_REQUESTED` | A withdrawal was created and is being processed. |
+| `WITHDRAWAL_SENT` | A withdrawal was successfully sent. |
+| `WITHDRAWAL_FAILED` | A withdrawal failed to process. |
+
+## Webhook payload
+
+Events are delivered as JSON POST requests to your endpoint:
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "PAYMENT_PAID",
+  "data": {
+    "id": "pay_xyz789",
+    "txId": "YVX-20260414-ABC",
+    "status": "PAID",
+    "amount": 49.90
+  }
+}
+```
+
+### Headers
+
+Each webhook request includes these headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-Webhook-Signature` | HMAC signature for verification. |
+| `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
+| `X-Webhook-Delivery-Id` | Unique delivery ID for deduplication. |
+| `User-Agent` | `YuvexPay-Webhook/1.0` |
+| `Content-Type` | `application/json` |
+
+## Verifying signatures
+
+Every webhook includes an `X-Webhook-Signature` header containing an HMAC-SHA256 signature of the request body, signed with your webhook secret.
+
+<CodeGroup>
+```javascript Node.js
+import crypto from "crypto";
+
+function verifyWebhookSignature(payload, signature, secret) {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("hex");
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expected)
+  );
+}
+
+// In your webhook handler:
+app.post("/webhook", (req, res) => {
+  const signature = req.headers["x-webhook-signature"];
+  const isValid = verifyWebhookSignature(
+    JSON.stringify(req.body),
+    signature,
+    process.env.WEBHOOK_SECRET
+  );
+
+  if (!isValid) {
+    return res.status(401).send("Invalid signature");
+  }
+
+  // Process the event
+  const { type, data } = req.body;
+  console.log(`Received ${type}:`, data);
+
+  res.status(200).send("OK");
+});
+```
+
+```python Python
+import hmac
+import hashlib
+from flask import Flask, request
+
+app = Flask(__name__)
+
+def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(
+        secret.encode(), payload, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+@app.post("/webhook")
+def webhook():
+    signature = request.headers.get("X-Webhook-Signature", "")
+    if not verify_signature(request.data, signature, WEBHOOK_SECRET):
+        return "Invalid signature", 401
+
+    event = request.json
+    print(f"Received {event['type']}: {event['data']}")
+    return "OK", 200
+```
+</CodeGroup>
+
+<Warning>
+  Always verify the webhook signature before processing events. Never trust the payload without verification.
+</Warning>
+
+## Retry behavior
+
+If your endpoint doesn't return a `2xx` status code, YuvexPay retries the delivery with exponential backoff:
+
+| Attempt | Delay |
+|---------|-------|
+| 1st retry | 5 seconds |
+| 2nd retry | 10 seconds |
+| 3rd retry | 20 seconds |
+
+After all retries are exhausted, the delivery is marked as `FAILED`. You can monitor delivery status and retry failed deliveries from the dashboard.
+
+## Best practices
+
+- **Return 200 quickly.** Process webhook events asynchronously. Return a `200` status immediately and handle the business logic in a background job.
+- **Handle duplicates.** Use the `X-Webhook-Delivery-Id` header to deduplicate events. The same event may be delivered more than once.
+- **Verify before trusting.** Always validate the `X-Webhook-Signature` before acting on a webhook event.
+- **Use HTTPS.** Webhook endpoints must use HTTPS in production.

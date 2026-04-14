@@ -1,97 +1,73 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "YuvexPay Documentation"
+description: "Accept payments, process withdrawals, and manage your business with the YuvexPay API."
 ---
 
-## Setting up
+## Get started
 
-Get your documentation site up and running in minutes.
+Start accepting payments in minutes with the YuvexPay API.
 
 <Card
-  title="Start here"
+  title="Quickstart"
   icon="rocket"
   href="/quickstart"
   horizontal
 >
-  Follow our three step quickstart guide.
+  Create your first payment in under 5 minutes.
 </Card>
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
+## Explore the API
 
 <Columns cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
+    title="Authentication"
+    icon="key"
+    href="/guides/authentication"
   >
-    Edit your docs locally and preview them in real time.
+    Learn how to authenticate your API requests using OAuth 2.0 client credentials.
   </Card>
   <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
+    title="API reference"
     icon="terminal"
     href="/api-reference/introduction"
   >
-    Auto-generate API documentation from OpenAPI specifications.
+    Complete reference for all endpoints including request/response schemas.
+  </Card>
+  <Card
+    title="Webhooks"
+    icon="bell"
+    href="/guides/webhooks"
+  >
+    Receive real-time notifications when payment events occur.
+  </Card>
+  <Card
+    title="Error handling"
+    icon="circle-exclamation"
+    href="/guides/errors"
+  >
+    Understand error codes and how to handle them gracefully.
   </Card>
 </Columns>
 
-## Create beautiful pages
+## Key features
 
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+<Columns cols={3}>
+  <Card title="PIX payments" icon="bolt">
+    Instant payments via Brazil's PIX network with QR codes and copy-paste.
   </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
+  <Card title="Multiple methods" icon="credit-card">
+    Accept PIX, credit cards, boletos, and Litecoin.
   </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
+  <Card title="Split payments" icon="arrows-split-up-and-left">
+    Split payments across up to 10 recipients in a single transaction.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
+  <Card title="Hosted checkout" icon="browser">
+    Use YuvexPay's hosted checkout page or build your own with headless mode.
+  </Card>
+  <Card title="Webhooks" icon="webhook">
+    Real-time event notifications with automatic retries and HMAC signatures.
+  </Card>
+  <Card title="Sandbox" icon="flask">
+    Test your integration with sandbox credentials before going live.
   </Card>
 </Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>

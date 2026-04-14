@@ -1,0 +1,69 @@
+---
+title: "Rate limiting"
+description: "Understand API rate limits and how to handle them."
+---
+
+The YuvexPay API enforces rate limits per company to ensure fair usage and system stability.
+
+## Default limits
+
+| Scope | Limit | Window |
+|-------|-------|--------|
+| GET requests | 1,000 / minute | Per company |
+| POST requests | 100 / minute | Per company |
+| Global | 2,000 / minute | Per company |
+
+Custom limits can be configured per account. Contact support if you need higher limits.
+
+## Rate limit headers
+
+Every API response includes rate limit information in the headers:
+
+| Header | Description |
+|--------|-------------|
+| `X-RateLimit-Limit` | Maximum requests allowed in the current window. |
+| `X-RateLimit-Remaining` | Requests remaining in the current window. |
+| `X-RateLimit-Reset` | Seconds until the rate limit window resets. |
+| `X-RateLimit-Global-Limit` | Global rate limit across all methods. |
+| `X-RateLimit-Global-Remaining` | Global requests remaining. |
+
+## Handling rate limits
+
+When you exceed the rate limit, the API returns a `429 Too Many Requests` response:
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many requests"
+  }
+}
+```
+
+Implement exponential backoff when you receive a `429`:
+
+```javascript
+async function requestWithRetry(url, options, maxRetries = 3) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+
+    if (response.status !== 429) return response;
+
+    const resetSeconds = response.headers.get("X-RateLimit-Reset");
+    const delay = resetSeconds
+      ? parseInt(resetSeconds) * 1000
+      : Math.pow(2, attempt) * 1000;
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  throw new Error("Rate limit exceeded after retries");
+}
+```
+
+## Best practices
+
+- **Monitor headers.** Check `X-RateLimit-Remaining` proactively to avoid hitting limits.
+- **Batch where possible.** Use list endpoints with filters instead of fetching resources one by one.
+- **Cache responses.** Cache GET responses on your side to reduce unnecessary API calls.
+- **Spread requests.** Distribute API calls evenly over time instead of bursting.

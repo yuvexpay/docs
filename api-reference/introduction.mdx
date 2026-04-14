@@ -1,33 +1,55 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API reference"
+description: "Complete reference for the YuvexPay REST API."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+The YuvexPay API is organized around REST. It accepts JSON request bodies, returns JSON responses, and uses standard HTTP status codes and verbs.
 
-## Welcome
+## Base URL
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+```
+https://api.yuvexpay.com
+```
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+All API requests must be made over HTTPS. The same URL serves both sandbox and production environments -- the environment is determined by your API credentials.
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+All `/v1/*` endpoints require a Bearer token obtained from the [OAuth token endpoint](/api-reference/auth/token):
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+```bash
+Authorization: Bearer sk_prod_eyJhbGciOi...
 ```
+
+See the [authentication guide](/guides/authentication) for the full OAuth 2.0 client credentials flow.
+
+## Request headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | `Bearer {access_token}` |
+| `Content-Type` | Yes (POST/PATCH) | `application/json` |
+| `X-Idempotency-Key` | Yes (some POST) | Unique key for safe retries. See [idempotency](/guides/idempotency). |
+
+## Resources
+
+<Columns cols={2}>
+  <Card title="Payments" icon="credit-card" href="/api-reference/payments/create">
+    Create and manage payments via PIX, card, boleto, or crypto.
+  </Card>
+  <Card title="Withdrawals" icon="money-bill-transfer" href="/api-reference/withdrawals/create">
+    Transfer funds from your balance via PIX or crypto.
+  </Card>
+  <Card title="Products" icon="box" href="/api-reference/products/create">
+    Manage your product catalog.
+  </Card>
+  <Card title="Customers" icon="users" href="/api-reference/customers/create">
+    Store and manage customer records.
+  </Card>
+  <Card title="Documents" icon="file-lines" href="/api-reference/documents/payment-receipt">
+    Generate receipts and account statements.
+  </Card>
+  <Card title="Authentication" icon="key" href="/api-reference/auth/token">
+    Generate and manage API access tokens.
+  </Card>
+</Columns>

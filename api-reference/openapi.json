@@ -1,16 +1,19 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
-    "license": {
-      "name": "MIT"
-    },
-    "version": "1.0.0"
+    "title": "YuvexPay API",
+    "description": "The YuvexPay API allows you to accept payments, process withdrawals, manage products and customers programmatically. All API access is over HTTPS and uses JSON request/response bodies.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "YuvexPay Support",
+      "email": "support@yuvexpay.com",
+      "url": "https://docs.yuvexpay.com"
+    }
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "https://api.yuvexpay.com",
+      "description": "Production"
     }
   ],
   "security": [
@@ -18,199 +21,1798 @@
       "bearerAuth": []
     }
   ],
+  "tags": [
+    { "name": "Authentication", "description": "OAuth 2.0 client credentials flow" },
+    { "name": "Payments", "description": "Create and manage payments" },
+    { "name": "Withdrawals", "description": "Create and manage withdrawals" },
+    { "name": "Products", "description": "Manage product catalog" },
+    { "name": "Customers", "description": "Manage customer records" },
+    { "name": "Documents", "description": "Generate receipts and statements" }
+  ],
   "paths": {
-    "/plants": {
-      "get": {
-        "description": "Returns all plants from the system that the user has access to",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
+    "/oauth/token": {
+      "post": {
+        "operationId": "createToken",
+        "summary": "Generate access token",
+        "description": "Exchange your API credentials for a short-lived access token using the OAuth 2.0 client credentials flow. Tokens expire after 1 hour. A maximum of 2 active tokens per credential is enforced.",
+        "tags": ["Authentication"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["client_id", "client_secret", "grant_type"],
+                "properties": {
+                  "client_id": {
+                    "type": "string",
+                    "description": "Your API client ID, found in the dashboard under API credentials."
+                  },
+                  "client_secret": {
+                    "type": "string",
+                    "description": "Your API client secret."
+                  },
+                  "grant_type": {
+                    "type": "string",
+                    "enum": ["client_credentials"],
+                    "description": "Must be `client_credentials`."
+                  }
+                }
+              },
+              "example": {
+                "client_id": "cred_abc123",
+                "client_secret": "secret_xyz789",
+                "grant_type": "client_credentials"
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
-            "description": "Plant response",
+            "description": "Token generated successfully.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
+                  "type": "object",
+                  "properties": {
+                    "access_token": {
+                      "type": "string",
+                      "description": "The Bearer token to use in API requests. Prefixed with `sk_prod_` (production) or `sk_sandbox_` (sandbox)."
+                    },
+                    "token_type": {
+                      "type": "string",
+                      "enum": ["Bearer"]
+                    },
+                    "expires_in": {
+                      "type": "integer",
+                      "description": "Token validity in seconds (3600 = 1 hour)."
+                    },
+                    "company_id": {
+                      "type": "string",
+                      "description": "The company ID associated with this token."
+                    },
+                    "company_name": {
+                      "type": "string",
+                      "description": "The company name."
+                    }
+                  }
+                },
+                "example": {
+                  "access_token": "sk_prod_eyJhbGciOiJIUzI1NiIs...",
+                  "token_type": "Bearer",
+                  "expires_in": 3600,
+                  "company_id": "comp_abc123",
+                  "company_name": "My Store"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/payments": {
+      "post": {
+        "operationId": "createPayment",
+        "summary": "Create a payment",
+        "description": "Create a new payment. Supports PIX, credit card, boleto, and cryptocurrency (LTC). Requires an idempotency key.",
+        "tags": ["Payments"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentRequest"
+              },
+              "example": {
+                "amount": 49.90,
+                "methods": ["PIX"],
+                "currency": "BRL",
+                "mode": "hosted",
+                "description": "Order #1234",
+                "externalId": "order-1234",
+                "expiresInMinutes": 30,
+                "customer": {
+                  "name": "Maria Silva",
+                  "email": "maria@example.com",
+                  "document": "12345678900"
+                },
+                "returnUrl": "https://mystore.com/order/1234",
+                "metadata": {
+                  "order_id": "1234",
+                  "source": "website"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payment": { "$ref": "#/components/schemas/Payment" }
                   }
                 }
               }
             }
           },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
         }
       },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
+      "get": {
+        "operationId": "listPayments",
+        "summary": "List payments",
+        "description": "Retrieve a paginated list of payments with optional filters.",
+        "tags": ["Payments"],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/PaymentStatus" },
+            "description": "Filter by payment status."
           },
-          "required": true
-        },
+          {
+            "name": "method",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/PaymentMethod" },
+            "description": "Filter by payment method."
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Start of date range (ISO 8601)."
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "End of date range (ISO 8601)."
+          },
+          {
+            "name": "minAmount",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Minimum payment amount."
+          },
+          {
+            "name": "maxAmount",
+            "in": "query",
+            "schema": { "type": "number" },
+            "description": "Maximum payment amount."
+          },
+          {
+            "name": "externalId",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by your external ID."
+          },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
         "responses": {
           "200": {
-            "description": "plant response",
+            "description": "Payments listed.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Plant"
+                  "type": "object",
+                  "properties": {
+                    "payments": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Payment" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
                 }
               }
             }
           },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
+    "/v1/payments/{paymentId}": {
+      "get": {
+        "operationId": "getPayment",
+        "summary": "Get a payment",
+        "description": "Retrieve a single payment by its ID.",
+        "tags": ["Payments"],
         "parameters": [
           {
-            "name": "id",
+            "name": "paymentId",
             "in": "path",
-            "description": "ID of plant to delete",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The payment ID."
           }
         ],
         "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
+          "200": {
+            "description": "Payment found.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": {
+                    "payment": { "$ref": "#/components/schemas/Payment" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/payments/txid/{txId}": {
+      "get": {
+        "operationId": "getPaymentByTxId",
+        "summary": "Get payment by transaction ID",
+        "description": "Retrieve a payment using the YuvexPay transaction ID (`txId`) instead of the UUID.",
+        "tags": ["Payments"],
+        "parameters": [
+          {
+            "name": "txId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The YuvexPay transaction ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payment": { "$ref": "#/components/schemas/Payment" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/payments/{paymentId}/refund": {
+      "post": {
+        "operationId": "refundPayment",
+        "summary": "Refund a payment",
+        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key.",
+        "tags": ["Payments"],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The payment ID to refund."
+          },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundPaymentRequest"
+              },
+              "example": {
+                "amount": 25.00,
+                "reason": "Customer requested refund"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Refund created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "refund": { "$ref": "#/components/schemas/Refund" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      }
+    },
+    "/v1/payments/{paymentId}/refunds": {
+      "get": {
+        "operationId": "listRefunds",
+        "summary": "List refunds",
+        "description": "Retrieve all refunds for a specific payment.",
+        "tags": ["Payments"],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The payment ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refunds listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "refunds": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Refund" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/withdrawals": {
+      "post": {
+        "operationId": "createWithdrawal",
+        "summary": "Create a withdrawal",
+        "description": "Create a PIX or crypto withdrawal to transfer funds from your YuvexPay balance. Requires an idempotency key. Withdrawals may be blocked outside business hours or if your account has restrictions.",
+        "tags": ["Withdrawals"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWithdrawalRequest"
+              },
+              "examples": {
+                "pix": {
+                  "summary": "PIX withdrawal",
+                  "value": {
+                    "amount": 500.00,
+                    "method": "PIX",
+                    "currency": "BRL",
+                    "destination": {
+                      "type": "pix",
+                      "pixKey": "12345678900",
+                      "recipientDocument": "12345678900"
+                    },
+                    "description": "Weekly payout"
+                  }
+                },
+                "crypto": {
+                  "summary": "Crypto withdrawal",
+                  "value": {
+                    "amount": 100.00,
+                    "method": "CRYPTO_LTC",
+                    "currency": "LTC",
+                    "destination": {
+                      "type": "crypto",
+                      "walletAddress": "ltc1q...",
+                      "network": "litecoin_mainnet"
+                    }
+                  }
                 }
               }
             }
           }
+        },
+        "responses": {
+          "201": {
+            "description": "Withdrawal created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "withdrawal": { "$ref": "#/components/schemas/Withdrawal" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Withdrawals blocked for this account.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" }
+              }
+            }
+          },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      },
+      "get": {
+        "operationId": "listWithdrawals",
+        "summary": "List withdrawals",
+        "description": "Retrieve a paginated list of withdrawals with optional filters.",
+        "tags": ["Withdrawals"],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/WithdrawalStatus" },
+            "description": "Filter by withdrawal status."
+          },
+          {
+            "name": "method",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/PaymentMethod" },
+            "description": "Filter by payment method."
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "schema": { "$ref": "#/components/schemas/Currency" },
+            "description": "Filter by currency."
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Start of date range (ISO 8601)."
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "End of date range (ISO 8601)."
+          },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawals listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "withdrawals": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Withdrawal" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/v1/withdrawals/limits": {
+      "get": {
+        "operationId": "getWithdrawalLimits",
+        "summary": "Get withdrawal limits",
+        "description": "Retrieve your current daily withdrawal limits, usage, and fee information. Limits are reduced during nighttime hours (22:00-06:00 BRT).",
+        "tags": ["Withdrawals"],
+        "responses": {
+          "200": {
+            "description": "Limits retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WithdrawalLimits"
+                },
+                "example": {
+                  "currentLimit": 5000.00,
+                  "used": 1200.00,
+                  "remaining": 3800.00,
+                  "isNightTime": false,
+                  "fee": 2.49,
+                  "dayStartHour": 6,
+                  "dayEndHour": 22
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/withdrawals/{withdrawalId}": {
+      "get": {
+        "operationId": "getWithdrawal",
+        "summary": "Get a withdrawal",
+        "description": "Retrieve a single withdrawal by its ID.",
+        "tags": ["Withdrawals"],
+        "parameters": [
+          {
+            "name": "withdrawalId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The withdrawal ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Withdrawal found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "withdrawal": { "$ref": "#/components/schemas/Withdrawal" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/products": {
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "description": "Create a new product in your catalog. Products can be referenced when creating payments to pre-fill amount and description.",
+        "tags": ["Products"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              },
+              "example": {
+                "name": "Premium Plan",
+                "description": "Monthly premium subscription",
+                "amount": 99.90,
+                "externalId": "plan-premium",
+                "metadata": {
+                  "tier": "premium",
+                  "billing": "monthly"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      },
+      "get": {
+        "operationId": "listProducts",
+        "summary": "List products",
+        "description": "Retrieve a paginated list of products with optional search and filters.",
+        "tags": ["Products"],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Search products by name."
+          },
+          {
+            "name": "isActive",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["true", "false"] },
+            "description": "Filter by active status."
+          },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/PaginationWithPages" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/products/{productId}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Get a product",
+        "description": "Retrieve a single product by its ID.",
+        "tags": ["Products"],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The product ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateProduct",
+        "summary": "Update a product",
+        "description": "Update one or more fields of an existing product.",
+        "tags": ["Products"],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The product ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": { "$ref": "#/components/schemas/Product" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProduct",
+        "summary": "Deactivate a product",
+        "description": "Soft-delete a product by setting it as inactive. The product data is preserved but it can no longer be used in new payments.",
+        "tags": ["Products"],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The product ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product deactivated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/products/external/{externalId}": {
+      "get": {
+        "operationId": "getProductByExternalId",
+        "summary": "Get product by external ID",
+        "description": "Retrieve a product using your own external ID instead of the YuvexPay UUID.",
+        "tags": ["Products"],
+        "parameters": [
+          {
+            "name": "externalId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 100 },
+            "description": "Your external product ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/customers": {
+      "post": {
+        "operationId": "createCustomer",
+        "summary": "Create a customer",
+        "description": "Create a new customer record. Customers can be associated with payments for tracking and recurring billing.",
+        "tags": ["Customers"],
+        "parameters": [
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerRequest"
+              },
+              "example": {
+                "name": "Maria Silva",
+                "email": "maria@example.com",
+                "document": "12345678900",
+                "documentType": "CPF",
+                "phone": "+5511999999999",
+                "externalId": "cust-001",
+                "metadata": {
+                  "plan": "premium"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customer": { "$ref": "#/components/schemas/Customer" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/IdempotencyConflict" }
+        }
+      },
+      "get": {
+        "operationId": "listCustomers",
+        "summary": "List customers",
+        "description": "Retrieve a paginated list of customers with optional search and filters.",
+        "tags": ["Customers"],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Search by name, email, or document."
+          },
+          {
+            "name": "isActive",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["true", "false"] },
+            "description": "Filter by active status."
+          },
+          { "$ref": "#/components/parameters/Page" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customers listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customers": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Customer" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/PaginationWithPages" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/v1/customers/{customerId}": {
+      "get": {
+        "operationId": "getCustomer",
+        "summary": "Get a customer",
+        "description": "Retrieve a single customer by their ID, including metadata.",
+        "tags": ["Customers"],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customer": { "$ref": "#/components/schemas/CustomerDetail" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "operationId": "updateCustomer",
+        "summary": "Update a customer",
+        "description": "Update one or more fields of an existing customer.",
+        "tags": ["Customers"],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The customer ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customer": { "$ref": "#/components/schemas/Customer" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCustomer",
+        "summary": "Deactivate a customer",
+        "description": "Soft-delete a customer by setting them as inactive. Customer data is preserved.",
+        "tags": ["Customers"],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer deactivated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/customers/external/{externalId}": {
+      "get": {
+        "operationId": "getCustomerByExternalId",
+        "summary": "Get customer by external ID",
+        "description": "Retrieve a customer using your own external ID instead of the YuvexPay UUID.",
+        "tags": ["Customers"],
+        "parameters": [
+          {
+            "name": "externalId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 100 },
+            "description": "Your external customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "customer": { "$ref": "#/components/schemas/Customer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/documents/payments/{paymentId}/receipt": {
+      "get": {
+        "operationId": "getPaymentReceipt",
+        "summary": "Get payment receipt",
+        "description": "Generate a receipt document for a specific payment. Available in HTML or plain text format.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The payment ID."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["html", "text"], "default": "html" },
+            "description": "Output format."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt generated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The receipt content in the requested format."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/documents/withdrawals/{withdrawalId}/receipt": {
+      "get": {
+        "operationId": "getWithdrawalReceipt",
+        "summary": "Get withdrawal receipt",
+        "description": "Generate a receipt document for a specific withdrawal. Available in HTML or plain text format.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "withdrawalId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The withdrawal ID."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["html", "text"], "default": "html" },
+            "description": "Output format."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Receipt generated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The receipt content in the requested format."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/v1/documents/statements": {
+      "get": {
+        "operationId": "getStatement",
+        "summary": "Get account statement",
+        "description": "Generate an account statement for a date range. Maximum range is 90 days.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "description": "Start date in `YYYY-MM-DD` format.",
+            "example": "2026-01-01"
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "description": "End date in `YYYY-MM-DD` format.",
+            "example": "2026-01-31"
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["html", "text"], "default": "html" },
+            "description": "Output format."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Statement generated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string",
+                      "description": "The statement content in the requested format."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     }
   },
   "webhooks": {
-    "/plant/webhook": {
+    "payment.paid": {
       "post": {
-        "description": "Information about a new plant added to the store",
+        "summary": "Payment paid",
+        "description": "Triggered when a payment is confirmed and funds are received.",
+        "tags": ["Webhooks"],
         "requestBody": {
-          "description": "Plant added to the store",
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
+              "schema": { "$ref": "#/components/schemas/WebhookEvent" },
+              "example": {
+                "id": "evt_abc123",
+                "type": "PAYMENT_PAID",
+                "data": {
+                  "id": "pay_xyz789",
+                  "txId": "YVX-20260414-ABC",
+                  "status": "PAID",
+                  "amount": 49.90
+                }
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
+          "200": { "description": "Return a 2xx status to acknowledge receipt." }
+        }
+      }
+    },
+    "payment.expired": {
+      "post": {
+        "summary": "Payment expired",
+        "description": "Triggered when a payment expires before being completed.",
+        "tags": ["Webhooks"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WebhookEvent" }
+            }
           }
+        },
+        "responses": {
+          "200": { "description": "Return a 2xx status to acknowledge receipt." }
+        }
+      }
+    },
+    "payment.refunded": {
+      "post": {
+        "summary": "Payment refunded",
+        "description": "Triggered when a payment refund is completed.",
+        "tags": ["Webhooks"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WebhookEvent" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Return a 2xx status to acknowledge receipt." }
+        }
+      }
+    },
+    "withdrawal.sent": {
+      "post": {
+        "summary": "Withdrawal sent",
+        "description": "Triggered when a withdrawal is successfully processed.",
+        "tags": ["Webhooks"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WebhookEvent" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Return a 2xx status to acknowledge receipt." }
+        }
+      }
+    },
+    "withdrawal.failed": {
+      "post": {
+        "summary": "Withdrawal failed",
+        "description": "Triggered when a withdrawal fails to process.",
+        "tags": ["Webhooks"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WebhookEvent" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Return a 2xx status to acknowledge receipt." }
         }
       }
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API access token obtained from POST /oauth/token. Include as `Authorization: Bearer {token}`."
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "X-Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "maxLength": 100 },
+        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours."
+      },
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "default": 1 },
+        "description": "Page number for pagination."
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+        "description": "Number of items per page (1-100)."
+      }
+    },
     "schemas": {
-      "Plant": {
-        "required": [
-          "name"
+      "PaymentMethod": {
+        "type": "string",
+        "enum": ["PIX", "CARD", "BOLETO", "CRYPTO_LTC"],
+        "description": "Available payment methods."
+      },
+      "Currency": {
+        "type": "string",
+        "enum": ["BRL", "LTC"],
+        "description": "Supported currencies."
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": ["NEW", "PENDING_METHOD_SELECTION", "PROCESSING", "CONFIRMED", "PAID", "CANCELLED", "EXPIRED", "REFUNDED", "PARTIAL_REFUND", "CHARGEBACK", "MED_FROZEN"],
+        "description": "Possible payment statuses."
+      },
+      "WithdrawalStatus": {
+        "type": "string",
+        "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED"],
+        "description": "Possible withdrawal statuses."
+      },
+      "TransactionStatus": {
+        "type": "string",
+        "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUNDED"],
+        "description": "Generic transaction status."
+      },
+      "WebhookEventType": {
+        "type": "string",
+        "enum": [
+          "PAYMENT_CONFIRMED",
+          "PAYMENT_PAID",
+          "PAYMENT_EXPIRED",
+          "PAYMENT_REFUNDED",
+          "PAYMENT_REFUND_FAILED",
+          "PAYMENT_CHARGEBACK",
+          "MED_RECEIVED",
+          "MED_RESOLVED",
+          "WITHDRAWAL_REQUESTED",
+          "WITHDRAWAL_SENT",
+          "WITHDRAWAL_FAILED"
         ],
+        "description": "Supported webhook event types."
+      },
+      "CreatePaymentRequest": {
         "type": "object",
         "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Link this payment to an existing product. If set, `amount` is optional and defaults to the product price."
           },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Link this payment to an existing customer."
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 1000000,
+            "description": "Payment amount. Required unless `productId` is provided."
+          },
+          "methods": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PaymentMethod" },
+            "minItems": 1,
+            "default": ["PIX"],
+            "description": "Accepted payment methods."
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency",
+            "default": "BRL"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["hosted", "headless"],
+            "default": "headless",
+            "description": "`hosted` redirects the payer to a YuvexPay checkout page. `headless` returns payment data (e.g., QR code) for your own UI."
+          },
+          "returnUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to redirect the payer after payment (hosted mode)."
+          },
+          "completionUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL to redirect the payer after successful payment completion."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Payment description shown to the payer."
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Your own reference ID (e.g., order number)."
+          },
+          "expiresInMinutes": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 1440,
+            "default": 60,
+            "description": "Minutes until the payment expires (5-1440)."
+          },
+          "customer": {
+            "type": "object",
+            "description": "Inline customer data. Creates or matches an existing customer.",
+            "properties": {
+              "name": { "type": "string" },
+              "document": { "type": "string", "description": "CPF or CNPJ." },
+              "email": { "type": "string", "format": "email" }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Arbitrary key-value pairs attached to the payment."
+          },
+          "split": {
+            "type": "array",
+            "maxItems": 10,
+            "description": "Split the payment across multiple recipients.",
+            "items": {
+              "type": "object",
+              "required": ["recipientId"],
+              "properties": {
+                "recipientId": { "type": "string", "format": "uuid" },
+                "amount": { "type": "number", "description": "Fixed amount for this recipient." },
+                "percentage": { "type": "number", "description": "Percentage of the payment for this recipient." }
+              }
+            }
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
+      "RefundPaymentRequest": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0.01,
+            "description": "Refund amount. Omit for a full refund."
           },
-          {
-            "required": [
-              "id"
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Reason for the refund."
+          }
+        }
+      },
+      "CreateWithdrawalRequest": {
+        "type": "object",
+        "required": ["amount", "destination"],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 10,
+            "maximum": 1000000,
+            "multipleOf": 0.01,
+            "description": "Withdrawal amount (minimum R$10.00)."
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethod",
+            "default": "PIX"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/Currency",
+            "default": "BRL"
+          },
+          "destination": {
+            "description": "Where to send the funds.",
+            "oneOf": [
+              {
+                "type": "object",
+                "title": "PIX destination",
+                "required": ["type", "pixKey"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["pix"] },
+                  "pixKey": { "type": "string", "minLength": 1, "description": "PIX key (CPF, CNPJ, email, phone, or random key)." },
+                  "recipientDocument": { "type": "string", "minLength": 11, "maxLength": 18, "description": "Recipient CPF or CNPJ for validation." }
+                }
+              },
+              {
+                "type": "object",
+                "title": "Crypto destination",
+                "required": ["type", "walletAddress"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["crypto"] },
+                  "walletAddress": { "type": "string", "minLength": 1, "description": "Cryptocurrency wallet address." },
+                  "network": { "type": "string", "default": "litecoin_mainnet", "description": "Blockchain network." }
+                }
+              }
             ],
+            "discriminator": {
+              "propertyName": "type"
+            }
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Internal description for this withdrawal."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Your own idempotency key (in addition to the header)."
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "externalId": { "type": "string", "maxLength": 100, "description": "Your own product ID." },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200, "description": "Product name." },
+          "description": { "type": "string", "maxLength": 1000, "description": "Product description." },
+          "amount": { "type": "number", "minimum": 0.01, "maximum": 1000000, "description": "Default price." },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "amount": { "type": ["number", "null"], "minimum": 0.01, "maximum": 1000000, "description": "Set to `null` to remove the default price." },
+          "isActive": { "type": "boolean" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "CreateCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "externalId": { "type": "string", "maxLength": 100, "description": "Your own customer ID." },
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "document": { "type": "string", "maxLength": 20, "description": "CPF or CNPJ number." },
+          "documentType": { "type": "string", "enum": ["CPF", "CNPJ"] },
+          "phone": { "type": "string", "maxLength": 20 },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "UpdateCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "document": { "type": "string", "maxLength": 20 },
+          "documentType": { "type": "string", "enum": ["CPF", "CNPJ"] },
+          "phone": { "type": "string", "maxLength": 20 },
+          "isActive": { "type": "boolean" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "txId": { "type": "string", "description": "YuvexPay transaction ID." },
+          "amount": { "type": "number" },
+          "feeAmount": { "type": "number" },
+          "netAmount": { "type": "number" },
+          "status": { "$ref": "#/components/schemas/PaymentStatus" },
+          "paymentMethod": { "$ref": "#/components/schemas/PaymentMethod" },
+          "currency": { "$ref": "#/components/schemas/Currency" },
+          "description": { "type": "string" },
+          "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "methodData": {
+            "type": "object",
+            "description": "Payment method-specific data (QR code for PIX, barcode for boleto, etc.).",
+            "properties": {
+              "type": { "$ref": "#/components/schemas/PaymentMethod" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "Refund": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "txId": { "type": "string" },
+          "amount": { "type": "number" },
+          "reason": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/TransactionStatus" },
+          "processedAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Withdrawal": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "txId": { "type": "string" },
+          "grossAmount": { "type": "number" },
+          "feeAmount": { "type": "number" },
+          "netAmount": { "type": "number" },
+          "pixKey": { "type": "string" },
+          "pixKeyType": { "type": "string", "description": "Type of PIX key (CPF, CNPJ, EMAIL, PHONE, RANDOM)." },
+          "status": { "$ref": "#/components/schemas/WithdrawalStatus" },
+          "isSandbox": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WithdrawalLimits": {
+        "type": "object",
+        "properties": {
+          "currentLimit": { "type": "number", "description": "Current daily limit in BRL." },
+          "used": { "type": "number", "description": "Amount already withdrawn today." },
+          "remaining": { "type": "number", "description": "Remaining withdrawal capacity." },
+          "isNightTime": { "type": "boolean", "description": "Whether reduced night limits are active." },
+          "fee": { "type": "number", "description": "Withdrawal fee (flat amount in BRL)." },
+          "dayStartHour": { "type": "integer", "description": "Hour when daytime limits begin (BRT)." },
+          "dayEndHour": { "type": "integer", "description": "Hour when nighttime limits begin (BRT)." }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "amount": { "type": "number" },
+          "externalId": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "document": { "type": "string" },
+          "phone": { "type": "string" },
+          "externalId": { "type": "string" },
+          "isActive": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CustomerDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Customer" },
+          {
             "type": "object",
             "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
-              }
+              "metadata": { "type": "object", "additionalProperties": { "type": "string" } },
+              "updatedAt": { "type": "string", "format": "date-time" }
             }
           }
         ]
       },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "hasMore": { "type": "boolean" }
+        }
+      },
+      "PaginationWithPages": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "totalPages": { "type": "integer" }
+        }
+      },
       "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
         "type": "object",
         "properties": {
           "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "description": "Machine-readable error code." },
+              "message": { "type": "string", "description": "Human-readable error message." },
+              "details": { "type": "object", "description": "Additional error context." }
+            }
           }
+        }
+      },
+      "OAuthError": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "error_description": { "type": "string" }
+        }
+      },
+      "WebhookEvent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Unique event ID." },
+          "type": { "$ref": "#/components/schemas/WebhookEventType" },
+          "data": { "type": "object", "description": "Event payload containing the resource data." }
         }
       }
     },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+    "responses": {
+      "ValidationError": {
+        "description": "Validation error.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid request body",
+                "details": { "amount": "Must be greater than 0.01" }
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid authentication token.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": { "code": "UNAUTHORIZED", "message": "Invalid or expired token" }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": { "code": "NOT_FOUND", "message": "Resource not found" }
+            }
+          }
+        }
+      },
+      "IdempotencyConflict": {
+        "description": "Idempotency conflict. The key was already used with a different payload.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": { "code": "IDEMPOTENCY_PAYLOAD_MISMATCH", "message": "Idempotency key already used with a different request body" }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded.",
+        "headers": {
+          "X-RateLimit-Limit": { "schema": { "type": "integer" }, "description": "Request limit per window." },
+          "X-RateLimit-Remaining": { "schema": { "type": "integer" }, "description": "Remaining requests in window." },
+          "X-RateLimit-Reset": { "schema": { "type": "integer" }, "description": "Seconds until the window resets." }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" },
+            "example": {
+              "error": { "code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests" }
+            }
+          }
+        }
       }
     }
   }

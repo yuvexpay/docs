@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "YuvexPay",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -17,32 +17,18 @@
             "group": "Getting started",
             "pages": [
               "index",
-              "quickstart",
-              "development"
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/authentication",
+              "guides/webhooks",
+              "guides/idempotency",
+              "guides/errors",
+              "guides/rate-limiting",
+              "guides/environments"
             ]
           }
         ]
@@ -51,18 +37,65 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
               "api-reference/introduction"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Authentication",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/auth/token"
+            ]
+          },
+          {
+            "group": "Payments",
+            "pages": [
+              "api-reference/payments/create",
+              "api-reference/payments/list",
+              "api-reference/payments/get",
+              "api-reference/payments/get-by-txid",
+              "api-reference/payments/refund",
+              "api-reference/payments/list-refunds"
+            ]
+          },
+          {
+            "group": "Withdrawals",
+            "pages": [
+              "api-reference/withdrawals/create",
+              "api-reference/withdrawals/list",
+              "api-reference/withdrawals/get",
+              "api-reference/withdrawals/limits"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api-reference/products/create",
+              "api-reference/products/list",
+              "api-reference/products/get",
+              "api-reference/products/get-by-external-id",
+              "api-reference/products/update",
+              "api-reference/products/delete"
+            ]
+          },
+          {
+            "group": "Customers",
+            "pages": [
+              "api-reference/customers/create",
+              "api-reference/customers/list",
+              "api-reference/customers/get",
+              "api-reference/customers/get-by-external-id",
+              "api-reference/customers/update",
+              "api-reference/customers/delete"
+            ]
+          },
+          {
+            "group": "Documents",
+            "pages": [
+              "api-reference/documents/payment-receipt",
+              "api-reference/documents/withdrawal-receipt",
+              "api-reference/documents/statement"
             ]
           }
         ]
@@ -71,14 +104,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "Dashboard",
+          "href": "https://app.yuvexpay.com",
+          "icon": "gauge"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "API status",
+          "href": "https://status.yuvexpay.com",
+          "icon": "signal"
         }
       ]
     }
@@ -91,32 +124,37 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@yuvexpay.com"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "href": "https://app.yuvexpay.com"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/yuvexpay"
     }
-  }
+  },
+  "api": {
+    "baseUrl": "https://api.yuvexpay.com",
+    "auth": {
+      "method": "bearer"
+    }
+  },
+  "openapi": "api-reference/openapi.json"
 }

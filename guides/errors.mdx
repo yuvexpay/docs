@@ -1,0 +1,129 @@
+---
+title: "Error handling"
+description: "Understand API error codes and how to handle them."
+---
+
+The YuvexPay API uses standard HTTP status codes and returns structured error responses.
+
+## Error response format
+
+All errors follow a consistent structure:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid request body",
+    "details": {
+      "amount": "Must be greater than 0.01"
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `error.code` | string | Machine-readable error code. |
+| `error.message` | string | Human-readable description. |
+| `error.details` | object | Additional context (optional). |
+
+## HTTP status codes
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Success. |
+| `201` | Resource created. |
+| `400` | Bad request (validation error, missing fields). |
+| `401` | Unauthorized (invalid or expired token). |
+| `403` | Forbidden (insufficient permissions). |
+| `404` | Resource not found. |
+| `409` | Conflict (idempotency key mismatch). |
+| `429` | Rate limit exceeded. |
+| `500` | Internal server error. |
+| `503` | Service unavailable. |
+
+## Error codes
+
+### Authentication errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `UNAUTHORIZED` | 401 | Missing, invalid, or expired access token. |
+| `FORBIDDEN` | 403 | Token is valid but lacks permission for this action. |
+
+### Validation errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `VALIDATION_ERROR` | 400 | Request body or query parameters failed validation. Check `details` for specifics. |
+
+### Idempotency errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `IDEMPOTENCY_KEY_REQUIRED` | 400 | POST endpoints that require an `X-Idempotency-Key` header. |
+| `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The same idempotency key was used with a different request body. |
+| `IDEMPOTENCY_CONFLICT` | 409 | The request is still being processed from a previous attempt. |
+
+### Rate limiting errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests. Check response headers for reset timing. |
+
+### Resource errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `NOT_FOUND` | 404 | The requested resource does not exist or does not belong to your account. |
+
+### Server errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `INTERNAL_ERROR` | 500 | Unexpected server error. Retry with exponential backoff. |
+| `SERVICE_UNAVAILABLE` | 503 | The service is temporarily unavailable. Retry after a short delay. |
+
+## Handling errors
+
+```javascript
+async function createPayment(data) {
+  const response = await fetch("https://api.yuvexpay.com/v1/payments", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Idempotency-Key": generateIdempotencyKey(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const { error } = await response.json();
+
+    switch (response.status) {
+      case 400:
+        // Fix the request based on error.details
+        console.error("Validation error:", error.details);
+        break;
+      case 401:
+        // Token expired - generate a new one and retry
+        await refreshToken();
+        return createPayment(data);
+      case 409:
+        // Idempotency conflict - safe to return the original response
+        console.warn("Duplicate request detected");
+        break;
+      case 429:
+        // Rate limited - wait and retry
+        const retryAfter = response.headers.get("X-RateLimit-Reset");
+        await sleep(retryAfter * 1000);
+        return createPayment(data);
+      default:
+        throw new Error(`API error: ${error.message}`);
+    }
+  }
+
+  return response.json();
+}
+```

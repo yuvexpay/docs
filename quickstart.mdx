@@ -1,80 +1,217 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Create your first payment with the YuvexPay API in under 5 minutes."
 ---
 
-## Get started in three steps
+## 1. Get your API credentials
 
-Get your documentation site running locally and make your first customization.
+Log in to the [YuvexPay dashboard](https://app.yuvexpay.com) and navigate to **Settings > API Credentials**. Create a new credential pair to get your `client_id` and `client_secret`.
 
-### Step 1: Set up your local environment
+<Tip>
+  Start with **sandbox credentials** to test without processing real transactions. Sandbox tokens are prefixed with `sk_sandbox_`.
+</Tip>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+## 2. Generate an access token
 
-### Step 2: Deploy your changes
+Exchange your credentials for an access token:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.yuvexpay.com/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "grant_type": "client_credentials"
+  }'
+```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```javascript Node.js
+const response = await fetch("https://api.yuvexpay.com/oauth/token", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    client_id: "your_client_id",
+    client_secret: "your_client_secret",
+    grant_type: "client_credentials",
+  }),
+});
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+const { access_token } = await response.json();
+```
 
-### Step 3: Go live
+```python Python
+import requests
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+response = requests.post("https://api.yuvexpay.com/oauth/token", json={
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "grant_type": "client_credentials",
+})
+
+access_token = response.json()["access_token"]
+```
+</CodeGroup>
+
+The response includes an `access_token` valid for 1 hour:
+
+```json
+{
+  "access_token": "sk_prod_eyJhbGciOi...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "company_id": "comp_abc123",
+  "company_name": "My Store"
+}
+```
+
+## 3. Create a payment
+
+Use the token to create a PIX payment:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.yuvexpay.com/v1/payments \
+  -H "Authorization: Bearer sk_prod_eyJhbGciOi..." \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: order-1234-attempt-1" \
+  -d '{
+    "amount": 49.90,
+    "methods": ["PIX"],
+    "currency": "BRL",
+    "mode": "hosted",
+    "description": "Order #1234",
+    "externalId": "order-1234",
+    "expiresInMinutes": 30,
+    "returnUrl": "https://mystore.com/order/1234",
+    "customer": {
+      "name": "Maria Silva",
+      "email": "maria@example.com"
+    }
+  }'
+```
+
+```javascript Node.js
+const payment = await fetch("https://api.yuvexpay.com/v1/payments", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${access_token}`,
+    "Content-Type": "application/json",
+    "X-Idempotency-Key": "order-1234-attempt-1",
+  },
+  body: JSON.stringify({
+    amount: 49.90,
+    methods: ["PIX"],
+    currency: "BRL",
+    mode: "hosted",
+    description: "Order #1234",
+    externalId: "order-1234",
+    expiresInMinutes: 30,
+    returnUrl: "https://mystore.com/order/1234",
+    customer: {
+      name: "Maria Silva",
+      email: "maria@example.com",
+    },
+  }),
+});
+
+const { payment: data } = await payment.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.yuvexpay.com/v1/payments",
+    headers={
+        "Authorization": f"Bearer {access_token}",
+        "X-Idempotency-Key": "order-1234-attempt-1",
+    },
+    json={
+        "amount": 49.90,
+        "methods": ["PIX"],
+        "currency": "BRL",
+        "mode": "hosted",
+        "description": "Order #1234",
+        "externalId": "order-1234",
+        "expiresInMinutes": 30,
+        "returnUrl": "https://mystore.com/order/1234",
+        "customer": {
+            "name": "Maria Silva",
+            "email": "maria@example.com",
+        },
+    },
+)
+
+data = response.json()["payment"]
+```
+</CodeGroup>
+
+The response contains the payment details with method-specific data:
+
+```json
+{
+  "payment": {
+    "id": "pay_abc123",
+    "txId": "YVX-20260414-ABC",
+    "amount": 49.90,
+    "feeAmount": 2.99,
+    "netAmount": 46.91,
+    "status": "PROCESSING",
+    "paymentMethod": "PIX",
+    "currency": "BRL",
+    "description": "Order #1234",
+    "expiresAt": "2026-04-14T13:30:00.000Z",
+    "createdAt": "2026-04-14T13:00:00.000Z",
+    "methodData": {
+      "type": "PIX",
+      "qrCode": "00020126...",
+      "qrCodeBase64": "data:image/png;base64,..."
+    }
+  }
+}
+```
+
+## 4. Listen for webhooks
+
+Set up a webhook endpoint to receive payment notifications. Configure it in the dashboard under **Settings > Webhooks**.
+
+When the customer pays, you receive a `PAYMENT_PAID` event:
+
+```json
+{
+  "id": "evt_xyz789",
+  "type": "PAYMENT_PAID",
+  "data": {
+    "id": "pay_abc123",
+    "txId": "YVX-20260414-ABC",
+    "status": "PAID",
+    "amount": 49.90
+  }
+}
+```
+
+<Card
+  title="Webhook guide"
+  icon="arrow-right"
+  href="/guides/webhooks"
+>
+  Learn how to verify webhook signatures and handle all event types.
+</Card>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Columns cols={2}>
+  <Card title="API reference" icon="book" href="/api-reference/introduction">
+    Explore all available endpoints.
+  </Card>
+  <Card title="Webhooks" icon="bell" href="/guides/webhooks">
+    Set up real-time event notifications.
+  </Card>
+  <Card title="Error handling" icon="circle-exclamation" href="/guides/errors">
+    Handle errors and edge cases.
+  </Card>
+  <Card title="Environments" icon="flask" href="/guides/environments">
+    Understand sandbox vs. production.
+  </Card>
+</Columns>

@@ -1,0 +1,72 @@
+---
+title: "Authentication"
+description: "Authenticate your API requests using OAuth 2.0 client credentials."
+---
+
+All API requests to `/v1/*` endpoints require a Bearer token in the `Authorization` header.
+
+## Obtaining credentials
+
+1. Log in to the [YuvexPay dashboard](https://app.yuvexpay.com).
+2. Navigate to **Settings > API Credentials**.
+3. Click **Create credential** and choose the environment (sandbox or production).
+4. Save the `client_id` and `client_secret` securely.
+
+<Warning>
+  The `client_secret` is shown only once at creation. Store it in a secure location like a secrets manager.
+</Warning>
+
+## Generating a token
+
+Exchange your credentials for an access token using the OAuth 2.0 client credentials flow:
+
+```bash
+curl -X POST https://api.yuvexpay.com/oauth/token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_id": "your_client_id",
+    "client_secret": "your_client_secret",
+    "grant_type": "client_credentials"
+  }'
+```
+
+```json Response
+{
+  "access_token": "sk_prod_eyJhbGciOi...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "company_id": "comp_abc123",
+  "company_name": "My Store"
+}
+```
+
+## Using the token
+
+Include the token in the `Authorization` header of every API request:
+
+```bash
+curl https://api.yuvexpay.com/v1/payments \
+  -H "Authorization: Bearer sk_prod_eyJhbGciOi..."
+```
+
+## Token lifecycle
+
+| Property | Value |
+|----------|-------|
+| Expiration | 1 hour (3600 seconds) |
+| Max active tokens | 2 per credential |
+| Token prefix (production) | `sk_prod_` |
+| Token prefix (sandbox) | `sk_sandbox_` |
+
+Tokens expire after 1 hour. Your application should generate a new token before the current one expires. If you exceed the maximum of 2 active tokens per credential, the oldest token is automatically revoked.
+
+## Environments
+
+The same API URL (`https://api.yuvexpay.com`) serves both production and sandbox requests. The environment is determined by which credentials you use to generate the token:
+
+- **Production credentials** produce `sk_prod_*` tokens that process real transactions.
+- **Sandbox credentials** produce `sk_sandbox_*` tokens that simulate transactions without moving real money.
+
+<Tip>
+  Use sandbox credentials during development and testing. Switch to production credentials when you're ready to go live.
+</Tip>
