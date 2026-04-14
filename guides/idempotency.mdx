@@ -11,7 +11,7 @@ Include an `X-Idempotency-Key` header with a unique string on any POST request t
 
 ```bash
 curl -X POST https://api.yuvexpay.com/v1/payments \
-  -H "Authorization: Bearer sk_prod_..." \
+  -H "Authorization: Bearer ypt_..." \
   -H "X-Idempotency-Key: order-1234-v1" \
   -H "Content-Type: application/json" \
   -d '{"amount": 49.90, "methods": ["PIX"]}'

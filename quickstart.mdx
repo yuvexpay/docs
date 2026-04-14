@@ -8,7 +8,7 @@ description: "Create your first payment with the YuvexPay API in under 5 minutes
 Log in to the [YuvexPay dashboard](https://app.yuvexpay.com) and navigate to **Settings > API Credentials**. Create a new credential pair to get your `client_id` and `client_secret`.
 
 <Tip>
-  Start with **sandbox credentials** to test without processing real transactions. Sandbox tokens are prefixed with `sk_sandbox_`.
+  Start with **sandbox credentials** to test without processing real transactions. Sandbox `client_secret` values are prefixed with `sk_sandbox_`, while access tokens are prefixed with `ypt_`.
 </Tip>
 
 ## 2. Generate an access token
@@ -57,7 +57,7 @@ The response includes an `access_token` valid for 1 hour:
 
 ```json
 {
-  "access_token": "sk_prod_eyJhbGciOi...",
+  "access_token": "ypt_abc123example",
   "token_type": "Bearer",
   "expires_in": 3600,
   "company_id": "comp_abc123",
@@ -72,18 +72,17 @@ Use the token to create a PIX payment:
 <CodeGroup>
 ```bash cURL
 curl -X POST https://api.yuvexpay.com/v1/payments \
-  -H "Authorization: Bearer sk_prod_eyJhbGciOi..." \
+  -H "Authorization: Bearer ypt_abc123example" \
   -H "Content-Type: application/json" \
   -H "X-Idempotency-Key: order-1234-attempt-1" \
   -d '{
     "amount": 49.90,
     "methods": ["PIX"],
     "currency": "BRL",
-    "mode": "hosted",
+    "mode": "headless",
     "description": "Order #1234",
     "externalId": "order-1234",
     "expiresInMinutes": 30,
-    "returnUrl": "https://mystore.com/order/1234",
     "customer": {
       "name": "Maria Silva",
       "email": "maria@example.com"
@@ -103,11 +102,10 @@ const payment = await fetch("https://api.yuvexpay.com/v1/payments", {
     amount: 49.90,
     methods: ["PIX"],
     currency: "BRL",
-    mode: "hosted",
+    mode: "headless",
     description: "Order #1234",
     externalId: "order-1234",
     expiresInMinutes: 30,
-    returnUrl: "https://mystore.com/order/1234",
     customer: {
       name: "Maria Silva",
       email: "maria@example.com",
@@ -131,11 +129,10 @@ response = requests.post(
         "amount": 49.90,
         "methods": ["PIX"],
         "currency": "BRL",
-        "mode": "hosted",
+        "mode": "headless",
         "description": "Order #1234",
         "externalId": "order-1234",
         "expiresInMinutes": 30,
-        "returnUrl": "https://mystore.com/order/1234",
         "customer": {
             "name": "Maria Silva",
             "email": "maria@example.com",
@@ -153,11 +150,11 @@ The response contains the payment details with method-specific data:
 {
   "payment": {
     "id": "pay_abc123",
-    "txId": "YVX-20260414-ABC",
-    "amount": 49.90,
+    "txId": "PAY_ABC123XYZ",
+    "amount": 49.9,
     "feeAmount": 2.99,
     "netAmount": 46.91,
-    "status": "PROCESSING",
+    "status": "NEW",
     "paymentMethod": "PIX",
     "currency": "BRL",
     "description": "Order #1234",
@@ -165,12 +162,49 @@ The response contains the payment details with method-specific data:
     "createdAt": "2026-04-14T13:00:00.000Z",
     "methodData": {
       "type": "PIX",
-      "qrCode": "00020126...",
-      "qrCodeBase64": "data:image/png;base64,..."
+      "pixCopyPaste": "00020126...",
+      "qrCodeBase64": "data:image/png;base64,...",
+      "qrCodeUrl": null
     }
   }
 }
 ```
+
+## Direct credit card charges
+
+For headless direct credit card charges, send a single `CARD` method together with the `card` payload. The payer must have `name` and `document` available through `customer` or `customerId`.
+
+```json
+{
+  "amount": 149.9,
+  "methods": ["CARD"],
+  "currency": "BRL",
+  "mode": "headless",
+  "customer": {
+    "name": "Maria Silva",
+    "document": "12345678900",
+    "email": "maria@example.com",
+    "phone": "+5511999999999"
+  },
+  "card": {
+    "number": "4111111111111111",
+    "expiryMonth": "12",
+    "expiryYear": "2030",
+    "ccv": "123",
+    "installments": 1,
+    "remoteIp": "198.51.100.23",
+    "holderInfo": {
+      "postalCode": "01310930",
+      "addressNumber": "100",
+      "phone": "+5511999999999"
+    }
+  }
+}
+```
+
+<Tip>
+  `card` is only accepted for `headless` single-method `CARD` payments. Hosted and multi-method card flows continue through checkout, and debit card entry stays in the hosted flow.
+</Tip>
 
 ## 4. Listen for webhooks
 

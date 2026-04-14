@@ -18,7 +18,7 @@ All API requests must be made over HTTPS. The same URL serves both sandbox and p
 All `/v1/*` endpoints require a Bearer token obtained from the [OAuth token endpoint](/api-reference/auth/token):
 
 ```bash
-Authorization: Bearer sk_prod_eyJhbGciOi...
+Authorization: Bearer ypt_abc123...
 ```
 
 See the [authentication guide](/guides/authentication) for the full OAuth 2.0 client credentials flow.
@@ -35,10 +35,10 @@ See the [authentication guide](/guides/authentication) for the full OAuth 2.0 cl
 
 <Columns cols={2}>
   <Card title="Payments" icon="credit-card" href="/api-reference/payments/create">
-    Create and manage payments via PIX, card, boleto, or crypto.
+    Create and manage payments via PIX, direct card charges, hosted card checkout, or boleto.
   </Card>
   <Card title="Withdrawals" icon="money-bill-transfer" href="/api-reference/withdrawals/create">
-    Transfer funds from your balance via PIX or crypto.
+    Transfer BRL funds from your balance via PIX.
   </Card>
   <Card title="Products" icon="box" href="/api-reference/products/create">
     Manage your product catalog.
