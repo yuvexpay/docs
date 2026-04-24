@@ -1,73 +1,111 @@
 ---
 title: "Authentication"
-description: "Authenticate your API requests using OAuth 2.0 client credentials."
+description: "Authenticate your API requests with a YuvexPay API key."
 ---
 
-All API requests to `/v1/*` endpoints require a Bearer token in the `Authorization` header.
+All requests to `/v1/*` endpoints are authenticated with an **API key** sent as
+a Bearer token in the `Authorization` header. There is no separate token
+exchange — the key itself is the credential.
 
-## Obtaining credentials
+## Creating an API key
 
 1. Log in to the [YuvexPay dashboard](https://app.yuvexpay.com).
-2. Navigate to **Settings > API Credentials**.
-3. Click **Create credential** and choose the environment (sandbox or production).
-4. Save the `client_id` and `client_secret` securely.
+2. Open **Settings > API Keys**.
+3. Click **Create key**, choose the environment (sandbox or production) and
+   pick the scopes the integration needs (see below).
+4. Copy the key — it is shown only once at creation.
 
 <Warning>
-  The `client_secret` is shown only once at creation. Store it in a secure location like a secrets manager.
+  The key secret is shown only once. Store it in a secrets manager or
+  environment variable (`YUVEX_API_KEY`). If it leaks, revoke it from the
+  dashboard and create a new one.
 </Warning>
 
-## Generating a token
+## Key format
 
-Exchange your credentials for an access token using the OAuth 2.0 client credentials flow:
+A full key has the shape:
 
-```bash
-curl -X POST https://api.yuvexpay.com/oauth/token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_id": "your_client_id",
-    "client_secret": "your_client_secret",
-    "grant_type": "client_credentials"
-  }'
+```
+ypk_<env>_<kid>_<secret>
 ```
 
-```json Response
-{
-  "access_token": "ypt_abc123example",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "company_id": "comp_abc123",
-  "company_name": "My Store"
-}
-```
+- `ypk` — fixed prefix.
+- `<env>` — `test` for sandbox, `live` for production.
+- `<kid>` — the public key id (10 characters). Safe to log; we also show it in
+  the dashboard so you can identify which key was used.
+- `<secret>` — the private material (32 characters). Never log this.
 
-## Using the token
+For example, a sandbox key looks like
+`ypk_test_ab12cd34ef_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` and a production key
+looks like `ypk_live_ab12cd34ef_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`.
 
-Include the token in the `Authorization` header of every API request:
+## Using the key
+
+Include the key as a Bearer token on every request:
 
 ```bash
 curl https://api.yuvexpay.com/v1/payments \
-  -H "Authorization: Bearer ypt_abc123example"
+  -H "Authorization: Bearer ypk_test_ab12cd34ef_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-## Token lifecycle
+```javascript Node.js
+await fetch("https://api.yuvexpay.com/v1/payments", {
+  headers: {
+    "Authorization": `Bearer ${process.env.YUVEX_API_KEY}`,
+  },
+});
+```
 
-| Property | Value |
-|----------|-------|
-| Expiration | 1 hour (3600 seconds) |
-| Max active tokens | 2 per credential |
-| Access token prefix | `ypt_` |
-| Production client_secret prefix | `sk_prod_` |
-| Sandbox client_secret prefix | `sk_sandbox_` |
+```python Python
+import os, requests
 
-Tokens expire after 1 hour. Your application should generate a new token before the current one expires. If you exceed the maximum of 2 active tokens per credential, the oldest token is automatically revoked.
+requests.get(
+    "https://api.yuvexpay.com/v1/payments",
+    headers={"Authorization": f"Bearer {os.environ['YUVEX_API_KEY']}"},
+)
+```
+
+## Scopes
+
+Each API key carries an explicit list of scopes. A request that calls an
+endpoint outside the key's scopes is rejected with `403 FORBIDDEN`.
+
+| Scope | What it allows |
+|-------|----------------|
+| `payments:write` | Create payments and refunds |
+| `payments:read` | List and fetch payments |
+| `payments:refund` | Issue refunds on an existing payment |
+| `withdrawals:write` | Create withdrawals |
+| `withdrawals:read` | List and fetch withdrawals |
+| `customers:write` | Create and update customers |
+| `customers:read` | List and fetch customers |
+| `products:write` | Create and update products |
+| `products:read` | List and fetch products |
+| `documents:read` | Read statements and documents |
+| `webhooks:read` | List webhook deliveries |
+
+Choose the smallest set of scopes the integration needs. A public-website key
+that only creates PIX charges only needs `payments:write`.
 
 ## Environments
 
-The same API URL (`https://api.yuvexpay.com`) serves both production and sandbox requests. The environment is determined by which credentials you use to generate the token:
+The same base URL (`https://api.yuvexpay.com`) serves both environments — the
+key prefix decides which bucket the request lands in:
 
-- **Production credentials** use `sk_prod_*` client secrets and produce `ypt_*` bearer tokens that process real transactions.
-- **Sandbox credentials** use `sk_sandbox_*` client secrets and produce `ypt_*` bearer tokens that simulate transactions without moving real money.
+- **`ypk_test_...`** → Sandbox. Fake money, predictable provider behaviour,
+  webhooks fire, no financial impact.
+- **`ypk_live_...`** → Production. Real provider, real settlement, real money.
 
 <Tip>
-  Use sandbox credentials during development and testing. Switch to production credentials when you're ready to go live.
+  Use a `ypk_test_` key during development. Switch the environment variable to
+  a `ypk_live_` key on deploy — the code path stays identical.
 </Tip>
+
+## IP allowlist and rotation
+
+Keys support an optional IP/CIDR allowlist (set it per key in the dashboard).
+When set, requests from outside the allowlist are rejected even if the key is
+valid.
+
+Rotate keys by creating a new one, updating the integration, then revoking the
+old one. Key creation, rotation and revocation are auditable in the dashboard.

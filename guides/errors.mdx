@@ -48,8 +48,8 @@ All errors follow a consistent structure:
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `UNAUTHORIZED` | 401 | Missing, invalid, or expired access token. |
-| `FORBIDDEN` | 403 | Token is valid but lacks permission for this action. |
+| `UNAUTHORIZED` | 401 | Missing or invalid API key. |
+| `FORBIDDEN` | 403 | Key is valid but lacks the required scope, or the request came from an IP outside the key's allowlist. |
 
 ### Validation errors
 
@@ -91,7 +91,7 @@ async function createPayment(data) {
   const response = await fetch("https://api.yuvexpay.com/v1/payments", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${token}`,
+      "Authorization": `Bearer ${process.env.YUVEX_API_KEY}`,
       "Content-Type": "application/json",
       "X-Idempotency-Key": generateIdempotencyKey(),
     },
@@ -103,19 +103,17 @@ async function createPayment(data) {
 
     switch (response.status) {
       case 400:
-        // Fix the request based on error.details
         console.error("Validation error:", error.details);
         break;
       case 401:
-        // Token expired - generate a new one and retry
-        await refreshToken();
-        return createPayment(data);
+      case 403:
+
+
+        throw new Error(`Auth failed: ${error.code} — ${error.message}`);
       case 409:
-        // Idempotency conflict - safe to return the original response
         console.warn("Duplicate request detected");
         break;
       case 429:
-        // Rate limited - wait and retry
         const retryAfter = response.headers.get("X-RateLimit-Reset");
         await sleep(retryAfter * 1000);
         return createPayment(data);

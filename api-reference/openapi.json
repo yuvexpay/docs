@@ -23,10 +23,6 @@
   ],
   "tags": [
     {
-      "name": "Authentication",
-      "description": "OAuth 2.0 client credentials flow"
-    },
-    {
       "name": "Payments",
       "description": "Create and manage payments"
     },
@@ -48,107 +44,6 @@
     }
   ],
   "paths": {
-    "/oauth/token": {
-      "post": {
-        "operationId": "createToken",
-        "summary": "Generate access token",
-        "description": "Exchange your API credentials for a short-lived access token using the OAuth 2.0 client credentials flow. Tokens expire after 1 hour. A maximum of 2 active tokens per credential is enforced.",
-        "tags": [
-          "Authentication"
-        ],
-        "security": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "client_id",
-                  "client_secret",
-                  "grant_type"
-                ],
-                "properties": {
-                  "client_id": {
-                    "type": "string",
-                    "description": "Your API client ID, found in the dashboard under API credentials."
-                  },
-                  "client_secret": {
-                    "type": "string",
-                    "description": "Your API client secret."
-                  },
-                  "grant_type": {
-                    "type": "string",
-                    "enum": [
-                      "client_credentials"
-                    ],
-                    "description": "Must be `client_credentials`."
-                  }
-                }
-              },
-              "example": {
-                "client_id": "cred_abc123",
-                "client_secret": "secret_xyz789",
-                "grant_type": "client_credentials"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Token generated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "access_token": {
-                      "type": "string",
-                      "description": "The Bearer token to use in API requests. Access tokens are prefixed with `ypt_`."
-                    },
-                    "token_type": {
-                      "type": "string",
-                      "enum": [
-                        "Bearer"
-                      ]
-                    },
-                    "expires_in": {
-                      "type": "integer",
-                      "description": "Token validity in seconds (3600 = 1 hour)."
-                    },
-                    "company_id": {
-                      "type": "string",
-                      "description": "The company ID associated with this token."
-                    },
-                    "company_name": {
-                      "type": "string",
-                      "description": "The company name."
-                    }
-                  }
-                },
-                "example": {
-                  "access_token": "ypt_abc123example",
-                  "token_type": "Bearer",
-                  "expires_in": 3600,
-                  "company_id": "comp_abc123",
-                  "company_name": "My Store"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid credentials.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OAuthError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/payments": {
       "post": {
         "operationId": "createPayment",
@@ -180,8 +75,8 @@
                 "externalId": "order-1234",
                 "expiresInMinutes": 30,
                 "customer": {
-                  "name": "Maria Silva",
-                  "email": "maria@example.com",
+                  "name": "Pedro Álvares Cabral",
+                  "email": "user@example.com",
                   "phone": "+5511999999999",
                   "document": "12345678900"
                 },
@@ -204,8 +99,8 @@
                     "externalId": "order-1234",
                     "expiresInMinutes": 30,
                     "customer": {
-                      "name": "Maria Silva",
-                      "email": "maria@example.com",
+                      "name": "Pedro Álvares Cabral",
+                      "email": "user@example.com",
                       "phone": "+5511999999999",
                       "document": "12345678900"
                     },
@@ -227,8 +122,8 @@
                     "description": "Order #5678",
                     "externalId": "order-5678",
                     "customer": {
-                      "name": "Maria Silva",
-                      "email": "maria@example.com",
+                      "name": "Pedro Álvares Cabral",
+                      "email": "user@example.com",
                       "phone": "+5511999999999",
                       "document": "12345678900"
                     },
@@ -1246,8 +1141,8 @@
                 "$ref": "#/components/schemas/CreateCustomerRequest"
               },
               "example": {
-                "name": "Maria Silva",
-                "email": "maria@example.com",
+                "name": "Pedro Álvares Cabral",
+                "email": "user@example.com",
                 "document": "12345678900",
                 "documentType": "CPF",
                 "phone": "+5511999999999",
@@ -1863,7 +1758,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "API access token obtained from POST /oauth/token. Include as `Authorization: Bearer {token}`."
+        "description": "YuvexPay API key. Include as `Authorization: Bearer ypk_<env>_<kid>_<secret>` where `<env>` is `test` (sandbox) or `live` (production). Create and manage keys in the dashboard under **Settings > API Keys**."
       }
     },
     "parameters": {
@@ -2692,17 +2587,6 @@
                 "description": "Additional error context."
               }
             }
-          }
-        }
-      },
-      "OAuthError": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string"
-          },
-          "error_description": {
-            "type": "string"
           }
         }
       },

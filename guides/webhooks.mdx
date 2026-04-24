@@ -76,7 +76,7 @@ function verifyWebhookSignature(payload, signature, secret) {
   );
 }
 
-// In your webhook handler:
+
 app.post("/webhook", (req, res) => {
   const signature = req.headers["x-webhook-signature"];
   const isValid = verifyWebhookSignature(
@@ -89,7 +89,7 @@ app.post("/webhook", (req, res) => {
     return res.status(401).send("Invalid signature");
   }
 
-  // Process the event
+  
   const { type, data } = req.body;
   console.log(`Received ${type}:`, data);
 

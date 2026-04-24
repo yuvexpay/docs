@@ -11,7 +11,7 @@ Include an `X-Idempotency-Key` header with a unique string on any POST request t
 
 ```bash
 curl -X POST https://api.yuvexpay.com/v1/payments \
-  -H "Authorization: Bearer ypt_..." \
+  -H "Authorization: Bearer ypk_test_..." \
   -H "X-Idempotency-Key: order-1234-v1" \
   -H "Content-Type: application/json" \
   -d '{"amount": 49.90, "methods": ["PIX"]}'
@@ -41,13 +41,13 @@ If you send the same request with the same idempotency key, the API returns the 
 Use a value that uniquely identifies the business operation, not just a random string:
 
 ```javascript
-// Good: tied to the business entity
+
 const key = `order-${orderId}-payment-v1`;
 
-// Good: UUID for one-off operations
+
 const key = crypto.randomUUID();
 
-// Bad: timestamp alone (not unique enough)
+
 const key = Date.now().toString();
 ```
 

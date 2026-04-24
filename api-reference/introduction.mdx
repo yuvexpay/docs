@@ -11,25 +11,29 @@ The YuvexPay API is organized around REST. It accepts JSON request bodies, retur
 https://api.yuvexpay.com
 ```
 
-All API requests must be made over HTTPS. The same URL serves both sandbox and production environments -- the environment is determined by your API credentials.
+All API requests must be made over HTTPS. The same URL serves both sandbox and
+production — the environment is determined by which API key you send. Sandbox
+keys are prefixed with `ypk_test_`, production keys with `ypk_live_`.
 
 ## Authentication
 
-All `/v1/*` endpoints require a Bearer token obtained from the [OAuth token endpoint](/api-reference/auth/token):
+All `/v1/*` endpoints authenticate with an **API key** sent as a Bearer token.
+Create keys in the dashboard under **Settings > API Keys**:
 
 ```bash
-Authorization: Bearer ypt_abc123...
+Authorization: Bearer ypk_test_<kid>_<secret>
 ```
 
-See the [authentication guide](/guides/authentication) for the full OAuth 2.0 client credentials flow.
+See the [authentication guide](/guides/authentication) for the full key format,
+scopes and rotation workflow.
 
 ## Request headers
 
 | Header | Required | Description |
 |--------|----------|-------------|
-| `Authorization` | Yes | `Bearer {access_token}` |
+| `Authorization` | Yes | `Bearer ypk_<env>_<kid>_<secret>` — your API key. |
 | `Content-Type` | Yes (POST/PATCH) | `application/json` |
-| `X-Idempotency-Key` | Yes (some POST) | Unique key for safe retries. See [idempotency](/guides/idempotency). |
+| `X-Idempotency-Key` | Yes (all write POST) | Unique key for safe retries. See [idempotency](/guides/idempotency). |
 
 ## Resources
 
@@ -49,7 +53,7 @@ See the [authentication guide](/guides/authentication) for the full OAuth 2.0 cl
   <Card title="Documents" icon="file-lines" href="/api-reference/documents/payment-receipt">
     Generate receipts and account statements.
   </Card>
-  <Card title="Authentication" icon="key" href="/api-reference/auth/token">
-    Generate and manage API access tokens.
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    API key format, scopes, rotation and environments.
   </Card>
 </Columns>

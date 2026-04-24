@@ -43,12 +43,6 @@
             ]
           },
           {
-            "group": "Authentication",
-            "pages": [
-              "api-reference/auth/token"
-            ]
-          },
-          {
             "group": "Payments",
             "pages": [
               "api-reference/payments/create",

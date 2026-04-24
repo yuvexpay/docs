@@ -16,7 +16,7 @@ const server = new McpServer({
   version: "1.0.0",
 });
 
-// --- Resources ---
+
 
 server.resource("openapi-spec", "yuvexpay://openapi.json", async (uri) => ({
   contents: [
@@ -72,7 +72,7 @@ server.resource(
   }
 );
 
-// --- Tools ---
+
 
 server.tool(
   "list_endpoints",
@@ -221,7 +221,6 @@ server.tool(
   "get_auth_info",
   "Get authentication instructions for the YuvexPay API.",
   async () => {
-    const tokenEndpoint = spec.paths["/oauth/token"]?.post;
     return {
       content: [
         {
@@ -229,22 +228,29 @@ server.tool(
           text: [
             "# YuvexPay API Authentication",
             "",
-            "## OAuth 2.0 Client Credentials Flow",
+            "## API key (Bearer)",
             "",
-            "1. Get client_id and client_secret from the YuvexPay dashboard.",
-            '2. POST /oauth/token with grant_type: "client_credentials".',
-            "3. Use the returned access_token as: Authorization: Bearer {token}",
-            "4. Tokens expire in 1 hour. Max 2 active tokens per credential.",
+            "1. Create an API key in the dashboard under Settings > API Keys.",
+            "2. Pick the environment (sandbox or production) and the scopes you need.",
+            "3. Send the key as: `Authorization: Bearer ypk_<env>_<kid>_<secret>`.",
+            "4. Rotate or revoke keys from the dashboard at any time.",
+            "",
+            "## Key format",
+            "",
+            "`ypk_<env>_<kid>_<secret>`",
+            "",
+            "- `<env>` — `test` for sandbox, `live` for production.",
+            "- `<kid>` — 10-char public key id (safe to log).",
+            "- `<secret>` — 32-char secret material (never log).",
             "",
             "## Environments",
-            "- Access tokens: ypt_*",
-            "- Production client_secret: sk_prod_*",
-            "- Sandbox client_secret: sk_sandbox_*",
+            "- Sandbox keys: `ypk_test_*`",
+            "- Production keys: `ypk_live_*`",
             "- Same URL: https://api.yuvexpay.com",
             "",
-            "## Token Endpoint",
+            "## Scopes",
             "",
-            tokenEndpoint ? JSON.stringify(resolveRefs(tokenEndpoint), null, 2) : "See /oauth/token",
+            "Each key carries an explicit scope list (e.g. `payments:write`, `payments:read`, `payments:refund`, `withdrawals:write`, `customers:read`, etc). Requests outside the scope get 403.",
           ].join("\n"),
         },
       ],
@@ -252,7 +258,7 @@ server.tool(
   }
 );
 
-// --- Helpers ---
+
 
 function resolveRefs(obj, depth = 0) {
   if (depth > 10) return obj;
@@ -293,11 +299,11 @@ function buildOverview() {
     "",
     `## Endpoints\n\n${endpoints.join("\n")}`,
     "",
-    `## Authentication\n\nBearer token via OAuth 2.0 client credentials. See POST /oauth/token.`,
+    `## Authentication\n\nBearer with an API key. Send \`Authorization: Bearer ypk_<env>_<kid>_<secret>\`. See the authentication guide for scopes and rotation.`,
   ].join("\n");
 }
 
-// --- Start ---
+
 
 const transport = new StdioServerTransport();
 await server.connect(transport);

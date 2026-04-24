@@ -3,44 +3,47 @@ title: "Environments"
 description: "Understand the difference between sandbox and production environments."
 ---
 
-YuvexPay provides two environments that share the same API URL but behave differently based on your credentials.
+YuvexPay provides two environments behind the same API URL. The environment is
+chosen by the API key you send — no separate hostname, no code fork.
 
 ## Sandbox vs. production
 
 | Feature | Sandbox | Production |
 |---------|---------|------------|
 | API URL | `https://api.yuvexpay.com` | `https://api.yuvexpay.com` |
-| Access token prefix | `ypt_` | `ypt_` |
-| client_secret prefix | `sk_sandbox_` | `sk_prod_` |
+| API key prefix | `ypk_test_` | `ypk_live_` |
 | Real money | No | Yes |
 | Webhooks | Simulated | Real events |
 | Rate limits | Same as production | Per-account limits |
 
-Both environments use the same API URL. The environment is determined by the credentials used to generate your access token.
-
 ## Using sandbox
 
-Create sandbox API credentials in the dashboard under **Settings > API Credentials** and select the **Sandbox** environment.
+Create a sandbox API key in the dashboard under **Settings > API Keys** and
+choose the **Sandbox** environment. The key will be prefixed with `ypk_test_`.
 
-Sandbox mode simulates the full payment lifecycle:
+Sandbox simulates the full payment lifecycle:
+
 - Payments are created with real-looking data.
-- Status transitions (PROCESSING, PAID, EXPIRED) are simulated.
+- Status transitions (`PROCESSING`, `PAID`, `EXPIRED`) are simulated.
 - Webhooks fire with simulated events.
 - No real money is moved.
 
 <Tip>
-  Use sandbox to test your entire integration flow, including webhook handling and error scenarios, before switching to production.
+  Use sandbox to test your entire integration flow, including webhook handling
+  and error scenarios, before switching to production.
 </Tip>
 
 ## Going live
 
 When you're ready to accept real payments:
 
-1. Create **production** API credentials in the dashboard.
-2. Replace your `client_id` and `client_secret` with the production values.
+1. Create a **production** API key in the dashboard (requires completed KYB).
+2. Replace your sandbox `ypk_test_...` key with the `ypk_live_...` key in your
+   environment variables.
 3. Verify your webhook endpoints handle production events correctly.
-4. Generate a production token and start processing real transactions.
+4. Start processing real transactions.
 
 <Warning>
-  Production transactions involve real money. Ensure your error handling and idempotency logic is thoroughly tested in sandbox before going live.
+  Production transactions involve real money. Ensure your error handling and
+  idempotency logic is thoroughly tested in sandbox before going live.
 </Warning>
