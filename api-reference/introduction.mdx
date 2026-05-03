@@ -21,11 +21,12 @@ All `/v1/*` endpoints authenticate with an **API key** sent as a Bearer token.
 Create keys in the dashboard under **Settings > API Keys**:
 
 ```bash
-Authorization: Bearer ypk_test_<kid>_<secret>
+Authorization: Bearer ypk_<env>_<kid>_<secret>
 ```
 
 See the [authentication guide](/guides/authentication) for the full key format,
-scopes and rotation workflow.
+scopes and rotation workflow. To inspect the key being used, call
+[`GET /v1/auth/self`](/api-reference/auth/self).
 
 ## Request headers
 
@@ -33,7 +34,27 @@ scopes and rotation workflow.
 |--------|----------|-------------|
 | `Authorization` | Yes | `Bearer ypk_<env>_<kid>_<secret>` — your API key. |
 | `Content-Type` | Yes (POST/PATCH) | `application/json` |
-| `X-Idempotency-Key` | Yes (all write POST) | Unique key for safe retries. See [idempotency](/guides/idempotency). |
+| `X-Idempotency-Key` | Yes (write POST) | Unique key for safe retries. See [idempotency](/guides/idempotency). |
+
+## Response envelope
+
+Successful responses are JSON objects keyed by the resource (`{ "payment": {...} }`,
+`{ "withdrawal": {...} }`, etc.). List responses include a `pagination` block:
+
+```json
+{
+  "payments": [ ... ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 137,
+    "totalPages": 7
+  }
+}
+```
+
+Errors follow a consistent envelope. See the [errors guide](/guides/errors)
+for codes and handling patterns.
 
 ## Resources
 
@@ -53,7 +74,7 @@ scopes and rotation workflow.
   <Card title="Documents" icon="file-lines" href="/api-reference/documents/payment-receipt">
     Generate receipts and account statements.
   </Card>
-  <Card title="Authentication" icon="key" href="/guides/authentication">
-    API key format, scopes, rotation and environments.
+  <Card title="Authentication" icon="key" href="/api-reference/auth/self">
+    Inspect the API key currently in use.
   </Card>
 </Columns>

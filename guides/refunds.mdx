@@ -1,0 +1,101 @@
+---
+title: "Refunds"
+description: "Reverse a payment back to the payer, fully or partially."
+---
+
+A refund returns funds from your YuvexPay balance back to the payer's source
+of funds. Refunds are issued via `POST /v1/payments/{paymentId}/refund`.
+
+## What can be refunded
+
+The eligibility rules are enforced server-side and surfaced in the payment
+detail response under `refundEligibility`.
+
+| Condition | Effect |
+|-----------|--------|
+| Payment is `PAID` | Refundable. |
+| Payment is `PARTIAL_REFUND` | Refundable up to the remaining amount. |
+| Payment is `EXPIRED`, `CANCELLED`, `REFUNDED`, `CHARGEBACK`, or `MED_FROZEN` | Not refundable. |
+| Payment is anticipated | Refunds are blocked until the anticipation is settled (`REFUND_BLOCKED_BY_ANTICIPATION`). |
+| Payment was processed via a non-refundable provider | `REFUND_NOT_SUPPORTED`. |
+| Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. |
+
+A refund issued for a non-eligible payment returns a `400` with one of the
+codes above.
+
+## Issue a refund
+
+Currently only **full refunds** are supported. Send no `amount` to refund the
+full remaining balance, or send the exact remaining refundable amount.
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/payments/5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d/refund \
+  -H "Authorization: Bearer $YUVEX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: refund-order-1234" \
+  -d '{
+    "reason": "Customer requested cancellation"
+  }'
+```
+
+The response contains the refund record:
+
+```json
+{
+  "refund": {
+    "id": "fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+    "txId": "REF_3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
+    "amount": 49.90,
+    "reason": "Customer requested cancellation",
+    "status": "PROCESSING",
+    "processedAt": null,
+    "createdAt": "2026-05-03T14:21:08.443Z"
+  }
+}
+```
+
+## Refund lifecycle
+
+A refund can be in one of these statuses:
+
+| Status | Meaning |
+|--------|---------|
+| `PROCESSING` | The refund was accepted and is being executed at the underlying network. |
+| `COMPLETED`  | The refund cleared and the payment moved to `REFUNDED` (or `PARTIAL_REFUND` if there is remaining balance). |
+| `FAILED`     | The refund could not be executed. The funds are returned to your balance and you can retry. |
+
+Listen for `PAYMENT_REFUNDED` and `PAYMENT_REFUND_FAILED` webhook events to
+react to status changes.
+
+## Idempotency
+
+Sending `POST /v1/payments/{paymentId}/refund` requires an
+`X-Idempotency-Key` header. Reusing the same key with the same body returns
+the original response. Reusing the key with a different body returns
+`409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+
+While a refund is being processed for a given payment, additional refund
+requests fail with `409 REFUND_IN_PROGRESS` until the current refund settles.
+
+## Listing refunds for a payment
+
+```
+GET /v1/payments/{paymentId}/refunds
+```
+
+Returns every refund that has been attempted or completed against a payment,
+in chronological order. Useful for reconciling refund flows or showing a
+history to your operations team.
+
+## Common error codes
+
+| Code | Meaning |
+|------|---------|
+| `INVALID_STATUS` | The payment is not in a refundable status. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | Only full refunds are supported. Either omit `amount` or send the full remaining refundable amount. |
+| `ALREADY_REFUNDED` | A previous refund has already returned the full balance. |
+| `REFUND_IN_PROGRESS` | A refund is currently in flight against this payment. Retry once it settles. |
+| `REFUND_NOT_SUPPORTED` | This payment was processed via a method or route that doesn't support refunds via API. |
+| `INSUFFICIENT_BALANCE_FOR_REFUND` | Your available balance is too low to cover the refund. |
+| `PSP_REFUND_FAILED` | The underlying network rejected the refund. The funds remain on your balance and you can retry. |
+| `REFUND_BLOCKED_BY_ANTICIPATION` | The payment was anticipated; refunds are blocked until anticipation settles. |

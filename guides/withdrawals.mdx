@@ -1,0 +1,126 @@
+---
+title: "Withdrawals"
+description: "Move BRL out of your YuvexPay balance via PIX."
+---
+
+A withdrawal moves available BRL from your YuvexPay balance to a destination
+PIX key. Withdrawals are created via `POST /v1/withdrawals` and processed
+asynchronously by the network.
+
+## Constraints
+
+- **Currency**: BRL only.
+- **Method**: PIX only. Other rails (boleto, TED) are not exposed via the API.
+- **Minimum amount**: `R$ 10.00`.
+- **Maximum amount per request**: `R$ 1,000,000.00`.
+- **Daily and nightly limits**: Each account has a daily limit. After
+  business hours (BRT) a smaller "nightly" limit applies. Use
+  [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) to fetch
+  the live numbers, including how much you've already used today and the
+  current `dayStartHour` / `dayEndHour` cutoffs.
+- **Recipient validation**: For CNPJ accounts, the destination PIX key must
+  belong to the company itself or to one of its registered partners. Personal
+  CPF accounts can withdraw to any PIX key associated with the same CPF.
+  Failed validation surfaces as `INVALID_WITHDRAWAL_RECIPIENT`.
+
+## Create a withdrawal
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/withdrawals \
+  -H "Authorization: Bearer $YUVEX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: payout-2026-05-03-1" \
+  -d '{
+    "amount": 250.00,
+    "method": "PIX",
+    "currency": "BRL",
+    "destination": {
+      "type": "pix",
+      "pixKey": "12345678900",
+      "recipientDocument": "12345678900"
+    },
+    "description": "Weekly payout"
+  }'
+```
+
+The response includes the withdrawal record:
+
+```json
+{
+  "withdrawal": {
+    "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+    "txId": "WIT_3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
+    "grossAmount": 250.00,
+    "feeAmount": 1.50,
+    "netAmount": 248.50,
+    "paymentMethod": "PIX",
+    "currency": "BRL",
+    "status": "PROCESSING",
+    "isSandbox": false,
+    "createdAt": "2026-05-03T14:21:08.443Z"
+  }
+}
+```
+
+The fee is deducted from your balance at the time the withdrawal is created.
+
+## Lifecycle and statuses
+
+| Status | Meaning |
+|--------|---------|
+| `PENDING`    | Created but not yet picked up by the network. |
+| `PROCESSING` | Submitted to the network and being executed. |
+| `COMPLETED`  | The recipient received the money. Fires `WITHDRAWAL_SENT`. |
+| `FAILED`     | The network rejected the transfer. Funds are returned to your balance and `WITHDRAWAL_FAILED` is fired. |
+| `CANCELLED`  | The withdrawal was cancelled before being submitted. |
+
+Listen for `WITHDRAWAL_SENT` and `WITHDRAWAL_FAILED` webhook events to react
+to status changes.
+
+<Warning>
+  When the withdrawal stays in `PROCESSING` for an extended time after a
+  network or provider error, **do not retry the withdrawal**. Doing so risks
+  sending the same money twice. Wait for the next status update or reach out
+  to support if it's stuck for more than a few minutes.
+</Warning>
+
+## PIX key in responses
+
+The `pixKey` field is **always returned masked** in withdrawal responses
+(both in `GET /v1/withdrawals` and `GET /v1/withdrawals/{withdrawalId}`).
+This is intentional: it prevents the full key from being logged or cached
+client-side. If you need to reconcile a withdrawal against your own records,
+use `txId` or your own metadata, not the masked `pixKey`.
+
+## Fees
+
+The platform's withdrawal fee is fixed per request and is reported in the
+`feeAmount` field of every withdrawal. Daytime and nighttime windows may
+charge different fees; the active values are returned by
+[`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits).
+
+## Idempotency
+
+`POST /v1/withdrawals` requires `X-Idempotency-Key`. Reusing the same key
+with the same body returns the original response. Reusing it with a different
+body returns `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+
+## Receipts
+
+Once a withdrawal is `COMPLETED` you can fetch a printable receipt:
+
+```
+GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
+```
+
+## Common error codes
+
+| Code | Meaning |
+|------|---------|
+| `WITHDRAWAL_BELOW_MINIMUM` | Amount is below `R$ 10.00`. |
+| `INSUFFICIENT_BALANCE` | The available balance is too low. |
+| `WITHDRAWAL_LIMIT_EXCEEDED` | The amount exceeds the remaining daily or nightly limit. |
+| `WITHDRAWALS_BLOCKED` | Withdrawals are currently disabled for this account. |
+| `INVALID_WITHDRAWAL_RECIPIENT` | The destination PIX key is not allowed by the recipient policy. |
+| `PIX_KEY_VALIDATION_FAILED` | The PIX key could not be validated. |
+| `VERIFICATION_REQUIRED` | The account requires additional verification before withdrawals can be processed. |

@@ -34,7 +34,7 @@ All errors follow a consistent structure:
 | `200` | Success. |
 | `201` | Resource created. |
 | `400` | Bad request (validation error, missing fields). |
-| `401` | Unauthorized (invalid or expired token). |
+| `401` | Unauthorized (missing, invalid or revoked API key). |
 | `403` | Forbidden (insufficient permissions). |
 | `404` | Resource not found. |
 | `409` | Conflict (idempotency key mismatch). |
@@ -48,8 +48,10 @@ All errors follow a consistent structure:
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `UNAUTHORIZED` | 401 | Missing or invalid API key. |
-| `FORBIDDEN` | 403 | Key is valid but lacks the required scope, or the request came from an IP outside the key's allowlist. |
+| `API_KEY_REQUIRED` | 401 | No `Authorization: Bearer` header supplied. |
+| `INVALID_API_KEY` | 401 | The key is unknown, revoked, expired, or its environment does not match the request. |
+| `FORBIDDEN` | 403 | The key is valid but lacks the required scope, or the request came from an IP outside the key's allowlist. |
+| `IP_NOT_ALLOWED` | 403 | The request came from an IP address outside the key's IP allowlist. |
 
 ### Validation errors
 
@@ -76,6 +78,41 @@ All errors follow a consistent structure:
 | Code | Status | Description |
 |------|--------|-------------|
 | `NOT_FOUND` | 404 | The requested resource does not exist or does not belong to your account. |
+
+### Payment errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `PAYMENT_CREATION_BLOCKED` | 403 | The account is currently not allowed to create payments (KYB pending, suspended, or the requested method is disabled). |
+| `AMOUNT_REQUIRED` | 400 | A direct amount is required when no `productId` is supplied. |
+| `CUSTOMER_DATA_REQUIRED` | 400 | The selected payment method requires customer data and none was provided. |
+| `CARD_HOLDER_INFO_REQUIRED` | 400 | Direct card payments require `card.holderInfo` (postal code and address number). |
+| `CARD_REMOTE_IP_REQUIRED` | 400 | Direct card payments require `card.remoteIp` (the payer's IP address). |
+| `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card installments are not currently supported; send `installments: 1` or omit. |
+| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502 | A downstream payment processor is unavailable. Retry with backoff. |
+
+### Refund errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `INVALID_STATUS` | 400 | The payment is not in a refundable status. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | Only full refunds are currently supported. Send no `amount` or send the full remaining refundable amount. |
+| `ALREADY_REFUNDED` | 400 | The payment has already been fully refunded. |
+| `REFUND_IN_PROGRESS` | 409 | A refund is already being processed for this payment. |
+| `REFUND_NOT_SUPPORTED` | 400 | Refunds are not supported for this payment method or processing route. |
+| `INSUFFICIENT_BALANCE_FOR_REFUND` | 400 | Your available balance is not sufficient to issue this refund. |
+
+### Withdrawal errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `WITHDRAWAL_BELOW_MINIMUM` | 400 | The amount is below the minimum withdrawal value. |
+| `INSUFFICIENT_BALANCE` | 400 | Your available balance is not sufficient. |
+| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit. |
+| `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for the account. |
+| `INVALID_WITHDRAWAL_RECIPIENT` | 403 | The PIX key does not belong to a permitted recipient (for CNPJ accounts, the key must match the company name or registered partners). |
+| `PIX_KEY_VALIDATION_FAILED` | 400 | The PIX key could not be validated. |
+| `VERIFICATION_REQUIRED` | 403 | Account verification is required before withdrawals can be processed. |
 
 ### Server errors
 
@@ -107,8 +144,6 @@ async function createPayment(data) {
         break;
       case 401:
       case 403:
-
-
         throw new Error(`Auth failed: ${error.code} — ${error.message}`);
       case 409:
         console.warn("Duplicate request detected");

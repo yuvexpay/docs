@@ -1,0 +1,46 @@
+# YuvexPay
+
+> YuvexPay is a Brazilian payment gateway. The public REST API at `https://api.yuvexpay.com/v1/*` lets developers accept payments (PIX, credit card, boleto), issue refunds, move money out via PIX withdrawals, and manage products, customers, statements and webhooks.
+
+All requests authenticate with a YuvexPay API key sent as a Bearer token: `Authorization: Bearer ypk_<env>_<kid>_<secret>`. `<env>` is `test` (sandbox) or `live` (production). The same base URL serves both environments.
+
+Write endpoints (`POST /v1/payments`, `POST /v1/payments/{paymentId}/refund`, `POST /v1/withdrawals`, `POST /v1/products`, `POST /v1/customers`) require an `X-Idempotency-Key` header.
+
+All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
+
+## Documentation
+
+- [Quickstart](https://docs.yuvexpay.com/quickstart): Create your first payment with a PIX QR code in under 5 minutes.
+- [Authentication](https://docs.yuvexpay.com/guides/authentication): API key format (`ypk_<env>_<kid>_<secret>`), scopes, IP allowlist, rotation, and `GET /v1/auth/self` for self-introspection.
+- [Idempotency](https://docs.yuvexpay.com/guides/idempotency): The `X-Idempotency-Key` contract: 24h TTL, 100-char limit, scoped per company and environment, payload-mismatch detection.
+- [Errors](https://docs.yuvexpay.com/guides/errors): Standard error envelope and the full code list (auth, validation, idempotency, payment, refund and withdrawal codes).
+- [Rate limiting](https://docs.yuvexpay.com/guides/rate-limiting): Per-company limits, response headers (`X-RateLimit-*`), and exponential backoff guidance.
+- [Environments](https://docs.yuvexpay.com/guides/environments): Sandbox vs. production. Same URL, different key prefix.
+- [Sandbox testing](https://docs.yuvexpay.com/guides/sandbox): Deterministic recipes — payment cents `.01` is paid, `.02` stays unpaid, `.03` cancelled, `.04` expired, `.05` MED-frozen. Withdrawal cents `.01` completed, `.02`/`.03` failed, `.04` stays processing.
+- [Payments guide](https://docs.yuvexpay.com/guides/payments): Headless PIX, headless direct CARD, hosted multi-method checkout, and BOLETO. Lifecycle from `NEW` to `PAID`/`REFUNDED`.
+- [Refunds](https://docs.yuvexpay.com/guides/refunds): Eligibility rules, full-only refund support today, lifecycle, and error codes (`REFUND_IN_PROGRESS`, `REFUND_NOT_SUPPORTED`, etc.).
+- [Withdrawals](https://docs.yuvexpay.com/guides/withdrawals): PIX-only, BRL-only, daily/nightly limits, masked `pixKey`, and the never-retry rule on ambiguous `PROCESSING`.
+- [Webhooks](https://docs.yuvexpay.com/guides/webhooks): `v1` HMAC-SHA256 signature with timestamp anti-replay (`X-Webhook-Signature`, `X-Webhook-Timestamp`), at-least-once delivery, no order guarantees, retries.
+
+## API reference
+
+- [API overview](https://docs.yuvexpay.com/api-reference/introduction)
+- [Inspect API key](https://docs.yuvexpay.com/api-reference/auth/self): `GET /v1/auth/self`
+- [Create payment](https://docs.yuvexpay.com/api-reference/payments/create): `POST /v1/payments`
+- [List payments](https://docs.yuvexpay.com/api-reference/payments/list): `GET /v1/payments`
+- [Get payment](https://docs.yuvexpay.com/api-reference/payments/get): `GET /v1/payments/{paymentId}`
+- [Get payment by txId](https://docs.yuvexpay.com/api-reference/payments/get-by-txid): `GET /v1/payments/txid/{txId}`
+- [Download boleto PDF](https://docs.yuvexpay.com/api-reference/payments/get-boleto): `GET /v1/payments/{paymentId}/boleto`
+- [Refund payment](https://docs.yuvexpay.com/api-reference/payments/refund): `POST /v1/payments/{paymentId}/refund`
+- [List refunds](https://docs.yuvexpay.com/api-reference/payments/list-refunds): `GET /v1/payments/{paymentId}/refunds`
+- [Create withdrawal](https://docs.yuvexpay.com/api-reference/withdrawals/create): `POST /v1/withdrawals`
+- [List withdrawals](https://docs.yuvexpay.com/api-reference/withdrawals/list): `GET /v1/withdrawals`
+- [Get withdrawal](https://docs.yuvexpay.com/api-reference/withdrawals/get): `GET /v1/withdrawals/{withdrawalId}`
+- [Withdrawal limits](https://docs.yuvexpay.com/api-reference/withdrawals/limits): `GET /v1/withdrawals/limits`
+- [Create product](https://docs.yuvexpay.com/api-reference/products/create): `POST /v1/products`
+- [Upload product image](https://docs.yuvexpay.com/api-reference/products/upload-image): `POST /v1/products/{productId}/image`
+- [Delete product image](https://docs.yuvexpay.com/api-reference/products/delete-image): `DELETE /v1/products/{productId}/image`
+- [Create customer](https://docs.yuvexpay.com/api-reference/customers/create): `POST /v1/customers`
+- [Get customer](https://docs.yuvexpay.com/api-reference/customers/get): `GET /v1/customers/{customerId}` — `customerId` is a `cus_*` slug, not a UUID.
+- [Payment receipt](https://docs.yuvexpay.com/api-reference/documents/payment-receipt): `GET /v1/documents/payments/{paymentId}/receipt`
+- [Account statement](https://docs.yuvexpay.com/api-reference/documents/statement): `GET /v1/documents/statements`

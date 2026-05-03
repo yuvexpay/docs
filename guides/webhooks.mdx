@@ -8,90 +8,109 @@ Webhooks let your application receive HTTP POST notifications when events happen
 ## Setting up webhooks
 
 1. Go to **Settings > Webhooks** in the [dashboard](https://app.yuvexpay.com).
-2. Click **Add webhook** and enter your endpoint URL.
+2. Click **Add webhook** and enter your endpoint URL. The URL must use HTTPS.
 3. Select the events you want to receive.
-4. Save the webhook secret for signature verification.
+4. Save the generated secret somewhere safe — it is shown only once and is required to verify incoming requests.
+
+You can register up to **two active webhook endpoints per event type per company**.
 
 ## Event types
 
 | Event | Description |
 |-------|-------------|
-| `PAYMENT_CONFIRMED` | Payment has been confirmed by the provider. |
-| `PAYMENT_PAID` | Payment is complete and funds are received. |
-| `PAYMENT_EXPIRED` | Payment expired before being completed. |
-| `PAYMENT_REFUNDED` | A refund was processed for this payment. |
+| `PAYMENT_CONFIRMED` | A card or boleto payment has been authorized by the issuer (held receivable). |
+| `PAYMENT_PAID` | The payment has cleared and net funds were credited to your balance. |
+| `PAYMENT_EXPIRED` | The payment expired before being completed. |
+| `PAYMENT_REFUNDED` | A refund completed for this payment. |
 | `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
-| `PAYMENT_CHARGEBACK` | A chargeback was filed against this payment. |
-| `MED_RECEIVED` | A MED (mediation dispute) was received. |
-| `MED_RESOLVED` | A MED dispute was resolved. |
+| `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. |
+| `MED_RECEIVED` | A PIX MED (special refund) request was opened by the payer's bank. |
+| `MED_RESOLVED` | A PIX MED was resolved (approved or rejected). |
 | `WITHDRAWAL_REQUESTED` | A withdrawal was created and is being processed. |
-| `WITHDRAWAL_SENT` | A withdrawal was successfully sent. |
-| `WITHDRAWAL_FAILED` | A withdrawal failed to process. |
+| `WITHDRAWAL_SENT` | A withdrawal was sent successfully. |
+| `WITHDRAWAL_FAILED` | A withdrawal failed and the funds were returned to your balance. |
 
 ## Webhook payload
 
-Events are delivered as JSON POST requests to your endpoint:
+Events are delivered as JSON `POST` requests:
 
 ```json
 {
-  "id": "evt_abc123",
+  "id": "evt_xyz789",
   "type": "PAYMENT_PAID",
   "data": {
-    "id": "pay_xyz789",
-    "txId": "YVX-20260414-ABC",
+    "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+    "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
     "status": "PAID",
     "amount": 49.90
   }
 }
 ```
 
-### Headers
+The fields inside `data` depend on the event type. The shape always mirrors the corresponding resource in the API reference.
 
-Each webhook request includes these headers:
+## Request headers
+
+Each webhook delivery includes these headers:
 
 | Header | Description |
 |--------|-------------|
-| `X-Webhook-Signature` | HMAC signature for verification. |
-| `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
-| `X-Webhook-Delivery-Id` | Unique delivery ID for deduplication. |
-| `User-Agent` | `YuvexPay-Webhook/1.0` |
 | `Content-Type` | `application/json` |
+| `User-Agent` | `YuvexPay-Webhook/1.0` |
+| `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
+| `X-Webhook-Delivery-Id` | A unique UUID for this delivery. Use it to deduplicate retries. |
+| `X-Webhook-Attempt` | Attempt number, starting at `1`. Increments on retries. |
+| `X-Webhook-Timestamp` | Unix timestamp (seconds) when the request was signed. |
+| `X-Webhook-Signature` | `v1=<hex-encoded HMAC-SHA256>`. See [Verifying signatures](#verifying-signatures). |
+| `X-Webhook-Signature-Legacy` | **Deprecated.** Body-only HMAC kept for backwards compatibility. Plan to remove from your verifier. |
 
 ## Verifying signatures
 
-Every webhook includes an `X-Webhook-Signature` header containing an HMAC-SHA256 signature of the request body, signed with your webhook secret.
+YuvexPay signs each delivery with the webhook secret you saved when creating the endpoint. The recommended `v1` algorithm signs both a timestamp and the raw request body, which prevents both tampering and replay attacks.
+
+```
+expected = "v1=" + hex(HMAC_SHA256(secret, timestamp + "." + raw_body))
+```
+
+To verify a request:
+
+1. Read `X-Webhook-Timestamp` and `X-Webhook-Signature` from the headers.
+2. Compute the expected signature using your stored secret and the **raw, unparsed** request body.
+3. Compare in constant time. Reject if they don't match.
+4. Reject any request whose timestamp is more than **300 seconds** off the current time. This is the recommended replay window and matches what YuvexPay applies internally.
 
 <CodeGroup>
 ```javascript Node.js
 import crypto from "crypto";
 
-function verifyWebhookSignature(payload, signature, secret) {
-  const expected = crypto
+const SKEW_SECONDS = 300;
+
+function verifyWebhook(rawBody, headers, secret) {
+  const ts = headers["x-webhook-timestamp"];
+  const sig = headers["x-webhook-signature"];
+  if (!ts || !sig) return false;
+
+  const drift = Math.abs(Math.floor(Date.now() / 1000) - parseInt(ts, 10));
+  if (drift > SKEW_SECONDS) return false;
+
+  const expected = "v1=" + crypto
     .createHmac("sha256", secret)
-    .update(payload)
+    .update(`${ts}.${rawBody}`)
     .digest("hex");
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
-  );
+
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-
-app.post("/webhook", (req, res) => {
-  const signature = req.headers["x-webhook-signature"];
-  const isValid = verifyWebhookSignature(
-    JSON.stringify(req.body),
-    signature,
-    process.env.WEBHOOK_SECRET
-  );
-
-  if (!isValid) {
+app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
+  const rawBody = req.body.toString("utf8");
+  if (!verifyWebhook(rawBody, req.headers, process.env.WEBHOOK_SECRET)) {
     return res.status(401).send("Invalid signature");
   }
 
-  
-  const { type, data } = req.body;
-  console.log(`Received ${type}:`, data);
+  const event = JSON.parse(rawBody);
+  console.log(`Received ${event.type}:`, event.data);
 
   res.status(200).send("OK");
 });
@@ -100,35 +119,55 @@ app.post("/webhook", (req, res) => {
 ```python Python
 import hmac
 import hashlib
+import time
 from flask import Flask, request
 
 app = Flask(__name__)
+SKEW_SECONDS = 300
 
-def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
-    expected = hmac.new(
-        secret.encode(), payload, hashlib.sha256
+def verify_webhook(raw_body: bytes, headers, secret: str) -> bool:
+    ts = headers.get("X-Webhook-Timestamp", "")
+    sig = headers.get("X-Webhook-Signature", "")
+    if not ts or not sig:
+        return False
+
+    if abs(int(time.time()) - int(ts)) > SKEW_SECONDS:
+        return False
+
+    expected = "v1=" + hmac.new(
+        secret.encode(),
+        f"{ts}.".encode() + raw_body,
+        hashlib.sha256,
     ).hexdigest()
-    return hmac.compare_digest(signature, expected)
+    return hmac.compare_digest(sig, expected)
 
 @app.post("/webhook")
 def webhook():
-    signature = request.headers.get("X-Webhook-Signature", "")
-    if not verify_signature(request.data, signature, WEBHOOK_SECRET):
+    if not verify_webhook(request.data, request.headers, WEBHOOK_SECRET):
         return "Invalid signature", 401
 
-    event = request.json
+    event = request.get_json()
     print(f"Received {event['type']}: {event['data']}")
     return "OK", 200
 ```
 </CodeGroup>
 
 <Warning>
-  Always verify the webhook signature before processing events. Never trust the payload without verification.
+  Always verify the `v1` signature **and** the timestamp drift before processing any event. Never trust the payload without verification.
 </Warning>
+
+## Delivery semantics
+
+YuvexPay aims to deliver every event at least once. A few characteristics worth designing around:
+
+- **At-least-once delivery.** The same event may arrive more than once. Treat `X-Webhook-Delivery-Id` as the deduplication key. If you've processed a delivery id before, return `200` and skip the side effects.
+- **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in `data.status`, not against the order of arrival.
+- **Synchronous timeout: 10 seconds.** Return `2xx` within 10 seconds. Process work asynchronously if you need longer.
+- **Redirects are not followed.** Your endpoint must respond directly.
 
 ## Retry behavior
 
-If your endpoint doesn't return a `2xx` status code, YuvexPay retries the delivery with exponential backoff:
+If your endpoint returns a non-2xx status code or fails to respond, YuvexPay retries with exponential backoff. The default schedule is:
 
 | Attempt | Delay |
 |---------|-------|
@@ -136,11 +175,13 @@ If your endpoint doesn't return a `2xx` status code, YuvexPay retries the delive
 | 2nd retry | 10 seconds |
 | 3rd retry | 20 seconds |
 
-After all retries are exhausted, the delivery is marked as `FAILED`. You can monitor delivery status and retry failed deliveries from the dashboard.
+You can configure up to 10 retries per endpoint. After all retries are exhausted, the delivery is marked `FAILED`. Failed deliveries can be inspected and manually replayed from the dashboard. A manual replay reuses the same `X-Webhook-Delivery-Id`.
 
 ## Best practices
 
-- **Return 200 quickly.** Process webhook events asynchronously. Return a `200` status immediately and handle the business logic in a background job.
-- **Handle duplicates.** Use the `X-Webhook-Delivery-Id` header to deduplicate events. The same event may be delivered more than once.
-- **Verify before trusting.** Always validate the `X-Webhook-Signature` before acting on a webhook event.
-- **Use HTTPS.** Webhook endpoints must use HTTPS in production.
+- **Verify before trusting.** Always validate the `X-Webhook-Signature` and the `X-Webhook-Timestamp` skew.
+- **Return 200 quickly.** Acknowledge receipt synchronously and do business logic in a background job.
+- **Deduplicate by delivery id.** The same event can be delivered more than once — `X-Webhook-Delivery-Id` is stable across retries and replays.
+- **Don't rely on order.** Use the payload's `status` to decide what to do, not the sequence of arrivals.
+- **Use HTTPS.** Webhook endpoints must use HTTPS.
+- **Don't log the secret.** Treat the webhook secret like an API key.

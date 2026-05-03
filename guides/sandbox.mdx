@@ -1,0 +1,100 @@
+---
+title: "Sandbox testing"
+description: "Deterministic recipes for simulating payment outcomes in the sandbox environment."
+---
+
+The sandbox environment is a full simulator: it accepts the same requests as
+production, returns the same response shapes, and emits webhooks with the same
+signature scheme. Use it to test your end-to-end integration without moving any
+real money.
+
+This guide describes the deterministic recipes the simulator uses to drive
+specific outcomes.
+
+## Selecting sandbox
+
+Send a request with a `ypk_test_...` key. There is no separate URL — the same
+`https://api.yuvexpay.com` base URL serves both environments.
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/payments \
+  -H "Authorization: Bearer ypk_test_ab12cd34ef_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: sandbox-test-1" \
+  -d '{ "amount": 49.01, "methods": ["PIX"], "currency": "BRL", "customer": { "name": "Pedro Álvares Cabral", "email": "user@example.com" } }'
+```
+
+## Payment behavior matrix
+
+Sandbox payments transition automatically based on the **decimal cents** of the
+requested amount:
+
+| Cents | Final status   | Notes |
+|-------|----------------|-------|
+| `.01` | `PAID`         | Successful payment, fires `PAYMENT_PAID`. |
+| `.02` | `NEW`          | Payer never pays — stays in `NEW` and eventually expires. |
+| `.03` | `CANCELLED`    | Cancelled by the payer or provider. |
+| `.04` | `EXPIRED`      | Expires within the configured window, fires `PAYMENT_EXPIRED`. |
+| `.05` | `MED_FROZEN`   | Goes to `PAID`, then a MED is opened — fires `MED_RECEIVED`. |
+| Any other | `PAID`     | Defaults to a successful payment. |
+
+So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
+any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates an
+instant successful payment.
+
+## Withdrawal behavior matrix
+
+Sandbox withdrawals follow the same convention:
+
+| Cents | Final status | Notes |
+|-------|--------------|-------|
+| `.01` | `COMPLETED`  | Successful payout, fires `WITHDRAWAL_SENT`. |
+| `.02` | `FAILED`     | Simulates "insufficient funds at provider", fires `WITHDRAWAL_FAILED`. |
+| `.03` | `FAILED`     | Simulates "invalid PIX key", fires `WITHDRAWAL_FAILED`. |
+| `.04` | `PROCESSING` | Stays in `PROCESSING` so you can test long-running flows. |
+| Any other | `COMPLETED` | Defaults to a successful withdrawal. |
+
+## Refund behavior matrix
+
+| Cents | Outcome    |
+|-------|------------|
+| `.01` | Success.   |
+| `.02` | Refund fails with `PSP_REFUND_FAILED`. |
+| Any other | Success. |
+
+The decimal portion is read from the **payment amount being refunded**, not the
+refund request itself.
+
+## Webhook simulation
+
+Sandbox emits webhooks for the same events production does. Sandbox webhooks
+are signed with your **sandbox** webhook secret. We recommend configuring a
+separate sandbox webhook URL in the dashboard so test traffic never lands on
+your production endpoint.
+
+See the [Webhooks guide](/guides/webhooks) for the verification algorithm.
+
+## Sandbox idempotency keys
+
+Idempotency keys are scoped per environment. The same key value can be reused in
+sandbox and production without colliding — they're separate keyspaces. Within
+sandbox, the same rules apply as in production: a 24-hour TTL and a payload
+match on retries.
+
+## Limits and isolation
+
+- Sandbox payments and withdrawals never affect your production balance or
+  reports.
+- Webhooks, statements and receipts are generated for sandbox transactions and
+  are clearly labelled as sandbox.
+- Sandbox keys cannot access production data, and vice versa.
+
+## Going live
+
+When your integration is stable:
+
+1. Create a `ypk_live_` key in the dashboard (requires completed KYB).
+2. Configure a production webhook endpoint and store its secret separately
+   from your sandbox secret.
+3. Swap the API key in your environment variables.
+4. Run a small live transaction end-to-end before opening real traffic.

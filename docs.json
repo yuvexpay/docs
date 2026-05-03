@@ -21,14 +21,23 @@
             ]
           },
           {
-            "group": "Concepts",
+            "group": "Core concepts",
             "pages": [
               "guides/authentication",
-              "guides/webhooks",
               "guides/idempotency",
               "guides/errors",
               "guides/rate-limiting",
-              "guides/environments"
+              "guides/environments",
+              "guides/sandbox"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "guides/payments",
+              "guides/refunds",
+              "guides/withdrawals",
+              "guides/webhooks"
             ]
           }
         ]
@@ -43,12 +52,19 @@
             ]
           },
           {
+            "group": "Authentication",
+            "pages": [
+              "api-reference/auth/self"
+            ]
+          },
+          {
             "group": "Payments",
             "pages": [
               "api-reference/payments/create",
               "api-reference/payments/list",
               "api-reference/payments/get",
               "api-reference/payments/get-by-txid",
+              "api-reference/payments/get-boleto",
               "api-reference/payments/refund",
               "api-reference/payments/list-refunds"
             ]
@@ -70,7 +86,9 @@
               "api-reference/products/get",
               "api-reference/products/get-by-external-id",
               "api-reference/products/update",
-              "api-reference/products/delete"
+              "api-reference/products/delete",
+              "api-reference/products/upload-image",
+              "api-reference/products/delete-image"
             ]
           },
           {
@@ -79,7 +97,6 @@
               "api-reference/customers/create",
               "api-reference/customers/list",
               "api-reference/customers/get",
-              "api-reference/customers/get-by-external-id",
               "api-reference/customers/update",
               "api-reference/customers/delete"
             ]

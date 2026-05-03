@@ -33,8 +33,14 @@ If you send the same request with the same idempotency key, the API returns the 
 
 - **Maximum length:** 100 characters.
 - **TTL:** Idempotency keys are valid for 24 hours.
+- **Scope:** Keys are scoped per company **and** environment. The same key can be used in sandbox and production without colliding — they're separate keyspaces.
 - **Payload check:** If you reuse a key with a different request body, the API returns a `409 Conflict` with error code `IDEMPOTENCY_PAYLOAD_MISMATCH`.
 - **Concurrent requests:** If a request with the same key is already being processed, the API returns a `409 Conflict` with error code `IDEMPOTENCY_CONFLICT`.
+- **Replay:** Once a request finishes (any 2xx/4xx status), subsequent retries with the same key return the original status code and body for the remainder of the 24h window.
+
+<Warning>
+  Server errors (`5xx`) are **not** stored. Retrying with the same key after a `5xx` will execute the request again, so the key remains safe for retries.
+</Warning>
 
 ## Generating keys
 

@@ -13,7 +13,7 @@
   "servers": [
     {
       "url": "https://api.yuvexpay.com",
-      "description": "Production"
+      "description": "Same base URL serves both sandbox and production. Send a `ypk_test_*` key for sandbox or a `ypk_live_*` key for production."
     }
   ],
   "security": [
@@ -22,6 +22,10 @@
     }
   ],
   "tags": [
+    {
+      "name": "Authentication",
+      "description": "Inspect the API key in use"
+    },
     {
       "name": "Payments",
       "description": "Create and manage payments"
@@ -44,6 +48,58 @@
     }
   ],
   "paths": {
+    "/v1/auth/self": {
+      "get": {
+        "operationId": "getApiKeySelf",
+        "summary": "Inspect the current API key",
+        "description": "Return metadata about the API key currently being used: id, name, environment, scopes, IP allowlist, last-used timestamp and expiration. Useful for verifying key configuration without storing it client-side.",
+        "tags": [
+          "Authentication"
+        ],
+        "responses": {
+          "200": {
+            "description": "API key metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apiKey": {
+                      "$ref": "#/components/schemas/ApiKeySelf"
+                    }
+                  }
+                },
+                "example": {
+                  "apiKey": {
+                    "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                    "name": "Backend integration",
+                    "description": null,
+                    "environment": "PRODUCTION",
+                    "prefix": "ypk_live_ab12cd34ef",
+                    "scopes": [
+                      "payments:write",
+                      "payments:read",
+                      "withdrawals:write",
+                      "withdrawals:read"
+                    ],
+                    "ipAllowlist": [
+                      "203.0.113.10"
+                    ],
+                    "rateLimitPerMinute": 600,
+                    "expiresAt": null,
+                    "lastUsedAt": "2026-05-03T14:21:08.443Z",
+                    "createdAt": "2026-04-12T09:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
     "/v1/payments": {
       "post": {
         "operationId": "createPayment",
@@ -159,8 +215,8 @@
                     "summary": "Headless PIX payment",
                     "value": {
                       "payment": {
-                        "id": "pay_abc123",
-                        "txId": "PAY_ABC123XYZ",
+                        "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                        "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
                         "amount": 49.9,
                         "feeAmount": 2.99,
                         "netAmount": 46.91,
@@ -168,8 +224,8 @@
                         "paymentMethod": "PIX",
                         "currency": "BRL",
                         "description": "Order #1234",
-                        "expiresAt": "2026-04-14T13:30:00.000Z",
-                        "createdAt": "2026-04-14T13:00:00.000Z",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
+                        "createdAt": "2026-05-03T14:30:00.000Z",
                         "methodData": {
                           "type": "PIX",
                           "pixCopyPaste": "00020126...",
@@ -183,17 +239,17 @@
                     "summary": "Headless direct credit CARD payment",
                     "value": {
                       "payment": {
-                        "id": "pay_card123",
-                        "txId": "PAY_CARD123XYZ",
+                        "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+                        "txId": "PAYa1b2c3d4e5f60718293a4b5c6d7e8f90",
                         "amount": 149.9,
                         "feeAmount": 8.25,
                         "netAmount": 141.65,
-                        "status": "PENDING",
+                        "status": "PROCESSING",
                         "paymentMethod": "CARD",
                         "currency": "BRL",
                         "description": "Order #5678",
-                        "expiresAt": "2026-04-14T13:30:00.000Z",
-                        "createdAt": "2026-04-14T13:00:00.000Z",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
+                        "createdAt": "2026-05-03T14:30:00.000Z",
                         "methodData": {
                           "type": "CARD",
                           "captureType": "DIRECT",
@@ -209,8 +265,8 @@
                     "summary": "Hosted multi-method checkout",
                     "value": {
                       "payment": {
-                        "id": "pay_hosted123",
-                        "txId": "PAY_HOSTED123XYZ",
+                        "id": "fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+                        "txId": "PAY9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e",
                         "amount": 49.9,
                         "feeAmount": 2.99,
                         "netAmount": 46.91,
@@ -220,10 +276,10 @@
                           "CARD"
                         ],
                         "currency": "BRL",
-                        "checkoutUrl": "https://checkout.yuvexpay.com/checkout/pay_hosted123",
-                        "expiresAt": "2026-04-14T13:30:00.000Z",
+                        "checkoutUrl": "https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
                         "isSandbox": true,
-                        "createdAt": "2026-04-14T13:00:00.000Z"
+                        "createdAt": "2026-05-03T14:30:00.000Z"
                       }
                     }
                   }
@@ -302,14 +358,6 @@
               "type": "number"
             },
             "description": "Maximum payment amount."
-          },
-          {
-            "name": "externalId",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by your external ID."
           },
           {
             "$ref": "#/components/parameters/Page"
@@ -425,6 +473,47 @@
                       "$ref": "#/components/schemas/Payment"
                     }
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/payments/{paymentId}/boleto": {
+      "get": {
+        "operationId": "getPaymentBoleto",
+        "summary": "Download boleto PDF",
+        "description": "Download the boleto PDF for a payment whose method is BOLETO. The response is the PDF binary; clients should treat the body as `application/pdf`.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The payment ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Boleto PDF.",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -915,7 +1004,7 @@
                       }
                     },
                     "pagination": {
-                      "$ref": "#/components/schemas/PaginationWithPages"
+                      "$ref": "#/components/schemas/Pagination"
                     }
                   }
                 }
@@ -1060,6 +1149,117 @@
                   "properties": {
                     "message": {
                       "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/products/{productId}/image": {
+      "post": {
+        "operationId": "uploadProductImage",
+        "summary": "Upload product image",
+        "description": "Upload (or replace) the image for a product. Send a single file as `multipart/form-data`. Accepted formats: PNG, JPEG. Maximum 10 MB.",
+        "tags": [
+          "Products"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The product ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Image file (PNG or JPEG, max 10 MB)."
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Image uploaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/Product"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductImage",
+        "summary": "Delete product image",
+        "description": "Remove the image associated with a product.",
+        "tags": [
+          "Products"
+        ],
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The product ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "$ref": "#/components/schemas/Product"
                     }
                   }
                 }
@@ -1231,7 +1431,7 @@
                       }
                     },
                     "pagination": {
-                      "$ref": "#/components/schemas/PaginationWithPages"
+                      "$ref": "#/components/schemas/Pagination"
                     }
                   }
                 }
@@ -1258,10 +1458,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             },
-            "description": "The customer ID."
+            "description": "The customer's prefixed identifier (e.g., `cus_ab12cd34ef`). This is the merchant-facing slug, not the internal UUID."
           }
         ],
         "responses": {
@@ -1301,10 +1500,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             },
-            "description": "The customer ID."
+            "description": "The customer's prefixed identifier (e.g., `cus_ab12cd34ef`). This is the merchant-facing slug, not the internal UUID."
           }
         ],
         "requestBody": {
@@ -1360,10 +1558,9 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             },
-            "description": "The customer ID."
+            "description": "The customer's prefixed identifier (e.g., `cus_ab12cd34ef`). This is the merchant-facing slug, not the internal UUID."
           }
         ],
         "responses": {
@@ -1376,51 +1573,6 @@
                   "properties": {
                     "message": {
                       "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
-    },
-    "/v1/customers/external/{externalId}": {
-      "get": {
-        "operationId": "getCustomerByExternalId",
-        "summary": "Get customer by external ID",
-        "description": "Retrieve a customer using your own external ID instead of the YuvexPay UUID.",
-        "tags": [
-          "Customers"
-        ],
-        "parameters": [
-          {
-            "name": "externalId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "maxLength": 100
-            },
-            "description": "Your external customer ID."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Customer found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "customer": {
-                      "$ref": "#/components/schemas/Customer"
                     }
                   }
                 }
@@ -1627,10 +1779,10 @@
     }
   },
   "webhooks": {
-    "payment.paid": {
+    "payment.confirmed": {
       "post": {
-        "summary": "Payment paid",
-        "description": "Triggered when a payment is confirmed and funds are received.",
+        "summary": "Payment confirmed",
+        "description": "Card or boleto payment was authorized by the issuer. Funds are held as receivable but not yet settled.",
         "tags": [
           "Webhooks"
         ],
@@ -1641,11 +1793,44 @@
                 "$ref": "#/components/schemas/WebhookEvent"
               },
               "example": {
-                "id": "evt_abc123",
+                "id": "evt_xyz789",
+                "type": "PAYMENT_CONFIRMED",
+                "data": {
+                  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                  "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
+                  "status": "CONFIRMED",
+                  "amount": 149.9
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "payment.paid": {
+      "post": {
+        "summary": "Payment paid",
+        "description": "Funds were received and the net amount was credited to your balance.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              },
+              "example": {
+                "id": "evt_xyz789",
                 "type": "PAYMENT_PAID",
                 "data": {
-                  "id": "pay_xyz789",
-                  "txId": "YVX-20260414-ABC",
+                  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                  "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
                   "status": "PAID",
                   "amount": 49.9
                 }
@@ -1686,7 +1871,122 @@
     "payment.refunded": {
       "post": {
         "summary": "Payment refunded",
-        "description": "Triggered when a payment refund is completed.",
+        "description": "A refund completed for this payment.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "payment.refund_failed": {
+      "post": {
+        "summary": "Payment refund failed",
+        "description": "A refund attempt could not be executed. The funds are returned to your balance and you may retry.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "payment.chargeback": {
+      "post": {
+        "summary": "Payment chargeback",
+        "description": "A chargeback was opened or processed against this payment.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "med.received": {
+      "post": {
+        "summary": "PIX MED received",
+        "description": "A PIX MED (special refund mechanism) request was opened by the payer's bank. Funds for the affected payment are temporarily held.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "med.resolved": {
+      "post": {
+        "summary": "PIX MED resolved",
+        "description": "A PIX MED request was resolved (approved or rejected).",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookEvent"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "withdrawal.requested": {
+      "post": {
+        "summary": "Withdrawal requested",
+        "description": "A withdrawal was created and is being processed.",
         "tags": [
           "Webhooks"
         ],
@@ -2381,7 +2681,8 @@
             "type": "number"
           },
           "pixKey": {
-            "type": "string"
+            "type": "string",
+            "description": "The destination PIX key, masked. The full key is never returned by the API once the withdrawal is created."
           },
           "pixKeyType": {
             "type": "string",
@@ -2416,7 +2717,8 @@
           },
           "errorMessage": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Human-readable failure message. Treat as opaque text and surface only to internal operators."
           }
         }
       },
@@ -2484,9 +2786,9 @@
       "Customer": {
         "type": "object",
         "properties": {
-          "id": {
+          "customerId": {
             "type": "string",
-            "format": "uuid"
+            "description": "Merchant-facing customer slug (e.g., `cus_ab12cd34ef`). Use this as the `{customerId}` path parameter in subsequent calls."
           },
           "name": {
             "type": "string"
@@ -2551,23 +2853,6 @@
           }
         }
       },
-      "PaginationWithPages": {
-        "type": "object",
-        "properties": {
-          "page": {
-            "type": "integer"
-          },
-          "limit": {
-            "type": "integer"
-          },
-          "total": {
-            "type": "integer"
-          },
-          "totalPages": {
-            "type": "integer"
-          }
-        }
-      },
       "Error": {
         "type": "object",
         "properties": {
@@ -2603,6 +2888,70 @@
           "data": {
             "type": "object",
             "description": "Event payload containing the resource data."
+          }
+        }
+      },
+      "ApiKeySelf": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Internal API key id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable name set in the dashboard."
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ],
+            "description": "Environment the key is bound to."
+          },
+          "prefix": {
+            "type": "string",
+            "description": "The non-secret prefix of the key (`ypk_<env>_<kid>`). Safe to log."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Permissions granted to the key."
+          },
+          "ipAllowlist": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of allowed IPs/CIDRs. Empty means no restriction."
+          },
+          "rateLimitPerMinute": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Per-key rate limit in requests per minute, or null for the account default."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Expiration timestamp, or null if the key does not expire."
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -2762,8 +3111,8 @@
             },
             "example": {
               "error": {
-                "code": "UNAUTHORIZED",
-                "message": "Invalid or expired token"
+                "code": "INVALID_API_KEY",
+                "message": "Invalid or revoked API key"
               }
             }
           }

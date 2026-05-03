@@ -1,0 +1,194 @@
+---
+title: "Payments"
+description: "Accept payments via PIX, credit card and boleto using YuvexPay."
+---
+
+A payment is a charge against a payer for a fixed amount in BRL. YuvexPay
+exposes a single `POST /v1/payments` endpoint that creates payments across
+three methods (`PIX`, `CARD`, `BOLETO`) and two presentation modes (`headless`
+and `hosted`).
+
+## Methods at a glance
+
+| Method | Headless | Hosted |
+|--------|----------|--------|
+| `PIX`     | Returns the BR-Code (copy-paste) and a QR code image. You render them in your own UI. | Returns a `checkoutUrl` to the YuvexPay-hosted checkout. |
+| `CARD`    | Direct charge: send card details server-side. **Single-method, single-installment only.** | Multi-method or multi-installment card flows. The payer enters card details on YuvexPay's hosted page. |
+| `BOLETO`  | Returns a boleto barcode and a downloadable PDF. | Available through the hosted checkout. |
+
+Pick `headless` when you want to render the payment yourself; pick `hosted`
+when you want YuvexPay to render the checkout, including method selection.
+
+## Amounts and currency
+
+- All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
+- The minimum chargeable amount is `R$ 0.01`. The maximum is `R$ 1,000,000.00`.
+- Card payments currently require `installments: 1` (a single installment). Larger card transactions must be sent through the hosted multi-installment flow.
+
+## Identifiers
+
+Every payment has two identifiers:
+
+- `id` — an internal UUID. Use it as the path parameter for `GET /v1/payments/{paymentId}` and `POST /v1/payments/{paymentId}/refund`.
+- `txId` — a stable, prefixed transaction id (`PAY` + 32 hex characters) that identifies the payment across logs, reports and the dashboard.
+
+You can also pass `externalId` on creation — typically your own order id —
+which is stored on the payment for cross-referencing. `externalId` is unique
+per company and environment.
+
+## Lifecycle
+
+```
+NEW
+  └── PROCESSING ──► CONFIRMED ──► PAID ──► PARTIAL_REFUND ──► REFUNDED
+                                       │
+                                       ├── CHARGEBACK
+                                       └── MED_FROZEN
+  └── PENDING_METHOD_SELECTION ──► (one of the above, after the payer picks a method)
+  └── EXPIRED
+  └── CANCELLED
+```
+
+| Status | Meaning |
+|--------|---------|
+| `NEW` | Created and waiting for the payer. |
+| `PENDING_METHOD_SELECTION` | A hosted multi-method checkout is created and the payer hasn't picked a method yet. |
+| `PROCESSING` | The card or PIX network is processing the charge. |
+| `CONFIRMED` | The payment was authorized but funds are not yet settled (typical for cards/boleto). |
+| `PAID` | Funds were received and credited to your balance. |
+| `EXPIRED` | The payment window passed without payment. |
+| `CANCELLED` | The payment was cancelled before being paid. |
+| `PARTIAL_REFUND` | A partial refund has been issued (currently only via inbound provider events). |
+| `REFUNDED` | A full refund has been issued. |
+| `CHARGEBACK` | A chargeback was filed and processed. |
+| `MED_FROZEN` | A PIX MED (special refund) is open; funds are temporarily held. |
+
+Listen for the corresponding [webhook events](/guides/webhooks) to react to
+status changes asynchronously.
+
+## Headless PIX
+
+Headless PIX is the simplest flow. Create the payment, render the QR code or
+copy-paste string, and listen for `PAYMENT_PAID`:
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/payments \
+  -H "Authorization: Bearer $YUVEX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: order-1234" \
+  -d '{
+    "amount": 49.90,
+    "methods": ["PIX"],
+    "currency": "BRL",
+    "mode": "headless",
+    "description": "Order #1234",
+    "externalId": "order-1234",
+    "expiresInMinutes": 30,
+    "customer": {
+      "name": "Pedro Álvares Cabral",
+      "email": "user@example.com"
+    }
+  }'
+```
+
+The response includes `methodData.pixCopyPaste` (the BR-Code string) and
+`methodData.qrCodeBase64` (a data URI). Render either to the payer.
+
+## Headless direct credit card
+
+Direct card payments charge the card immediately on creation. The payer never
+leaves your UI, but you assume PCI scope: card data flows through your
+servers.
+
+```json
+{
+  "amount": 149.90,
+  "methods": ["CARD"],
+  "currency": "BRL",
+  "mode": "headless",
+  "customer": {
+    "name": "Pedro Álvares Cabral",
+    "document": "12345678900",
+    "email": "user@example.com",
+    "phone": "+5511999999999"
+  },
+  "card": {
+    "number": "4111111111111111",
+    "expiryMonth": "12",
+    "expiryYear": "2030",
+    "ccv": "123",
+    "installments": 1,
+    "remoteIp": "198.51.100.23",
+    "holderInfo": {
+      "postalCode": "01310930",
+      "addressNumber": "100",
+      "phone": "+5511999999999"
+    }
+  }
+}
+```
+
+Direct card payments are constrained to `methods: ["CARD"]` (a single method),
+`installments: 1`, and require `card.holderInfo` and `card.remoteIp`. For
+multi-method or multi-installment card flows, use the hosted checkout.
+
+## Hosted checkout
+
+Set `mode: "hosted"` to receive a `checkoutUrl`. Redirect the payer there;
+YuvexPay handles method selection, card capture and PIX rendering.
+
+```json
+{
+  "amount": 49.90,
+  "methods": ["PIX", "CARD"],
+  "currency": "BRL",
+  "mode": "hosted",
+  "description": "Order #1234",
+  "returnUrl": "https://store.example.com/checkout/return",
+  "completionUrl": "https://store.example.com/checkout/done",
+  "customer": {
+    "name": "Pedro Álvares Cabral",
+    "email": "user@example.com"
+  }
+}
+```
+
+- `returnUrl` is where YuvexPay sends the payer if they abandon the checkout.
+- `completionUrl` is where YuvexPay redirects after a successful payment.
+
+Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
+method, then transition through the same lifecycle as a headless payment.
+
+## Fees and net amount
+
+Each payment response includes:
+
+- `amount` — the gross amount charged to the payer.
+- `feeAmount` — the YuvexPay processing fee.
+- `netAmount` — the amount credited to your balance once the payment settles.
+
+Fees are computed at creation time using the merchant's configured rate.
+`passFeeToPayer: true` shifts the fee onto the payer (the payer is charged
+`amount + feeAmount`); when `false`, the fee is deducted from `amount`.
+
+## Pagination and filtering
+
+`GET /v1/payments` supports the standard `page` (default `1`) and `limit`
+(default `20`, max `100`) parameters along with these filters:
+
+- `status` — filter by `PaymentStatus`.
+- `method` — filter by `PIX`, `CARD` or `BOLETO`.
+- `startDate` / `endDate` — ISO 8601 date or date-time bounds.
+- `minAmount` / `maxAmount` — decimal BRL bounds.
+- `environment` — `SANDBOX` or `PRODUCTION` (defaults to the API key's environment).
+
+## Receipts
+
+Once a payment is `PAID` or `REFUNDED`, you can fetch a printable receipt:
+
+```
+GET /v1/documents/payments/{paymentId}/receipt?format=html
+```
+
+See the [Documents reference](/api-reference/documents/payment-receipt) for the
+full response shape.

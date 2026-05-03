@@ -24,7 +24,7 @@ Start accepting payments in minutes with the YuvexPay API.
     icon="key"
     href="/guides/authentication"
   >
-    Learn how to authenticate your API requests using OAuth 2.0 client credentials.
+    Authenticate your API requests with a YuvexPay API key sent as a Bearer token.
   </Card>
   <Card
     title="API reference"
@@ -41,11 +41,11 @@ Start accepting payments in minutes with the YuvexPay API.
     Receive real-time notifications when payment events occur.
   </Card>
   <Card
-    title="Error handling"
-    icon="circle-exclamation"
-    href="/guides/errors"
+    title="Sandbox"
+    icon="flask"
+    href="/guides/sandbox"
   >
-    Understand error codes and how to handle them gracefully.
+    Deterministic recipes for testing your integration.
   </Card>
 </Columns>
 
@@ -55,19 +55,19 @@ Start accepting payments in minutes with the YuvexPay API.
   <Card title="PIX payments" icon="bolt">
     Instant payments via Brazil's PIX network with QR codes and copy-paste.
   </Card>
-  <Card title="Multiple methods" icon="credit-card">
-    Accept PIX, direct card charges, and boletos.
+  <Card title="Card and boleto" icon="credit-card">
+    Accept credit card and boleto payments alongside PIX.
   </Card>
   <Card title="PIX withdrawals" icon="money-bill-transfer">
-    Move BRL balance out via PIX with daily limits and compliance checks.
+    Move BRL out via PIX with daily and nightly limits.
   </Card>
   <Card title="Hosted checkout" icon="browser">
-    Use YuvexPay's hosted checkout page or headless PIX and card flows.
+    Use YuvexPay's hosted checkout page or build your own headless flow.
   </Card>
   <Card title="Webhooks" icon="webhook">
-    Real-time event notifications with automatic retries and HMAC signatures.
+    Real-time event notifications with signed payloads and automatic retries.
   </Card>
   <Card title="Sandbox" icon="flask">
-    Test your integration with sandbox credentials before going live.
+    Test the full integration before going live, with no real money moved.
   </Card>
 </Columns>

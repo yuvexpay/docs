@@ -84,6 +84,8 @@ endpoint outside the key's scopes is rejected with `403 FORBIDDEN`.
 | `documents:read` | Read statements and documents |
 | `webhooks:read` | List webhook deliveries |
 
+The wildcard `*` scope grants access to every endpoint and is reserved for trusted server-to-server integrations.
+
 Choose the smallest set of scopes the integration needs. A public-website key
 that only creates PIX charges only needs `payments:write`.
 
@@ -104,8 +106,37 @@ key prefix decides which bucket the request lands in:
 ## IP allowlist and rotation
 
 Keys support an optional IP/CIDR allowlist (set it per key in the dashboard).
-When set, requests from outside the allowlist are rejected even if the key is
-valid.
+When set, requests from outside the allowlist are rejected with
+`403 IP_NOT_ALLOWED` even if the key is otherwise valid.
 
 Rotate keys by creating a new one, updating the integration, then revoking the
 old one. Key creation, rotation and revocation are auditable in the dashboard.
+
+## Inspecting the current key
+
+Call `GET /v1/auth/self` to retrieve metadata about the key being used. The
+response is useful for verifying scopes, environment, IP allowlist and
+expiration without storing them client-side:
+
+```bash
+curl https://api.yuvexpay.com/v1/auth/self \
+  -H "Authorization: Bearer $YUVEX_API_KEY"
+```
+
+```json
+{
+  "apiKey": {
+    "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+    "name": "Backend integration",
+    "description": null,
+    "environment": "PRODUCTION",
+    "prefix": "ypk_live_ab12cd34ef",
+    "scopes": ["payments:write", "payments:read", "withdrawals:write", "withdrawals:read"],
+    "ipAllowlist": ["203.0.113.10"],
+    "rateLimitPerMinute": 600,
+    "expiresAt": null,
+    "lastUsedAt": "2026-05-03T14:21:08.443Z",
+    "createdAt": "2026-04-12T09:00:00.000Z"
+  }
+}
+```
