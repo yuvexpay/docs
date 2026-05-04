@@ -18,6 +18,10 @@ asynchronously by the network.
   [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) to fetch
   the live numbers, including how much you've already used today and the
   current `dayStartHour` / `dayEndHour` cutoffs.
+- **PIX key type**: detected automatically from `destination.pixKey`. CPF,
+  CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), and random EVP/UUID keys
+  are all accepted. Invalid keys are rejected with `INVALID_PIX_KEY`. You do
+  not need to send a `pixKeyType` field.
 - **Recipient validation**: For CNPJ accounts, the destination PIX key must
   belong to the company itself or to one of its registered partners. Personal
   CPF accounts can withdraw to any PIX key associated with the same CPF.
@@ -36,8 +40,7 @@ curl -X POST https://api.yuvexpay.com/v1/withdrawals \
     "currency": "BRL",
     "destination": {
       "type": "pix",
-      "pixKey": "12345678900",
-      "recipientDocument": "12345678900"
+      "pixKey": "ana@example.com"
     },
     "description": "Weekly payout"
   }'
@@ -121,6 +124,8 @@ GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
 | `INSUFFICIENT_BALANCE` | The available balance is too low. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | The amount exceeds the remaining daily or nightly limit. |
 | `WITHDRAWALS_BLOCKED` | Withdrawals are currently disabled for this account. |
+| `INVALID_PIX_KEY` | The destination PIX key is not a recognizable CPF, CNPJ, e-mail, phone, or random key. |
 | `INVALID_WITHDRAWAL_RECIPIENT` | The destination PIX key is not allowed by the recipient policy. |
 | `PIX_KEY_VALIDATION_FAILED` | The PIX key could not be validated. |
+| `CREDITOR_DOCUMENT_UNAVAILABLE` | Your account's CNPJ (business) or owner CPF (individual) is not on file. Complete KYB/KYC before withdrawing. |
 | `VERIFICATION_REQUIRED` | The account requires additional verification before withdrawals can be processed. |

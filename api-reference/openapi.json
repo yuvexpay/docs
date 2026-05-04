@@ -646,7 +646,7 @@
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create a withdrawal",
-        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key. Withdrawals may be blocked outside business hours or if your account has restrictions.",
+        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key.\n\nThe PIX key type (CPF, CNPJ, e-mail, phone, or random key) is detected automatically from `destination.pixKey` — you do not need to declare it. Invalid keys are rejected with `INVALID_PIX_KEY`.\n\nThe creditor document on the network is always derived server-side from your verified company tax id (CNPJ for business accounts, owner CPF for individual accounts).\n\nWithdrawals may be blocked outside business hours or if your account has restrictions.",
         "tags": [
           "Withdrawals"
         ],
@@ -671,8 +671,7 @@
                     "currency": "BRL",
                     "destination": {
                       "type": "pix",
-                      "pixKey": "12345678900",
-                      "recipientDocument": "12345678900"
+                      "pixKey": "ana@example.com"
                     },
                     "description": "Weekly payout"
                   }
@@ -2408,13 +2407,7 @@
               "pixKey": {
                 "type": "string",
                 "minLength": 1,
-                "description": "PIX key (CPF, CNPJ, email, phone, or random key)."
-              },
-              "recipientDocument": {
-                "type": "string",
-                "minLength": 11,
-                "maxLength": 18,
-                "description": "Recipient CPF or CNPJ for validation."
+                "description": "PIX key. Accepts CPF, CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), or a random EVP/UUID. The type is detected automatically; you do not need to send `pixKeyType`. Whitespace and punctuation are stripped server-side."
               }
             }
           },

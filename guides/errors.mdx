@@ -110,8 +110,10 @@ All errors follow a consistent structure:
 | `INSUFFICIENT_BALANCE` | 400 | Your available balance is not sufficient. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for the account. |
+| `INVALID_PIX_KEY` | 400 | The destination PIX key is not a recognizable CPF, CNPJ, e-mail, phone, or random key. |
 | `INVALID_WITHDRAWAL_RECIPIENT` | 403 | The PIX key does not belong to a permitted recipient (for CNPJ accounts, the key must match the company name or registered partners). |
 | `PIX_KEY_VALIDATION_FAILED` | 400 | The PIX key could not be validated. |
+| `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | Your account's CNPJ (business) or owner CPF (individual) is not on file. Complete KYB/KYC before withdrawing. |
 | `VERIFICATION_REQUIRED` | 403 | Account verification is required before withdrawals can be processed. |
 
 ### Server errors
