@@ -79,6 +79,12 @@
             ]
           },
           {
+            "group": "Balance",
+            "pages": [
+              "api-reference/balance/get"
+            ]
+          },
+          {
             "group": "Products",
             "pages": [
               "api-reference/products/create",

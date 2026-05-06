@@ -45,6 +45,10 @@
     {
       "name": "Documents",
       "description": "Generate receipts and statements"
+    },
+    {
+      "name": "Balance",
+      "description": "Inspect the current account balance"
     }
   ],
   "paths": {
@@ -889,6 +893,89 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/v1/balance": {
+      "get": {
+        "operationId": "getBalance",
+        "summary": "Get account balance",
+        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The three balance buckets are independent and additive: `available` (withdrawable now), `frozen` (reserved for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), and `held` (confirmed but pending settlement). The total account balance is `available + frozen + held`. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
+        "tags": [
+          "Balance"
+        ],
+        "responses": {
+          "200": {
+            "description": "Balance retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "balance": {
+                      "$ref": "#/components/schemas/Balance"
+                    }
+                  },
+                  "required": [
+                    "balance"
+                  ]
+                },
+                "examples": {
+                  "noFrozenFunds": {
+                    "summary": "Production balance with nothing frozen",
+                    "value": {
+                      "balance": {
+                        "available": 13.45,
+                        "frozen": 0,
+                        "held": 10.2,
+                        "total": 23.65,
+                        "currency": "BRL",
+                        "environment": "PRODUCTION",
+                        "updatedAt": "2026-05-06T12:00:00.000Z"
+                      }
+                    }
+                  },
+                  "withFrozenFunds": {
+                    "summary": "Production balance with funds frozen for an in-flight withdrawal",
+                    "value": {
+                      "balance": {
+                        "available": 6.47,
+                        "frozen": 6.99,
+                        "held": 10.2,
+                        "total": 23.66,
+                        "currency": "BRL",
+                        "environment": "PRODUCTION",
+                        "updatedAt": "2026-05-06T12:00:00.000Z"
+                      }
+                    }
+                  },
+                  "sandboxKey": {
+                    "summary": "Sandbox API key — always returns zeros",
+                    "value": {
+                      "balance": {
+                        "available": 0,
+                        "frozen": 0,
+                        "held": 0,
+                        "total": 0,
+                        "currency": "BRL",
+                        "environment": "SANDBOX",
+                        "updatedAt": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -2884,6 +2971,58 @@
           }
         }
       },
+      "Balance": {
+        "type": "object",
+        "description": "Account balance for the company associated with the API key. The four buckets `available`, `frozen`, and `held` are independent and additive — `total = available + frozen + held`.",
+        "properties": {
+          "available": {
+            "type": "number",
+            "description": "Amount available for immediate PIX withdrawal, in BRL."
+          },
+          "frozen": {
+            "type": "number",
+            "description": "Funds reserved/frozen for in-flight withdrawals, refunds, or operational holds. Not currently withdrawable, but still part of the account balance until the underlying operation reaches a terminal state. Independent from `available`."
+          },
+          "held": {
+            "type": "number",
+            "description": "Confirmed amount pending settlement (for example, card or boleto payments confirmed but not yet liquidated). Will move to `available` once settled."
+          },
+          "total": {
+            "type": "number",
+            "description": "Total account balance: `available + frozen + held`."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ],
+            "description": "Always `BRL`. Multi-currency is not yet supported on the public API."
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "SANDBOX",
+              "PRODUCTION"
+            ],
+            "description": "Environment of the API key used to make this call. Sandbox keys always return zeros."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When the balance row was last updated. `null` if the company has never had any balance activity."
+          }
+        },
+        "required": [
+          "available",
+          "frozen",
+          "held",
+          "total",
+          "currency",
+          "environment",
+          "updatedAt"
+        ]
+      },
       "ApiKeySelf": {
         "type": "object",
         "properties": {
@@ -3106,6 +3245,22 @@
               "error": {
                 "code": "INVALID_API_KEY",
                 "message": "Invalid or revoked API key"
+              }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The API key is valid but does not have the required scope for this endpoint.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "INSUFFICIENT_SCOPE",
+                "message": "Required scope missing: balance:read"
               }
             }
           }
