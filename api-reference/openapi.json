@@ -2353,6 +2353,10 @@
             },
             "description": "Arbitrary key-value pairs attached to the payment."
           },
+          "passFeeToPayer": {
+            "type": "boolean",
+            "description": "Whether the YuvexPay fee should be added on top of `amount` and charged to the payer instead of being deducted from the merchant's net. When omitted, the company-level `passFeeToPayerDefault` setting applies. Note: payments with a resolved amount below R$1,00 are always charged to the payer regardless of this value (forced passthrough to keep merchant net positive). The final decision is reflected back as `feePassedToPayer` on the Payment object."
+          },
           "card": {
             "type": "object",
             "description": "Direct credit card charge payload. Allowed only for headless single-method CARD payments and required in that flow.",
@@ -2666,13 +2670,25 @@
             "description": "YuvexPay transaction ID."
           },
           "amount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant-requested base amount, in BRL. This is the seller's intended receivable."
           },
           "feeAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "YuvexPay platform fee, in BRL. When `feePassedToPayer` is true, this equals `payerFeeAmount` and is charged on top of `amount`. When false, this is deducted from `amount` to produce `netAmount`."
           },
           "netAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant's net receivable, in BRL. Equals `amount` when `feePassedToPayer` is true; equals `amount - feeAmount` otherwise."
+          },
+          "feePassedToPayer": {
+            "type": "boolean",
+            "description": "Resolved decision (after applying the per-payment override, company default, and sub-R$1 forced passthrough) on whether the fee was added on top for the payer."
+          },
+          "payerFeeAmount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Fee amount added to the payer's total charge. Null when `feePassedToPayer` is false. When true, payer-charged total = `amount + payerFeeAmount`."
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
@@ -3098,13 +3114,28 @@
             "type": "string"
           },
           "amount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant-requested base amount. Seller receivable when `feePassedToPayer` is true."
           },
           "feeAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "YuvexPay platform fee."
           },
           "netAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant's net receivable."
+          },
+          "feePassedToPayer": {
+            "type": "boolean",
+            "description": "Resolved decision on whether the fee was added on top for the payer."
+          },
+          "payerFeeAmount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
+          },
+          "isSandbox": {
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
@@ -3158,13 +3189,25 @@
             "type": "string"
           },
           "amount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant-requested base amount. Seller receivable when `feePassedToPayer` is true."
           },
           "feeAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "YuvexPay platform fee."
           },
           "netAmount": {
-            "type": "number"
+            "type": "number",
+            "description": "Merchant's net receivable."
+          },
+          "feePassedToPayer": {
+            "type": "boolean",
+            "description": "Resolved decision on whether the fee was added on top for the payer."
+          },
+          "payerFeeAmount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
