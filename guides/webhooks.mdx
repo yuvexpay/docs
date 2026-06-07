@@ -32,7 +32,7 @@ You can register up to **two active webhook endpoints per event type per company
 
 ## Webhook payload
 
-Events are delivered as JSON `POST` requests:
+Events are delivered as JSON `POST` requests. A `PAYMENT_PAID` event carries a `payer` block describing the account that paid the PIX charge, plus the network `endToEndId` for bank reconciliation:
 
 ```json
 {
@@ -42,12 +42,47 @@ Events are delivered as JSON `POST` requests:
     "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
     "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
     "status": "PAID",
-    "amount": 49.90
+    "amount": 49.90,
+    "paidAt": "2026-06-06T12:00:00.000Z",
+    "endToEndId": "E0000000020260606120000000abc1234",
+    "payer": {
+      "name": "Maria Silva",
+      "document": "39053344705",
+      "documentType": "CPF",
+      "institutionName": "Banco Example S.A.",
+      "institutionIspb": "00000000"
+    }
   }
 }
 ```
 
-The fields inside `data` depend on the event type. The shape always mirrors the corresponding resource in the API reference.
+Every field inside `payer` is nullable, and the whole block is `null` for historical records or open-payer charges where no payer data was captured. The payer `document` (CPF/CNPJ) is returned unredacted when the full value is on file; for some open-payer charges only a masked value (e.g. `75******20`) is available. The `endToEndId` is the PIX-network end-to-end identifier (Banco Central standard), safe to use for reconciliation.
+
+A `WITHDRAWAL_SENT` event carries a `recipient` block describing the destination account:
+
+```json
+{
+  "id": "evt_abc123",
+  "type": "WITHDRAWAL_SENT",
+  "data": {
+    "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+    "txId": "WTH7f3a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
+    "netAmount": 100.00,
+    "status": "COMPLETED",
+    "endToEndId": "E0000000020260606120500000def5678",
+    "recipient": {
+      "name": "João Souza",
+      "document": "12345678901",
+      "institutionName": "Banco Example S.A.",
+      "institutionIspb": "00000000",
+      "branch": "0001",
+      "account": "123456"
+    }
+  }
+}
+```
+
+Like `payer`, every `recipient` field is nullable and the block is `null` when no recipient data was captured. These blocks are provider-agnostic: the shape is identical regardless of which PIX provider settled the transaction. The fields inside `data` otherwise depend on the event type and mirror the corresponding resource in the API reference.
 
 ## Request headers
 

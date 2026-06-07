@@ -20,15 +20,15 @@ All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
 - [Payments guide](https://docs.yuvexpay.com/guides/payments): Headless PIX, headless direct CARD, hosted multi-method checkout, and BOLETO. Lifecycle from `NEW` to `PAID`/`REFUNDED`.
 - [Refunds](https://docs.yuvexpay.com/guides/refunds): Eligibility rules, full-only refund support today, lifecycle, and error codes (`REFUND_IN_PROGRESS`, `REFUND_NOT_SUPPORTED`, etc.).
 - [Withdrawals](https://docs.yuvexpay.com/guides/withdrawals): PIX-only, BRL-only, daily/nightly limits, masked `pixKey`, and the never-retry rule on ambiguous `PROCESSING`.
-- [Webhooks](https://docs.yuvexpay.com/guides/webhooks): `v1` HMAC-SHA256 signature with timestamp anti-replay (`X-Webhook-Signature`, `X-Webhook-Timestamp`), at-least-once delivery, no order guarantees, retries.
+- [Webhooks](https://docs.yuvexpay.com/guides/webhooks): `v1` HMAC-SHA256 signature with timestamp anti-replay (`X-Webhook-Signature`, `X-Webhook-Timestamp`), at-least-once delivery, no order guarantees, retries. `PAYMENT_PAID` carries a provider-agnostic `payer` block (name, CPF/CNPJ unredacted, institution name + ISPB) plus the network `endToEndId`; `WITHDRAWAL_SENT` carries a `recipient` block. Both nullable.
 
 ## API reference
 
 - [API overview](https://docs.yuvexpay.com/api-reference/introduction)
 - [Inspect API key](https://docs.yuvexpay.com/api-reference/auth/self): `GET /v1/auth/self`
-- [Create payment](https://docs.yuvexpay.com/api-reference/payments/create): `POST /v1/payments`
+- [Create payment](https://docs.yuvexpay.com/api-reference/payments/create): `POST /v1/payments` — PIX supports `enforcePayerDocument` (best-effort same-document opt-in).
 - [List payments](https://docs.yuvexpay.com/api-reference/payments/list): `GET /v1/payments`
-- [Get payment](https://docs.yuvexpay.com/api-reference/payments/get): `GET /v1/payments/{paymentId}`
+- [Get payment](https://docs.yuvexpay.com/api-reference/payments/get): `GET /v1/payments/{paymentId}` — paid PIX payments include a nullable `payer` block (name, document, institution name + ISPB) and `paidAt`.
 - [Get payment by txId](https://docs.yuvexpay.com/api-reference/payments/get-by-txid): `GET /v1/payments/txid/{txId}`
 - [Download boleto PDF](https://docs.yuvexpay.com/api-reference/payments/get-boleto): `GET /v1/payments/{paymentId}/boleto`
 - [Refund payment](https://docs.yuvexpay.com/api-reference/payments/refund): `POST /v1/payments/{paymentId}/refund`

@@ -2324,6 +2324,11 @@
             "default": 60,
             "description": "Minutes until the payment expires (5-1440)."
           },
+          "enforcePayerDocument": {
+            "type": "boolean",
+            "default": false,
+            "description": "PIX only. Opt-in request that the charge be paid from an account whose CPF/CNPJ matches the customer's document (same-document payment). Best-effort: when the provider cannot enforce it, the charge is still created and paid normally."
+          },
           "customer": {
             "type": "object",
             "description": "Inline customer data. For CARD and BOLETO, include at least name and CPF/CNPJ unless you use customerId.",
@@ -2725,6 +2730,45 @@
               }
             },
             "additionalProperties": true
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp when the payment was confirmed paid. Null until paid."
+          },
+          "payer": {
+            "type": "object",
+            "nullable": true,
+            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Provider-agnostic. Null for historical records or open-payer charges where no payer data was captured.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "nullable": true,
+                "description": "Payer full name."
+              },
+              "document": {
+                "type": "string",
+                "nullable": true,
+                "description": "Payer CPF/CNPJ, returned unredacted when the full value is on file. May be masked (e.g. \"75******20\") for open-payer charges where only a masked value was provided by the payer's bank."
+              },
+              "documentType": {
+                "type": "string",
+                "nullable": true,
+                "enum": ["CPF", "CNPJ"],
+                "description": "Payer document type."
+              },
+              "institutionName": {
+                "type": "string",
+                "nullable": true,
+                "description": "Payer bank/institution name."
+              },
+              "institutionIspb": {
+                "type": "string",
+                "nullable": true,
+                "description": "Payer bank ISPB (Banco Central participant identifier)."
+              }
+            }
           }
         }
       },
