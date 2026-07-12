@@ -2320,9 +2320,9 @@
           "expiresInMinutes": {
             "type": "integer",
             "minimum": 5,
-            "maximum": 1440,
+            "maximum": 10080,
             "default": 60,
-            "description": "Minutes until the payment expires (5-1440)."
+            "description": "Minutes until the payment expires (5-10080, i.e. up to 7 days)."
           },
           "enforcePayerDocument": {
             "type": "boolean",
@@ -2438,6 +2438,81 @@
               "remoteIp",
               "holderInfo"
             ]
+          },
+          "boleto": {
+            "type": "object",
+            "description": "Boleto-specific options, applied only when `BOLETO` is one of the `methods`. Fine, interest, and discount mirror the boleto configuration registered with the bank and are settled against the amount the payer actually pays.",
+            "properties": {
+              "dueDate": {
+                "type": "string",
+                "format": "date",
+                "description": "Boleto due date (vencimento) as `YYYY-MM-DD`. Must be today or a future date within one year. Defaults to 3 business days out when omitted. The boleto can still be paid after this date unless the account is configured to reject post-due payment."
+              },
+              "fine": {
+                "type": "object",
+                "description": "Fine (multa) charged once when the boleto is paid after the due date.",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "description": "Fine amount (must be greater than 0), interpreted per `type`."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED",
+                      "PERCENTAGE"
+                    ],
+                    "default": "PERCENTAGE",
+                    "description": "Whether `value` is a fixed BRL amount or a percentage of the boleto value."
+                  }
+                },
+                "required": [
+                  "value"
+                ]
+              },
+              "interest": {
+                "type": "object",
+                "description": "Monthly interest (juros) accrued while the boleto is overdue.",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "description": "Monthly interest percentage (must be greater than 0)."
+                  }
+                },
+                "required": [
+                  "value"
+                ]
+              },
+              "discount": {
+                "type": "object",
+                "description": "Discount granted when the boleto is paid on or before the discount deadline.",
+                "properties": {
+                  "value": {
+                    "type": "number",
+                    "description": "Discount amount (must be greater than 0), interpreted per `type`."
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED",
+                      "PERCENTAGE"
+                    ],
+                    "default": "PERCENTAGE",
+                    "description": "Whether `value` is a fixed BRL amount or a percentage of the boleto value."
+                  },
+                  "dueDateLimitDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60,
+                    "default": 0,
+                    "description": "Number of days before the due date up to which the discount applies. 0 means the discount applies only until the due date."
+                  }
+                },
+                "required": [
+                  "value"
+                ]
+              }
+            }
           }
         }
       },
