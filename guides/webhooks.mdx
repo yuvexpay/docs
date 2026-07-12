@@ -30,6 +30,10 @@ You can register up to **two active webhook endpoints per event type per company
 | `WITHDRAWAL_SENT` | A withdrawal was sent successfully. |
 | `WITHDRAWAL_FAILED` | A withdrawal failed and the funds were returned to your balance. |
 
+<Note>
+  `PAYMENT_EXPIRED` is not always final for **boleto**. A boleto paid on or shortly after its due date can settle late, so you may receive `PAYMENT_EXPIRED` and then `PAYMENT_PAID` for the same charge. Always treat the payload's `data.status` as the source of truth rather than assuming `PAYMENT_EXPIRED` is terminal.
+</Note>
+
 ## Webhook payload
 
 Events are delivered as JSON `POST` requests. A `PAYMENT_PAID` event carries a `payer` block describing the account that paid the PIX charge, plus the network `endToEndId` for bank reconciliation:
