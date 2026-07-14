@@ -27,6 +27,21 @@ All errors follow a consistent structure:
 | `error.message` | string | Human-readable description. |
 | `error.details` | object | Additional context (optional). |
 
+<Note>
+  Most errors use the nested envelope above. A few low-level guards return a **flat** envelope instead — notably the **idempotency middleware** (`IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_PAYLOAD_MISMATCH`, `IDEMPOTENCY_CONFLICT`):
+
+  ```json
+  {
+    "statusCode": 400,
+    "error": "Bad Request",
+    "message": "x-idempotency-key header is required for this operation",
+    "code": "IDEMPOTENCY_KEY_REQUIRED"
+  }
+  ```
+
+  In the flat shape, `error` is a **string** (the HTTP reason phrase), not an object, and the machine-readable code lives in the top-level `code` field. To handle both shapes, read the code defensively: `body.error?.code ?? body.code`.
+</Note>
+
 ## HTTP status codes
 
 | Status | Meaning |
