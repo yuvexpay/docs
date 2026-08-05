@@ -206,15 +206,66 @@ YuvexPay aims to deliver every event at least once. A few characteristics worth 
 
 ## Retry behavior
 
-If your endpoint returns a non-2xx status code or fails to respond, YuvexPay retries with exponential backoff. The default schedule is:
+Whether a failed delivery is retried depends on **how** it failed.
 
-| Attempt | Delay |
-|---------|-------|
+| Response | Retried? |
+|----------|----------|
+| `2xx` | No — delivered |
+| `408 Request Timeout` | Yes |
+| `429 Too Many Requests` | Yes |
+| Any other `4xx` | **No — terminal.** The delivery is marked `FAILED` immediately |
+| `5xx` | Yes |
+| Timeout, DNS failure, TLS failure, connection refused | Yes |
+
+A `4xx` other than `408`/`429` means your endpoint rejected the request, and repeating it will not change the answer. We stop immediately rather than spending your attempt budget — and ours — on a request that cannot succeed.
+
+Retries use exponential backoff with jitter, starting at 5 seconds and doubling, capped at 6 hours:
+
+| Attempt | Nominal delay |
+|---------|---------------|
 | 1st retry | 5 seconds |
 | 2nd retry | 10 seconds |
 | 3rd retry | 20 seconds |
+| 4th retry | 40 seconds |
 
-You can configure up to 10 retries per endpoint. After all retries are exhausted, the delivery is marked `FAILED`. Failed deliveries can be inspected and manually replayed from the dashboard. A manual replay reuses the same `X-Webhook-Delivery-Id`.
+The actual delay is randomised around the nominal value so that a large batch of deliveries to the same endpoint does not arrive as a thundering herd.
+
+A delivery stops being retried when any of the following is true:
+
+- the configured retry budget for the endpoint is exhausted (capped at 24 attempts regardless of configuration);
+- the delivery is older than 72 hours;
+- the endpoint has been suspended.
+
+In every case the delivery lands in a terminal `FAILED` state and produces no further attempts. Failed deliveries can be inspected and manually replayed from the dashboard. A manual replay reuses the same `X-Webhook-Delivery-Id`.
+
+## Automatic endpoint suspension
+
+An endpoint that stops accepting deliveries is suspended automatically. This protects your other integrations and ours: one dead endpoint absorbing every retry slot used to degrade delivery for everyone.
+
+An endpoint is suspended when either threshold is crossed:
+
+- a long run of consecutive failed deliveries; or
+- a sustained failure rate over a rolling window, once enough attempts have been observed to be meaningful.
+
+When an endpoint is suspended:
+
+1. it is deactivated and receives no new events;
+2. every delivery still queued for it is moved to `FAILED`;
+3. everyone on the account with developer access is notified in-app and by email, with the endpoint URL, the reason, and the last HTTP status and response excerpt we saw.
+
+Sustained failures against a single endpoint also trip a per-endpoint circuit breaker before suspension. While the breaker is open, deliveries to that endpoint are deferred rather than attempted — they do not consume attempts, and no other endpoint is affected.
+
+### Reactivating a suspended endpoint
+
+Fix the endpoint, then reactivate it from **Developers → Webhooks** in the dashboard, or:
+
+```
+POST /app/companies/{companyId}/webhooks/{webhookId}/reactivate
+```
+
+Reactivation is gated on a live test delivery. We send a `webhook.test` event to the endpoint and only re-enable it if your server answers `2xx`. If it does not, the call returns `400` with code `REACTIVATION_PROBE_FAILED` and the status we observed, and the endpoint stays suspended.
+
+Deliveries that failed while the endpoint was down are not resent automatically — replay the ones you need from the dashboard once the endpoint is back.
 
 ## Best practices
 
