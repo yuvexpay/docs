@@ -28,17 +28,19 @@ If you send the same request with the same idempotency key, the API returns the 
 | `POST /v1/withdrawals` | Yes |
 | `POST /v1/products` | Yes |
 | `POST /v1/customers` | Yes |
-| `POST /v1/anticipations/simulate` | Yes |
 | `POST /v1/anticipations` | Yes |
-| `POST /v1/anticipations/:id/cancel` | Yes |
+| `POST /v1/anticipations/simulate` | Optional |
+| `POST /v1/anticipations/:id/cancel` | Optional |
+
+"Optional" means the header is honoured when you send it — replay, payload check and all — but omitting it is not rejected, and the request then executes with no idempotency protection at all. Send one anyway.
 
 ## Rules
 
 - **Maximum length:** 100 characters.
 - **TTL:** Idempotency keys are valid for 24 hours.
 - **Scope:** Keys are scoped per company **and** environment. The same key can be used in sandbox and production without colliding — they're separate keyspaces.
-- **Payload check:** If you reuse a key with a different request body, the API returns a `409 Conflict` with error code `IDEMPOTENCY_PAYLOAD_MISMATCH`.
-- **Concurrent requests:** If a request with the same key is already being processed, the API returns a `409 Conflict` with error code `IDEMPOTENCY_CONFLICT`.
+- **Payload check:** If you reuse a key with a different request body, the API returns a `409 Conflict` with error code `IDEMPOTENCY_PAYLOAD_MISMATCH`. This holds for the whole 24h window and for concurrent requests, not only for retries that arrive shortly after the first one.
+- **Concurrent requests:** If a request with the **same** body and key is already being processed, the API returns a `409 Conflict` with error code `IDEMPOTENCY_CONFLICT`. A concurrent request with a **different** body gets `IDEMPOTENCY_PAYLOAD_MISMATCH` instead.
 - **Replay:** Once a request completes **successfully** (`2xx`), subsequent retries with the same key return the original status code and body for the remainder of the 24h window.
 
 <Warning>

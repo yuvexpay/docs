@@ -7,12 +7,49 @@ A withdrawal moves available BRL from your YuvexPay balance to a destination
 PIX key. Withdrawals are created via `POST /v1/withdrawals` and processed
 asynchronously by the network.
 
+## What `amount` means
+
+`amount` is the **net** — the exact value that reaches the recipient. The
+platform fee is added **on top** of it, never deducted from it.
+
+For a request of `amount: 250.00` against the default `R$ 2.49` fee:
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `amount` (request) | `250.00` | What you asked to send. |
+| `netAmount` | `250.00` | What the recipient receives. Always equal to `amount`. |
+| `feeAmount` | `2.49` | The platform fee, charged on top. |
+| `grossAmount` | `252.49` | `amount + feeAmount`. Debited from your balance. |
+
+A `R$ 250.00` payout therefore costs you `R$ 252.49`. Your available balance
+must hold the **gross**, and `INSUFFICIENT_BALANCE` is evaluated against the
+gross, not against `amount`.
+
+Everything else splits the same way:
+
+- **Daily and nightly limits** count the **gross**. `used` in
+  [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) is the sum
+  of `grossAmount` for the day, so the largest `amount` you can request is
+  `remaining - fee`, not `remaining`.
+- **Per-transaction caps** are compared against the **gross**.
+- **The minimum** is compared against `amount` — the **net**. At the `R$ 10.00`
+  floor, a `R$ 10.00` withdrawal is accepted and debits `R$ 12.49`.
+
+The fee is fixed per request, not a percentage of it. Your account's active
+value is returned as `fee` by
+[`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) — read it
+from there rather than hardcoding `2.49`.
+
 ## Constraints
 
 - **Currency**: BRL only.
 - **Method**: PIX only. Other rails (boleto, TED) are not exposed via the API.
-- **Minimum amount**: `R$ 10.00`, returned as `minAmount` by
-  [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits).
+- **Minimum amount**: `R$ 10.00`, compared against `amount` (the net). This is
+  a platform floor that the platform never goes below, but it can be raised —
+  read the value that applies to you from `minAmount` in
+  [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) rather
+  than hardcoding `10`. It is unrelated to the routing provider's own
+  minimum, which surfaces separately as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`.
 - **Per-transaction cap**: account-dependent, not a fixed platform number.
   The cap that applies to your account is returned as `perTransactionLimit`
   by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits)
@@ -79,9 +116,12 @@ If you send `recipientDocument` **and** the key is a CPF or CNPJ key, the two
 must agree. A disagreement is a typo in one of them and is rejected up front
 with `RECIPIENT_DOCUMENT_MISMATCH` rather than failing at the network later.
 
-Business accounts can send `creditorDocumentSource: "PERSONAL"` to make step 3
-resolve to the account owner's CPF instead of the company CNPJ. It only affects
-step 3 — a `recipientDocument` or a CPF/CNPJ key still wins.
+`creditorDocumentSource` is a **dashboard-only** field. Sending it to
+`POST /v1/withdrawals` is rejected with
+`400 CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`; it is never silently ignored. To
+put a document other than your company CNPJ on the wire from the API, send
+`destination.recipientDocument` — it wins over step 3 and puts exactly the
+document you send on the payout.
 
 ## Create a withdrawal
 
@@ -131,8 +171,8 @@ The response includes the withdrawal record:
   "withdrawal": {
     "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
     "txId": "WIT1746280868443K3F9Q",
-    "grossAmount": 251.50,
-    "feeAmount": 1.50,
+    "grossAmount": 252.49,
+    "feeAmount": 2.49,
     "netAmount": 250.00,
     "paymentMethod": "PIX",
     "currency": "BRL",
@@ -143,9 +183,10 @@ The response includes the withdrawal record:
 }
 ```
 
-`netAmount` is what reaches the recipient — the `amount` you requested.
-`grossAmount` is `amount + feeAmount`, and that is what is debited from your
-balance and counted against your limits, at the time the withdrawal is created.
+`netAmount` is what reaches the recipient — the `amount` you requested, always
+identical to it. `grossAmount` is `amount + feeAmount`, and that is what is
+debited from your balance and counted against your limits, at the time the
+withdrawal is created. See [What `amount` means](#what-amount-means).
 
 ## Lifecycle and statuses
 
@@ -183,8 +224,10 @@ use `txId` or your own metadata, not the masked `pixKey`.
 
 The platform's withdrawal fee is fixed per request and is reported in the
 `feeAmount` field of every withdrawal. The active value is returned as `fee`
-by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). The fee
-is charged on top of `amount` and counts towards your daily limit.
+by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits); the
+platform default is `R$ 2.49`. The fee is charged on top of `amount` and
+counts towards your daily limit. See [What `amount` means](#what-amount-means)
+for the full breakdown.
 
 ## Idempotency
 
@@ -202,13 +245,18 @@ not a PDF, and requires the `documents:read` scope:
 GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
 ```
 
+The receipt is scoped to the environment of the key you call it with. A
+`ypk_live_` key can only fetch receipts for production withdrawals and a
+`ypk_test_` key only for sandbox ones — the other environment returns `404`,
+even for a withdrawal id that belongs to your own account.
+
 ## Common error codes
 
 | Code | Status | Meaning |
 |------|--------|---------|
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | `X-Idempotency-Key` is mandatory on this endpoint. This one is emitted before the API error envelope is applied, so its body is flat: `{ statusCode, error, message, code }`. |
 | `PROVIDER_ERROR` | 400 | The PIX network rejected the payout deterministically during the create call — most often a key that does not exist or an account that cannot receive. No money moved. |
-| `WITHDRAWAL_BELOW_MINIMUM` | 400 | Amount is below `R$ 10.00`. |
+| `WITHDRAWAL_BELOW_MINIMUM` | 400 | `amount` is below the minimum that applies to your account — `R$ 10.00` unless it has been raised. Read `minAmount` from [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). |
 | `INSUFFICIENT_BALANCE` | 400 | The available balance is too low. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum the routing PIX provider accepts. |
@@ -219,19 +267,24 @@ GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
 | `WITHDRAWAL_PIX_KEY_BLOCKED` | 400 | This PIX key was rejected by the destination institution within the last 7 days (account not found, closed or blocked) and is short-circuited for this account. Use a different key — resending the same key with a different document does not clear the block. |
 | `BLOCKLIST_DENIED` | 400 | The destination is blocked by platform risk policy. |
 | `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | The creditor document fell through to your own tax id and it is not on file. Complete KYB/KYC, or send `destination.recipientDocument`. |
+| `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED` | 400 | `creditorDocumentSource` was sent to the public API. The field is dashboard-only. Send `destination.recipientDocument` instead. |
 | `VERIFICATION_REQUIRED` | 403 | The account requires additional verification before withdrawals can be processed. |
 | `SANDBOX_COMPANY_PRODUCTION_BLOCKED` | 403 | A production request was made by an account that is still sandbox-only. |
-| `CREDITOR_DOCUMENT_PERSONAL_FORBIDDEN` | 403 | `creditorDocumentSource: "PERSONAL"` was sent by a team member rather than the account owner. |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The idempotency key was already used with a different request body. |
 | `IDEMPOTENCY_CONFLICT` | 409 | A request with this idempotency key is still in flight, or the key was already consumed by a withdrawal that is no longer replayable from the 24-hour idempotency cache. |
 | `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH` | 400 | The network rejected the payout because the creditor document does not match the PIX key holder. Correct one of them and submit a new withdrawal. |
 | `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout right now. Safe to retry with a **new** idempotency key. |
 | `WITHDRAWAL_TEMPORARILY_UNAVAILABLE` | 503 | The request was abandoned before reaching the network. No money moved; safe to retry. |
 | `WITHDRAWAL_PROCESSING_FAILED` | 503 | The withdrawal could not be recorded. No money moved; safe to retry. |
+| `CREDITOR_DOCUMENT_UNREADABLE` | 500 | Your tax id is on file but could not be read. No money moved. Retrying will not help — this is a platform-side fault and is alerted on. Send `destination.recipientDocument` to unblock the payout, or contact support. |
 
 <Note>
   `INVALID_WITHDRAWAL_RECIPIENT` and `PIX_KEY_VALIDATION_FAILED` were removed.
   The PIX key ownership policy they enforced no longer exists — withdrawals go
   to any valid PIX key. Neither code can be returned by the API; remove any
   branch in your integration that handles them.
+
+  `CREDITOR_DOCUMENT_PERSONAL_FORBIDDEN` was likewise never reachable from an
+  API key and is no longer documented here. `creditorDocumentSource` now
+  returns `400 CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED` on the public API.
 </Note>

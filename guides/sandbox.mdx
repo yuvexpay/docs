@@ -97,8 +97,15 @@ match on retries.
 
 - Sandbox payments and withdrawals never affect your production balance or
   reports.
-- Statements and receipts are generated for sandbox transactions and are
-  clearly labelled as sandbox. Webhooks are not delivered — see
+- **Receipts** are generated for sandbox payments and withdrawals, and the
+  lookup is scoped to the key's environment: a `ypk_test_` key resolves only
+  sandbox ids and a `ypk_live_` key only production ids. The other
+  environment returns `404` even for an id on your own account.
+- **Statements** are built from the real-money ledger, which sandbox
+  transactions never touch. `GET /v1/documents/statements` with a sandbox key
+  therefore returns an empty statement with zero balances, not your production
+  ledger.
+- Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.
 
