@@ -4,9 +4,8 @@ description: "Deterministic recipes for simulating payment outcomes in the sandb
 ---
 
 The sandbox environment is a full simulator: it accepts the same requests as
-production, returns the same response shapes, and emits webhooks with the same
-signature scheme. Use it to test your end-to-end integration without moving any
-real money.
+production and returns the same response shapes. Use it to test your end-to-end
+integration without moving any real money.
 
 This guide describes the deterministic recipes the simulator uses to drive
 specific outcomes.
@@ -31,11 +30,11 @@ requested amount:
 
 | Cents | Final status   | Notes |
 |-------|----------------|-------|
-| `.01` | `PAID`         | Successful payment, fires `PAYMENT_PAID`. |
+| `.01` | `PAID`         | Successful payment. |
 | `.02` | `NEW`          | Payer never pays — stays in `NEW` and eventually expires. |
 | `.03` | `CANCELLED`    | Cancelled by the payer or provider. |
-| `.04` | `EXPIRED`      | Expires within the configured window, fires `PAYMENT_EXPIRED`. |
-| `.05` | `MED_FROZEN`   | Goes to `PAID`, then a MED is opened — fires `MED_RECEIVED`. |
+| `.04` | `EXPIRED`      | Expires within the configured window. |
+| `.05` | `MED_FROZEN`   | Goes to `PAID`, then a MED is opened. |
 | Any other | `PAID`     | Defaults to a successful payment. |
 
 So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
@@ -44,13 +43,13 @@ instant successful payment.
 
 ## Withdrawal behavior matrix
 
-Sandbox withdrawals follow the same convention:
+Sandbox withdrawals follow the same convention. The status is reached synchronously, so a `GET /v1/withdrawals/{withdrawalId}` right after creation already shows it:
 
 | Cents | Final status | Notes |
 |-------|--------------|-------|
-| `.01` | `COMPLETED`  | Successful payout, fires `WITHDRAWAL_SENT`. |
-| `.02` | `FAILED`     | Simulates "insufficient funds at provider", fires `WITHDRAWAL_FAILED`. |
-| `.03` | `FAILED`     | Simulates "invalid PIX key", fires `WITHDRAWAL_FAILED`. |
+| `.01` | `COMPLETED`  | Successful payout. |
+| `.02` | `FAILED`     | Simulates "insufficient funds at provider". |
+| `.03` | `FAILED`     | Simulates "invalid PIX key". |
 | `.04` | `PROCESSING` | Stays in `PROCESSING` so you can test long-running flows. |
 | Any other | `COMPLETED` | Defaults to a successful withdrawal. |
 
@@ -65,12 +64,25 @@ Sandbox withdrawals follow the same convention:
 The decimal portion is read from the **payment amount being refunded**, not the
 refund request itself.
 
-## Webhook simulation
+## Webhooks in sandbox
 
-Sandbox emits webhooks for the same events production does. Sandbox webhooks
-are signed with your **sandbox** webhook secret. We recommend configuring a
-separate sandbox webhook URL in the dashboard so test traffic never lands on
-your production endpoint.
+<Warning>
+  **Sandbox transactions do not deliver webhooks.** Events for sandbox payments
+  and withdrawals are dropped before delivery, precisely so test traffic can
+  never reach the production endpoint you registered. There is no separate
+  sandbox webhook endpoint or sandbox webhook secret — a webhook endpoint
+  belongs to the account, not to an environment.
+</Warning>
+
+To drive your integration from sandbox, poll `GET /v1/payments/{paymentId}` or
+`GET /v1/withdrawals/{withdrawalId}` and read `status`. The deterministic
+recipes above make the terminal status reachable within one or two polls.
+
+To exercise your **verifier** — signature, timestamp skew, header parsing — use
+the **Send test** button on the endpoint in the dashboard. It delivers a real,
+correctly signed `TEST` event to your endpoint with `X-Webhook-Event: TEST` and
+a body of `{"event":"webhook.test","createdAt":"…","data":{"message":"…","livemode":false}}`.
+That is the one delivery a sandbox-only account receives.
 
 See the [Webhooks guide](/guides/webhooks) for the verification algorithm.
 
@@ -85,8 +97,9 @@ match on retries.
 
 - Sandbox payments and withdrawals never affect your production balance or
   reports.
-- Webhooks, statements and receipts are generated for sandbox transactions and
-  are clearly labelled as sandbox.
+- Statements and receipts are generated for sandbox transactions and are
+  clearly labelled as sandbox. Webhooks are not delivered — see
+  [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.
 
 ## Going live
@@ -94,7 +107,8 @@ match on retries.
 When your integration is stable:
 
 1. Create a `ypk_live_` key in the dashboard (requires completed KYB).
-2. Configure a production webhook endpoint and store its secret separately
-   from your sandbox secret.
+2. Configure your webhook endpoint and store its secret. This is the point at
+   which webhooks start being delivered at all — verify the endpoint with the
+   dashboard's **Send test** button before opening real traffic.
 3. Swap the API key in your environment variables.
 4. Run a small live transaction end-to-end before opening real traffic.

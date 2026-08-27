@@ -184,23 +184,31 @@ through `customer` or `customerId`.
 Set up a webhook endpoint to receive payment notifications. Configure it in
 the dashboard under **Settings > Webhooks**.
 
-When the customer pays, you receive a `PAYMENT_PAID` event:
+When the customer pays, your endpoint receives a `POST` whose
+`X-Webhook-Event` header is `PAYMENT_PAID`. The body is the event itself —
+there is no envelope, and the event name is **not** in the body:
 
 ```json
 {
-  "id": "evt_xyz789",
-  "type": "PAYMENT_PAID",
-  "data": {
-    "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
-    "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-    "status": "PAID",
-    "amount": 49.90
+  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+  "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+  "status": "PAID",
+  "amount": 49.9,
+  "paidAt": "2026-06-06T12:00:00.000Z",
+  "endToEndId": "E000000022026060612000abc1234def",
+  "payer": {
+    "name": "Maria Silva",
+    "document": "39053344705",
+    "documentType": "CPF",
+    "institutionName": "Banco Example S.A.",
+    "institutionIspb": "00000000"
   }
 }
 ```
 
-Always [verify the webhook signature](/guides/webhooks#verifying-signatures)
-before acting on the event.
+Switch on `X-Webhook-Event`, and always
+[verify the webhook signature](/guides/webhooks#verifying-signatures) before
+acting on the event.
 
 <Card
   title="Webhook guide"

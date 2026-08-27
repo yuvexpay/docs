@@ -16,11 +16,15 @@ You can register up to **two active webhook endpoints per event type per company
 
 ## Event types
 
+These are the twelve subscribable event types. The value in this column is
+exactly what arrives in the `X-Webhook-Event` header.
+
 | Event | Description |
 |-------|-------------|
 | `PAYMENT_CONFIRMED` | A card or boleto payment has been authorized by the issuer (held receivable). |
 | `PAYMENT_PAID` | The payment has cleared and net funds were credited to your balance. |
 | `PAYMENT_EXPIRED` | The payment expired before being completed. |
+| `PAYMENT_CANCELLED` | The payment was cancelled or definitively failed before completing. |
 | `PAYMENT_REFUNDED` | A refund completed for this payment. |
 | `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
 | `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. |
@@ -30,63 +34,150 @@ You can register up to **two active webhook endpoints per event type per company
 | `WITHDRAWAL_SENT` | A withdrawal was sent successfully. |
 | `WITHDRAWAL_FAILED` | A withdrawal failed and the funds were returned to your balance. |
 
+A thirteenth value, `TEST`, is not subscribable. It is used for the test ping
+you can fire from the dashboard and for the probe that reactivates a suspended
+endpoint; it arrives as `X-Webhook-Event: TEST`.
+
 <Note>
-  `PAYMENT_EXPIRED` is not always final for **boleto**. A boleto paid on or shortly after its due date can settle late, so you may receive `PAYMENT_EXPIRED` and then `PAYMENT_PAID` for the same charge. Always treat the payload's `data.status` as the source of truth rather than assuming `PAYMENT_EXPIRED` is terminal.
+  `PAYMENT_EXPIRED` is not always final for **boleto**. A boleto paid on or shortly after its due date can settle late, so you may receive `PAYMENT_EXPIRED` and then `PAYMENT_PAID` for the same charge. Always treat the body's `status` field as the source of truth rather than assuming `PAYMENT_EXPIRED` is terminal.
 </Note>
 
 ## Webhook payload
 
-Events are delivered as JSON `POST` requests. A `PAYMENT_PAID` event carries a `payer` block describing the account that paid the PIX charge, plus the network `endToEndId` for bank reconciliation:
+Events are delivered as JSON `POST` requests.
+
+<Warning>
+  **There is no envelope.** The HTTP body is the event object itself — there is
+  no wrapping `id`, `type`, `version`, or `data` key. The event name travels
+  **only** in the `X-Webhook-Event` header. Read `request.headers['x-webhook-event']`,
+  not `body.type`, and read the fields directly off the parsed body, not off
+  `body.data`.
+</Warning>
+
+A `PAYMENT_PAID` body, verbatim:
 
 ```json
 {
-  "id": "evt_xyz789",
-  "type": "PAYMENT_PAID",
-  "data": {
-    "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
-    "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-    "status": "PAID",
-    "amount": 49.90,
-    "paidAt": "2026-06-06T12:00:00.000Z",
-    "endToEndId": "E0000000020260606120000000abc1234",
-    "payer": {
-      "name": "Maria Silva",
-      "document": "39053344705",
-      "documentType": "CPF",
-      "institutionName": "Banco Example S.A.",
-      "institutionIspb": "00000000"
-    }
+  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+  "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+  "status": "PAID",
+  "amount": 49.9,
+  "paidAt": "2026-06-06T12:00:00.000Z",
+  "endToEndId": "E000000022026060612000abc1234def",
+  "payer": {
+    "name": "Maria Silva",
+    "document": "39053344705",
+    "documentType": "CPF",
+    "institutionName": "Banco Example S.A.",
+    "institutionIspb": "00000000"
   }
 }
 ```
 
-Every field inside `payer` is nullable, and the whole block is `null` for historical records or open-payer charges where no payer data was captured. The payer `document` (CPF/CNPJ) is returned unredacted when the full value is on file; for some open-payer charges only a masked value (e.g. `75******20`) is available. The `endToEndId` is the PIX-network end-to-end identifier (Banco Central standard), safe to use for reconciliation.
+`id` is the payment's UUID and `amount` is in reais, not centavos. The
+`endToEndId` is the PIX-network end-to-end identifier (Banco Central
+standard), safe to use for reconciliation.
 
-A `WITHDRAWAL_SENT` event carries a `recipient` block describing the destination account:
+Every field inside `payer` is nullable, and the whole block is `null` for
+historical records or open-payer charges where no payer data was captured.
+
+<Note>
+  Some PIX participants report the payer's document **masked** (for example
+  `***405566**`). A masked value is never placed in `payer.document`: it is
+  discarded, and the field falls back to whatever full document is already on
+  file for the payment — which for an open-payer charge is usually nothing, so
+  the field comes through as `null`. Treat `payer.document` as *sometimes
+  absent even for a real, identified payer*, and never make settlement logic
+  depend on it.
+</Note>
+
+A `WITHDRAWAL_SENT` body, verbatim:
 
 ```json
 {
-  "id": "evt_abc123",
-  "type": "WITHDRAWAL_SENT",
-  "data": {
-    "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
-    "txId": "WTH7f3a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-    "netAmount": 100.00,
-    "status": "COMPLETED",
-    "endToEndId": "E0000000020260606120500000def5678",
-    "recipient": {
-      "name": "João Souza",
-      "document": "12345678901",
-      "institutionName": "Banco Example S.A.",
-      "institutionIspb": "00000000",
-      "branch": "0001",
-      "account": "123456"
-    }
+  "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+  "txId": "WIT1746280868443K3F9Q",
+  "netAmount": 100,
+  "status": "COMPLETED",
+  "endToEndId": "E000000022026060612050def5678abc",
+  "recipient": {
+    "name": "João Souza",
+    "document": "52998224725",
+    "institutionName": "Banco Example S.A.",
+    "institutionIspb": "00000000",
+    "branch": "0001",
+    "account": "123456"
   }
 }
 ```
 
-Like `payer`, every `recipient` field is nullable and the block is `null` when no recipient data was captured. These blocks are provider-agnostic: the shape is identical regardless of which PIX provider settled the transaction. The fields inside `data` otherwise depend on the event type and mirror the corresponding resource in the API reference.
+`recipient.document` is populated when the withdrawal was created with a
+`destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`
+(see [Withdrawals → Recipient document](/guides/withdrawals#recipient-document)),
+or when the settling provider reported the receiving account back to us. It is
+`null` otherwise. The other `recipient` fields are populated only when the
+provider reports them, which not every provider does — and when **all six**
+fields would be null, the whole `recipient` block is `null` rather than an
+object of nulls. The same all-null collapse applies to `payer`.
+
+`WITHDRAWAL_FAILED` has the same shape plus a `failureReason` string. On
+`WITHDRAWAL_SENT` the `failureReason` key is **absent entirely** rather than
+`null`, and on `WITHDRAWAL_FAILED` it is absent too when the network supplied
+no usable reason text. It is never `null`.
+
+### Body per event type
+
+| Event | Body fields |
+|-------|-------------|
+| `PAYMENT_PAID` | `id`, `txId`, `status`, `amount`, `paidAt`, `endToEndId`, `payer` |
+| `PAYMENT_CONFIRMED` | `txId`, `status`, `method`; plus `source: "reconciler"` when the confirmation came from reconciliation rather than the provider callback |
+| `PAYMENT_EXPIRED` | `txId`, `status` — or `id`, `txId`, `status`, `amount` depending on which subsystem expired the charge |
+| `PAYMENT_CANCELLED` | `txId`, `status`, `reason` — or `id`, `txId`, `status`, `amount` |
+| `PAYMENT_CHARGEBACK` | `txId`, `status`. That is the entire body — no amount, no id |
+| `PAYMENT_REFUNDED` | `paymentId`, `refundId`, `amount`; plus `source` on MED-driven refunds, naming the path that produced it |
+| `PAYMENT_REFUND_FAILED` | `paymentId`, `refundId`, `reason` |
+| `MED_RECEIVED` | `medId`, `paymentId`, `amount`, `frozenAmount`, `shortfall`; plus `providerMedId` when the provider supplied one |
+| `MED_RESOLVED` | `medId`, `paymentId`, `resolution`; plus `amount`, `refundId`, `shortfall` and `source` depending on which path resolved it. `resolution` is `ACCEPTED_BY_USER`, `REJECTED_BY_USER`, `ACCEPTED_BY_PSP`, `REJECTED_BY_PSP` or `CANCELLED_BY_PSP` — switch on it non-exhaustively |
+| `WITHDRAWAL_REQUESTED` | `withdrawalId`, `txId`, `netAmount`, `status` |
+| `WITHDRAWAL_SENT` | `withdrawalId`, `txId`, `netAmount`, `status`, `endToEndId`, `recipient` |
+| `WITHDRAWAL_FAILED` | the `WITHDRAWAL_SENT` fields plus `failureReason` |
+| `TEST` | `event: "webhook.test"`, `createdAt`, `data` — the one body that does carry its own name, under the key `event`. `data` is `{ message, livemode }` for the dashboard test ping and `{ message, webhookConfigId }` for the endpoint-reactivation probe |
+
+Four things to design around:
+
+- **How a payment is identified varies by event.** `PAYMENT_PAID` carries both
+  `id` (the payment UUID) and `txId`. `PAYMENT_CONFIRMED`, `PAYMENT_CHARGEBACK`
+  and some `PAYMENT_EXPIRED` / `PAYMENT_CANCELLED` deliveries carry only
+  `txId`. `PAYMENT_REFUNDED`, `PAYMENT_REFUND_FAILED`, `MED_RECEIVED` and
+  `MED_RESOLVED` carry only `paymentId` and no `txId` at all. Key your lookup
+  on whichever of the three is present, not on one of them.
+- **Absent means `null`, except for a few keys that vanish.** Most optional
+  fields arrive as an explicit `null` — `paidAt`, `endToEndId`, `payer`,
+  `recipient` all do. A small set is dropped from the JSON instead:
+  `failureReason` on `WITHDRAWAL_SENT`, and `source`, `providerMedId`,
+  `refundId` and `amount` on the MED and refund paths that do not set them.
+  Read the value with a null-safe accessor rather than testing key presence.
+- **The dashboard "resend" button sends a thinner body.** A delivery you
+  trigger by hand from a transaction in the dashboard carries a generic
+  `{ id, txId, status, amount }` shape (plus `netAmount` for withdrawals) —
+  not the per-event body documented here — and gets a fresh
+  `X-Webhook-Delivery-Id`. Note it keys the resource as `id`, not as
+  `paymentId` / `withdrawalId`. Do not treat a resend as byte-identical to the
+  original delivery.
+- **`txId` formats.** Payments are `PAY` + 32 uppercase hex characters.
+  Withdrawals are `WIT` + a millisecond timestamp + 5 uppercase alphanumerics
+  (e.g. `WIT1746280868443K3F9Q`). Refunds vary by origin. Treat `txId` as an
+  opaque string; do not parse or validate its shape.
+
+### Sandbox
+
+Sandbox payments and withdrawals **do not deliver webhooks**. Events for
+sandbox resources are dropped before delivery, so a sandbox integration must
+poll `GET /v1/payments/{id}` or `GET /v1/withdrawals/{id}` instead. The only
+delivery a sandbox account receives is the `TEST` ping, whose body carries
+`data.livemode`, which reflects whether the **account** is a sandbox-only
+account — not which API key you used. The reactivation probe sends a different
+body: `data` there carries `message` and `webhookConfigId`, with no `livemode`.
 
 ## Request headers
 
@@ -97,11 +188,11 @@ Each webhook delivery includes these headers:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `YuvexPay-Webhook/1.0` |
 | `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
-| `X-Webhook-Delivery-Id` | A unique UUID for this delivery. Use it to deduplicate retries. |
+| `X-Webhook-Delivery-Id` | Identifier for this delivery, stable across retries and replays. Use it to deduplicate. Usually a UUID, but the endpoint-reactivation probe sends `probe-<webhookId>` instead — do not reject a delivery for failing a UUID check, or your endpoint can never be reactivated. |
 | `X-Webhook-Attempt` | Attempt number, starting at `1`. Increments on retries. |
 | `X-Webhook-Timestamp` | Unix timestamp (seconds) when the request was signed. |
 | `X-Webhook-Signature` | `v1=<hex-encoded HMAC-SHA256>`. See [Verifying signatures](#verifying-signatures). |
-| `X-Webhook-Signature-Legacy` | **Deprecated.** Body-only HMAC kept for backwards compatibility. Plan to remove from your verifier. |
+| `X-Webhook-Signature-Legacy` | **Deprecated.** Body-only HMAC, a bare hex string with no `v1=` prefix. Kept for backwards compatibility; do not compare it against the `v1` value. Plan to remove it from your verifier. |
 
 ## Verifying signatures
 
@@ -116,7 +207,7 @@ To verify a request:
 1. Read `X-Webhook-Timestamp` and `X-Webhook-Signature` from the headers.
 2. Compute the expected signature using your stored secret and the **raw, unparsed** request body.
 3. Compare in constant time. Reject if they don't match.
-4. Reject any request whose timestamp is more than **300 seconds** off the current time. This is the recommended replay window and matches what YuvexPay applies internally.
+4. Reject any request whose timestamp is more than **300 seconds** off the current time. This is our recommended replay window; pick your own if your clocks or queues need more slack.
 
 <CodeGroup>
 ```javascript Node.js
@@ -148,8 +239,23 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
     return res.status(401).send("Invalid signature");
   }
 
-  const event = JSON.parse(rawBody);
-  console.log(`Received ${event.type}:`, event.data);
+  const eventType = req.headers["x-webhook-event"];
+  const deliveryId = req.headers["x-webhook-delivery-id"];
+  const body = JSON.parse(rawBody);
+
+  if (alreadyProcessed(deliveryId)) return res.status(200).send("OK");
+
+  switch (eventType) {
+    case "PAYMENT_PAID":
+      console.log(body.txId, body.amount, body.payer?.document ?? null);
+      break;
+    case "WITHDRAWAL_SENT":
+      console.log(body.txId, body.recipient?.document ?? null);
+      break;
+    case "WITHDRAWAL_FAILED":
+      console.log(body.txId, body.failureReason);
+      break;
+  }
 
   res.status(200).send("OK");
 });
@@ -185,8 +291,20 @@ def webhook():
     if not verify_webhook(request.data, request.headers, WEBHOOK_SECRET):
         return "Invalid signature", 401
 
-    event = request.get_json()
-    print(f"Received {event['type']}: {event['data']}")
+    event_type = request.headers.get("X-Webhook-Event")
+    delivery_id = request.headers.get("X-Webhook-Delivery-Id")
+    body = request.get_json()
+
+    if already_processed(delivery_id):
+        return "OK", 200
+
+    if event_type == "PAYMENT_PAID":
+        print(body["txId"], body["amount"], (body.get("payer") or {}).get("document"))
+    elif event_type == "WITHDRAWAL_SENT":
+        print(body["txId"], (body.get("recipient") or {}).get("document"))
+    elif event_type == "WITHDRAWAL_FAILED":
+        print(body["txId"], body.get("failureReason"))
+
     return "OK", 200
 ```
 </CodeGroup>
@@ -200,7 +318,7 @@ def webhook():
 YuvexPay aims to deliver every event at least once. A few characteristics worth designing around:
 
 - **At-least-once delivery.** The same event may arrive more than once. Treat `X-Webhook-Delivery-Id` as the deduplication key. If you've processed a delivery id before, return `200` and skip the side effects.
-- **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in `data.status`, not against the order of arrival.
+- **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in the body's `status` field, not against the order of arrival.
 - **Synchronous timeout: 10 seconds.** Return `2xx` within 10 seconds. Process work asynchronously if you need longer.
 - **Redirects are not followed.** Your endpoint must respond directly.
 
@@ -236,7 +354,14 @@ A delivery stops being retried when any of the following is true:
 - the delivery is older than 72 hours;
 - the endpoint has been suspended.
 
-In every case the delivery lands in a terminal `FAILED` state and produces no further attempts. Failed deliveries can be inspected and manually replayed from the dashboard. A manual replay reuses the same `X-Webhook-Delivery-Id`.
+In every case the delivery lands in a terminal `FAILED` state and produces no further attempts. Failed deliveries can be inspected and manually replayed from the dashboard.
+
+<Warning>
+  A manual replay reuses the same `X-Webhook-Delivery-Id` as the original
+  delivery. If you dedupe strictly on that header — which you should for retries
+  — a replay you asked for will be silently discarded as a duplicate. Clear the
+  delivery id from your dedupe store before requesting a replay.
+</Warning>
 
 ## Automatic endpoint suspension
 
@@ -272,6 +397,7 @@ Deliveries that failed while the endpoint was down are not resent automatically 
 - **Verify before trusting.** Always validate the `X-Webhook-Signature` and the `X-Webhook-Timestamp` skew.
 - **Return 200 quickly.** Acknowledge receipt synchronously and do business logic in a background job.
 - **Deduplicate by delivery id.** The same event can be delivered more than once — `X-Webhook-Delivery-Id` is stable across retries and replays.
-- **Don't rely on order.** Use the payload's `status` to decide what to do, not the sequence of arrivals.
+- **Don't rely on order.** Use the body's `status` field to decide what to do, not the sequence of arrivals.
+- **Switch on the header.** `X-Webhook-Event` is the only place the event name appears. The body has no `type` field.
 - **Use HTTPS.** Webhook endpoints must use HTTPS.
 - **Don't log the secret.** Treat the webhook secret like an API key.

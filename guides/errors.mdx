@@ -123,13 +123,27 @@ All errors follow a consistent structure:
 |------|--------|-------------|
 | `WITHDRAWAL_BELOW_MINIMUM` | 400 | The amount is below the minimum withdrawal value. |
 | `INSUFFICIENT_BALANCE` | 400 | Your available balance is not sufficient. |
-| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit. |
+| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
+| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum the routing PIX provider accepts. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for the account. |
-| `INVALID_PIX_KEY` | 400 | The destination PIX key is not a recognizable CPF, CNPJ, e-mail, phone, or random key. |
-| `INVALID_WITHDRAWAL_RECIPIENT` | 403 | The PIX key does not belong to a permitted recipient (for CNPJ accounts, the key must match the company name or registered partners). |
-| `PIX_KEY_VALIDATION_FAILED` | 400 | The PIX key could not be validated. |
-| `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | Your account's CNPJ (business) or owner CPF (individual) is not on file. Complete KYB/KYC before withdrawing. |
+| `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — key existence is resolved by the network after acceptance. |
+| `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |
+| `RECIPIENT_DOCUMENT_MISMATCH` | 400 | `destination.recipientDocument` disagrees with a CPF or CNPJ `destination.pixKey`. |
+| `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH` | 400 | The network rejected the payout: the creditor document does not match the PIX key holder. |
+| `WITHDRAWAL_PIX_KEY_BLOCKED` | 400 | This PIX key was recently rejected by the network for the document used. |
+| `BLOCKLIST_DENIED` | 400 | The destination is blocked by platform risk policy. |
+| `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | The creditor document fell through to your own tax id and it is not on file. Complete KYB/KYC, or send `destination.recipientDocument`. |
 | `VERIFICATION_REQUIRED` | 403 | Account verification is required before withdrawals can be processed. |
+| `SANDBOX_COMPANY_PRODUCTION_BLOCKED` | 403 | A production request was made by an account that is still sandbox-only. |
+| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout. No money moved; retry with a new idempotency key. |
+| `WITHDRAWAL_TEMPORARILY_UNAVAILABLE` | 503 | The request was abandoned before reaching the network. No money moved. |
+| `WITHDRAWAL_PROCESSING_FAILED` | 503 | The withdrawal could not be recorded. No money moved. |
+
+<Note>
+  `INVALID_WITHDRAWAL_RECIPIENT` and `PIX_KEY_VALIDATION_FAILED` were removed
+  along with the PIX key ownership policy. Neither code can be returned by the
+  API any more.
+</Note>
 
 ### Server errors
 

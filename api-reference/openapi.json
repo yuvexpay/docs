@@ -650,7 +650,7 @@
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create a withdrawal",
-        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key.\n\nThe PIX key type (CPF, CNPJ, e-mail, phone, or random key) is detected automatically from `destination.pixKey` — you do not need to declare it. Invalid keys are rejected with `INVALID_PIX_KEY`.\n\nThe creditor document on the network is always derived server-side from your verified company tax id (CNPJ for business accounts, owner CPF for individual accounts).\n\nWithdrawals may be blocked outside business hours or if your account has restrictions.",
+        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key.\n\nThe PIX key type (CPF, CNPJ, e-mail, phone, or random key) is detected automatically from `destination.pixKey` — you do not need to declare it. `INVALID_PIX_KEY` covers format only. Whether the key exists on the PIX network is not checked before acceptance: depending on when the network rejects, a well-formed key that belongs to nobody surfaces either as a synchronous `400 PROVIDER_ERROR` on this call or later as a `WITHDRAWAL_FAILED` webhook.\n\nThe creditor document sent to the PIX network is resolved in three steps, in order: (1) `destination.recipientDocument` when you send it; (2) the PIX key itself when `destination.pixKey` is a CPF or CNPJ key; (3) your own verified tax id — company CNPJ for business accounts, owner CPF for individual accounts. Step 3 is a fallback, not a default: if you pay a third party on an e-mail, phone or random key and omit `destination.recipientDocument`, the network is told your own document is the creditor, and the payout may be rejected downstream by the receiving institution.\n\nWithdrawals may be blocked outside business hours or if your account has restrictions.\n\nBusiness accounts may also send `creditorDocumentSource: \"PERSONAL\"` to make step 3 resolve to the account owner CPF instead of the company CNPJ. It only affects step 3.",
         "tags": [
           "Withdrawals"
         ],
@@ -668,16 +668,41 @@
               },
               "examples": {
                 "pix": {
-                  "summary": "PIX withdrawal",
+                  "summary": "Third-party payout with the holder document",
                   "value": {
                     "amount": 500,
                     "method": "PIX",
                     "currency": "BRL",
                     "destination": {
                       "type": "pix",
-                      "pixKey": "ana@example.com"
+                      "pixKey": "ana@example.com",
+                      "recipientDocument": "529.982.247-25"
                     },
                     "description": "Weekly payout"
+                  }
+                },
+                "pixDocumentKey": {
+                  "summary": "CPF key — the creditor document is derived from the key",
+                  "value": {
+                    "amount": 500,
+                    "method": "PIX",
+                    "currency": "BRL",
+                    "destination": {
+                      "type": "pix",
+                      "pixKey": "52998224725"
+                    }
+                  }
+                },
+                "pixOwnAccount": {
+                  "summary": "Payout to your own account — no document needed",
+                  "value": {
+                    "amount": 500,
+                    "method": "PIX",
+                    "currency": "BRL",
+                    "destination": {
+                      "type": "pix",
+                      "pixKey": "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+                    }
                   }
                 }
               }
@@ -693,7 +718,7 @@
                   "type": "object",
                   "properties": {
                     "withdrawal": {
-                      "$ref": "#/components/schemas/Withdrawal"
+                      "$ref": "#/components/schemas/WithdrawalCreated"
                     }
                   }
                 }
@@ -701,13 +726,40 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "invalidRecipientDocument": {
+                    "summary": "recipientDocument is not a valid CPF or CNPJ",
+                    "value": {
+                      "error": {
+                        "code": "INVALID_RECIPIENT_DOCUMENT",
+                        "message": "O CPF/CNPJ do destinatário é inválido. Envie um CPF de 11 dígitos ou um CNPJ de 14 dígitos."
+                      }
+                    }
+                  },
+                  "recipientDocumentMismatch": {
+                    "summary": "recipientDocument disagrees with a CPF or CNPJ pixKey",
+                    "value": {
+                      "error": {
+                        "code": "RECIPIENT_DOCUMENT_MISMATCH",
+                        "message": "O CPF/CNPJ do destinatário não corresponde à chave PIX informada."
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Withdrawals blocked for this account.",
+            "description": "Withdrawals blocked for this account. Codes: `WITHDRAWALS_BLOCKED`, `VERIFICATION_REQUIRED`, `CREDITOR_DOCUMENT_UNAVAILABLE`, `SANDBOX_COMPANY_PRODUCTION_BLOCKED`, `CREDITOR_DOCUMENT_PERSONAL_FORBIDDEN`, `CREDITOR_DOCUMENT_OVERRIDE_FORBIDDEN`, `WITHDRAWAL_PROVIDER_OVERRIDE_FORBIDDEN`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -721,6 +773,16 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "description": "The withdrawal never reached the PIX network and no money moved. Codes: `WITHDRAWAL_PROVIDER_UNAVAILABLE`, `WITHDRAWAL_TEMPORARILY_UNAVAILABLE`, `WITHDRAWAL_PROCESSING_FAILED`. Safe to retry with a new idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -822,7 +884,7 @@
       "get": {
         "operationId": "getWithdrawalLimits",
         "summary": "Get withdrawal limits",
-        "description": "Retrieve your current daily withdrawal limits, usage, and fee information. Limits are reduced during nighttime hours (22:00-06:00 BRT).",
+        "description": "Retrieve your current withdrawal limits, usage and fee. A reduced \"nightly\" limit applies outside the `dayStartHour`–`dayEndHour` window (BRT); `isNightTime` tells you which one `currentLimit` currently reflects. Day and night share one `used` counter for the whole Brazilian calendar day.",
         "tags": [
           "Withdrawals"
         ],
@@ -841,7 +903,9 @@
                   "isNightTime": false,
                   "fee": 2.49,
                   "dayStartHour": 6,
-                  "dayEndHour": 22
+                  "dayEndHour": 22,
+                  "minAmount": 10,
+                  "perTransactionLimit": 5000
                 }
               }
             }
@@ -1678,7 +1742,7 @@
       "get": {
         "operationId": "getPaymentReceipt",
         "summary": "Get payment receipt",
-        "description": "Generate a receipt document for a specific payment. Available in HTML or plain text format.",
+        "description": "Render a receipt for a payment. Requires the `documents:read` scope. The payment must be `PAID` or `REFUNDED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`.",
         "tags": [
           "Documents"
         ],
@@ -1709,17 +1773,16 @@
         ],
         "responses": {
           "200": {
-            "description": "Receipt generated.",
+            "description": "The rendered receipt. The response body is the document itself — HTML with `Content-Type: text/html`, or plain text with `Content-Type: text/plain`. It is not JSON, and it is not a PDF.",
             "content": {
-              "application/json": {
+              "text/html": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "content": {
-                      "type": "string",
-                      "description": "The receipt content in the requested format."
-                    }
-                  }
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1729,6 +1792,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "description": "The payment is not `PAID` or `REFUNDED`. Code: `RECEIPT_NOT_AVAILABLE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1737,7 +1810,7 @@
       "get": {
         "operationId": "getWithdrawalReceipt",
         "summary": "Get withdrawal receipt",
-        "description": "Generate a receipt document for a specific withdrawal. Available in HTML or plain text format.",
+        "description": "Render a receipt for a completed withdrawal. Requires the `documents:read` scope. The withdrawal must be in status `COMPLETED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`.",
         "tags": [
           "Documents"
         ],
@@ -1768,17 +1841,16 @@
         ],
         "responses": {
           "200": {
-            "description": "Receipt generated.",
+            "description": "The rendered receipt. The response body is the document itself — HTML with `Content-Type: text/html`, or plain text with `Content-Type: text/plain`. It is not JSON, and it is not a PDF.",
             "content": {
-              "application/json": {
+              "text/html": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "content": {
-                      "type": "string",
-                      "description": "The receipt content in the requested format."
-                    }
-                  }
+                  "type": "string"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1788,6 +1860,16 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "400": {
+            "description": "The withdrawal is not `COMPLETED`. Code: `RECEIPT_NOT_AVAILABLE`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -1865,10 +1947,10 @@
     }
   },
   "webhooks": {
-    "payment.confirmed": {
+    "PAYMENT_CONFIRMED": {
       "post": {
         "summary": "Payment confirmed",
-        "description": "Card or boleto payment was authorized by the issuer. Funds are held as receivable but not yet settled.",
+        "description": "A card or boleto payment was authorized by the issuer. The funds are a held receivable, not yet a balance credit.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -1876,17 +1958,33 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "CONFIRMED"
+                    ],
+                    "description": "Always `CONFIRMED`."
+                  },
+                  "method": {
+                    "type": "string",
+                    "description": "Payment method, e.g. `CARD` or `BOLETO`."
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "Present and equal to `reconciler` when the confirmation came from reconciliation rather than the provider callback."
+                  }
+                }
               },
               "example": {
-                "id": "evt_xyz789",
-                "type": "PAYMENT_CONFIRMED",
-                "data": {
-                  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
-                  "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-                  "status": "CONFIRMED",
-                  "amount": 149.9
-                }
+                "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+                "status": "CONFIRMED",
+                "method": "CARD"
               }
             }
           }
@@ -1898,10 +1996,10 @@
         }
       }
     },
-    "payment.paid": {
+    "PAYMENT_PAID": {
       "post": {
         "summary": "Payment paid",
-        "description": "Funds were received and the net amount was credited to your balance.",
+        "description": "Funds were received and the net amount was credited to your balance.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -1909,16 +2007,69 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PAID"
+                    ],
+                    "description": "Always `PAID`."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Gross amount in BRL."
+                  },
+                  "paidAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time",
+                    "description": "Settlement timestamp. `null` when not recorded."
+                  },
+                  "endToEndId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "PIX end-to-end identifier, safe for bank reconciliation. `null` when the network did not supply one."
+                  },
+                  "payer": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/WebhookPayerBlock"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Payer block, or `null` when every field would be null."
+                  }
+                }
               },
               "example": {
-                "id": "evt_xyz789",
-                "type": "PAYMENT_PAID",
-                "data": {
-                  "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
-                  "txId": "PAY3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-                  "status": "PAID",
-                  "amount": 49.9
+                "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+                "status": "PAID",
+                "amount": 49.9,
+                "paidAt": "2026-06-06T12:00:00.000Z",
+                "endToEndId": "E000000022026060612000abc1234def",
+                "payer": {
+                  "name": "Maria Silva",
+                  "document": "39053344705",
+                  "documentType": "CPF",
+                  "institutionName": "Banco Example S.A.",
+                  "institutionIspb": "00000000"
                 }
               }
             }
@@ -1931,10 +2082,10 @@
         }
       }
     },
-    "payment.expired": {
+    "PAYMENT_EXPIRED": {
       "post": {
         "summary": "Payment expired",
-        "description": "Triggered when a payment expires before being completed.",
+        "description": "The payment expired before being completed. For boleto this is not always terminal — a boleto paid on or shortly after its due date can settle late, producing a `PAYMENT_PAID` afterwards for the same charge.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -1942,7 +2093,33 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id. Present only on some expiry paths."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "EXPIRED"
+                    ],
+                    "description": "Always `EXPIRED`."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Gross amount in BRL. Present only on some expiry paths."
+                  }
+                }
+              },
+              "example": {
+                "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+                "status": "EXPIRED"
               }
             }
           }
@@ -1954,10 +2131,64 @@
         }
       }
     },
-    "payment.refunded": {
+    "PAYMENT_CANCELLED": {
+      "post": {
+        "summary": "Payment cancelled",
+        "description": "The payment was cancelled or definitively failed before completing.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id. Present only on some cancellation paths."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "CANCELLED"
+                    ],
+                    "description": "Always `CANCELLED`."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Gross amount in BRL. Present only on some cancellation paths."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Provider-supplied reason, when available."
+                  }
+                }
+              },
+              "example": {
+                "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+                "status": "CANCELLED",
+                "reason": "payment_failed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
+    "PAYMENT_REFUNDED": {
       "post": {
         "summary": "Payment refunded",
-        "description": "A refund completed for this payment.",
+        "description": "A refund completed for this payment. Note this body identifies the payment as `paymentId` and carries no `txId`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -1965,7 +2196,32 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "paymentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "refundId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Refund id."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Refunded amount in BRL."
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "Present when the refund was driven by a PIX MED; names the settling provider."
+                  }
+                }
+              },
+              "example": {
+                "paymentId": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                "refundId": "2c7f1a90-55b8-4a1e-9d33-6f0b2e4c7a11",
+                "amount": 49.9
               }
             }
           }
@@ -1977,10 +2233,10 @@
         }
       }
     },
-    "payment.refund_failed": {
+    "PAYMENT_REFUND_FAILED": {
       "post": {
         "summary": "Payment refund failed",
-        "description": "A refund attempt could not be executed. The funds are returned to your balance and you may retry.",
+        "description": "A refund attempt failed. This body identifies the payment as `paymentId` and carries no `txId`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -1988,7 +2244,28 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "paymentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "refundId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Refund id."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Failure reason, safe to surface to operators."
+                  }
+                }
+              },
+              "example": {
+                "paymentId": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                "refundId": "2c7f1a90-55b8-4a1e-9d33-6f0b2e4c7a11",
+                "reason": "Refund failed at provider [E42]"
               }
             }
           }
@@ -2000,10 +2277,10 @@
         }
       }
     },
-    "payment.chargeback": {
+    "PAYMENT_CHARGEBACK": {
       "post": {
         "summary": "Payment chargeback",
-        "description": "A chargeback was opened or processed against this payment.",
+        "description": "A chargeback was opened or processed. These two fields are the entire body — there is no id, amount or reason.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2011,7 +2288,24 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "CHARGEBACK"
+                    ],
+                    "description": "Always `CHARGEBACK`."
+                  }
+                }
+              },
+              "example": {
+                "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
+                "status": "CHARGEBACK"
               }
             }
           }
@@ -2023,10 +2317,10 @@
         }
       }
     },
-    "med.received": {
+    "MED_RECEIVED": {
       "post": {
-        "summary": "PIX MED received",
-        "description": "A PIX MED (special refund mechanism) request was opened by the payer's bank. Funds for the affected payment are temporarily held.",
+        "summary": "MED received",
+        "description": "A PIX MED (special refund) was opened by the payer's bank.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2034,7 +2328,42 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "medId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "MED id."
+                  },
+                  "paymentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "providerMedId": {
+                    "type": "string",
+                    "description": "Provider MED id, when supplied."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Disputed amount in BRL."
+                  },
+                  "frozenAmount": {
+                    "type": "number",
+                    "description": "Amount frozen on your balance in BRL."
+                  },
+                  "shortfall": {
+                    "type": "number",
+                    "description": "Amount that could not be frozen because of insufficient balance."
+                  }
+                }
+              },
+              "example": {
+                "medId": "b41d7e02-9c3f-4a58-8e12-0d5a6f9b3c74",
+                "paymentId": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                "amount": 49.9,
+                "frozenAmount": 30,
+                "shortfall": 19.9
               }
             }
           }
@@ -2046,10 +2375,10 @@
         }
       }
     },
-    "med.resolved": {
+    "MED_RESOLVED": {
       "post": {
-        "summary": "PIX MED resolved",
-        "description": "A PIX MED request was resolved (approved or rejected).",
+        "summary": "MED resolved",
+        "description": "A PIX MED reached a terminal outcome.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2057,7 +2386,58 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "medId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "MED id."
+                  },
+                  "paymentId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "resolution": {
+                    "type": "string",
+                    "enum": [
+                      "ACCEPTED_BY_USER",
+                      "REJECTED_BY_USER",
+                      "ACCEPTED_BY_PSP",
+                      "REJECTED_BY_PSP",
+                      "CANCELLED_BY_PSP"
+                    ],
+                    "description": "How the MED ended. Switch on this non-exhaustively — new outcomes can be added."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "Disputed amount in BRL. Absent on the provider-lifecycle paths, which omit the key entirely."
+                  },
+                  "refundId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Refund id, when the resolution produced a refund."
+                  },
+                  "shortfall": {
+                    "type": "number",
+                    "description": "Unfrozen shortfall, when applicable."
+                  },
+                  "source": {
+                    "type": "string",
+                    "description": "Names the path that resolved the MED when it was not a direct merchant action, e.g. `onlyup`, `unoip`, `merchant_refund` or `<provider>-reconciler`."
+                  }
+                },
+                "required": [
+                  "medId",
+                  "paymentId",
+                  "resolution"
+                ]
+              },
+              "example": {
+                "medId": "b41d7e02-9c3f-4a58-8e12-0d5a6f9b3c74",
+                "paymentId": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
+                "amount": 49.9,
+                "resolution": "ACCEPTED_BY_USER"
               }
             }
           }
@@ -2069,10 +2449,10 @@
         }
       }
     },
-    "withdrawal.requested": {
+    "WITHDRAWAL_REQUESTED": {
       "post": {
         "summary": "Withdrawal requested",
-        "description": "A withdrawal was created and is being processed.",
+        "description": "A withdrawal was created and handed to the PIX network.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2080,7 +2460,35 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "withdrawalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Withdrawal id."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Withdrawal transaction id."
+                  },
+                  "netAmount": {
+                    "type": "number",
+                    "description": "Amount sent to the recipient in BRL, excluding the fee."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING"
+                    ],
+                    "description": "Always `PENDING`."
+                  }
+                }
+              },
+              "example": {
+                "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+                "txId": "WIT1746280868443K3F9Q",
+                "netAmount": 100,
+                "status": "PENDING"
               }
             }
           }
@@ -2092,10 +2500,10 @@
         }
       }
     },
-    "withdrawal.sent": {
+    "WITHDRAWAL_SENT": {
       "post": {
         "summary": "Withdrawal sent",
-        "description": "Triggered when a withdrawal is successfully processed.",
+        "description": "The recipient received the money. `failureReason` is absent from this body entirely, not `null`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2103,7 +2511,62 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "withdrawalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Withdrawal id."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Withdrawal transaction id."
+                  },
+                  "netAmount": {
+                    "type": "number",
+                    "description": "Amount sent to the recipient in BRL, excluding the fee."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "COMPLETED"
+                    ],
+                    "description": "Always `COMPLETED`."
+                  },
+                  "endToEndId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "PIX end-to-end identifier. `null` when the network did not assign one."
+                  },
+                  "recipient": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/WebhookRecipientBlock"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Recipient block, or `null` when every field would be null."
+                  }
+                }
+              },
+              "example": {
+                "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+                "txId": "WIT1746280868443K3F9Q",
+                "netAmount": 100,
+                "status": "COMPLETED",
+                "endToEndId": "E000000022026060612050def5678abc",
+                "recipient": {
+                  "name": "João Souza",
+                  "document": "52998224725",
+                  "institutionName": "Banco Example S.A.",
+                  "institutionIspb": "00000000",
+                  "branch": "0001",
+                  "account": "123456"
+                }
               }
             }
           }
@@ -2115,10 +2578,10 @@
         }
       }
     },
-    "withdrawal.failed": {
+    "WITHDRAWAL_FAILED": {
       "post": {
         "summary": "Withdrawal failed",
-        "description": "Triggered when a withdrawal fails to process.",
+        "description": "The network rejected the transfer and the funds were returned to your balance. This also carries provider-driven reversals.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2126,7 +2589,60 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WebhookEvent"
+                "type": "object",
+                "properties": {
+                  "withdrawalId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Withdrawal id."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Withdrawal transaction id."
+                  },
+                  "netAmount": {
+                    "type": "number",
+                    "description": "Amount that was attempted, in BRL."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "FAILED"
+                    ],
+                    "description": "Always `FAILED`."
+                  },
+                  "endToEndId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "PIX end-to-end identifier. `null` when the network did not assign one."
+                  },
+                  "recipient": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/WebhookRecipientBlock"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Recipient block, or `null` when every field would be null."
+                  },
+                  "failureReason": {
+                    "type": "string",
+                    "description": "Merchant-safe failure description. Never `null` — the key is absent when the network supplied no usable reason text."
+                  }
+                }
+              },
+              "example": {
+                "withdrawalId": "9a1b2c3d-4e5f-6a7b-8c9d-0e1f2a3b4c5d",
+                "txId": "WIT1746280868443K3F9Q",
+                "netAmount": 100,
+                "status": "FAILED",
+                "endToEndId": null,
+                "recipient": null,
+                "failureReason": "A chave PIX informada não existe ou já não está ativa. Confira a chave e tente de novo."
               }
             }
           }
@@ -2243,6 +2759,7 @@
           "PAYMENT_CONFIRMED",
           "PAYMENT_PAID",
           "PAYMENT_EXPIRED",
+          "PAYMENT_CANCELLED",
           "PAYMENT_REFUNDED",
           "PAYMENT_REFUND_FAILED",
           "PAYMENT_CHARGEBACK",
@@ -2252,7 +2769,7 @@
           "WITHDRAWAL_SENT",
           "WITHDRAWAL_FAILED"
         ],
-        "description": "Supported webhook event types."
+        "description": "Subscribable webhook event types. This value is delivered in the `X-Webhook-Event` header, never in the request body."
       },
       "CreatePaymentRequest": {
         "type": "object",
@@ -2543,7 +3060,7 @@
             "minimum": 10,
             "maximum": 1000000,
             "multipleOf": 0.01,
-            "description": "Withdrawal amount (minimum R$10.00)."
+            "description": "Withdrawal amount in BRL (minimum R$10.00). The 1,000,000 ceiling is a request-validation bound, not your limit — the per-transaction cap that applies to your account is returned by `GET /v1/withdrawals/limits`."
           },
           "method": {
             "type": "string",
@@ -2578,7 +3095,13 @@
               "pixKey": {
                 "type": "string",
                 "minLength": 1,
-                "description": "PIX key. Accepts CPF, CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), or a random EVP/UUID. The type is detected automatically; you do not need to send `pixKeyType`. Whitespace and punctuation are stripped server-side."
+                "description": "PIX key. Accepts CPF, CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), or a random EVP/UUID. The type is detected automatically; you do not need to send `pixKeyType`. The key is normalized before use: CPF and CNPJ keys are reduced to digits and must pass their check digits, phone keys are normalized to `+55` E.164, and e-mail and EVP keys are trimmed and lowercased. A key that matches none of those shapes is rejected with `INVALID_PIX_KEY`."
+              },
+              "recipientDocument": {
+                "type": "string",
+                "minLength": 11,
+                "maxLength": 18,
+                "description": "CPF or CNPJ of the PIX key holder. Whitespace and punctuation are stripped server-side; the result must be a valid CPF (11 digits) or CNPJ (14 digits), check digits included. Send it whenever the destination key belongs to someone other than you. Omitting it on a third-party e-mail, phone or random key makes the network see your own document as creditor. If `pixKey` is itself a CPF or CNPJ key, this field must agree with it or the request is rejected with `RECIPIENT_DOCUMENT_MISMATCH`."
               }
             }
           },
@@ -2825,12 +3348,15 @@
               "document": {
                 "type": "string",
                 "nullable": true,
-                "description": "Payer CPF/CNPJ, returned unredacted when the full value is on file. May be masked (e.g. \"75******20\") for open-payer charges where only a masked value was provided by the payer's bank."
+                "description": "Payer CPF or CNPJ. `null` when unavailable. Some PIX participants report the document masked; a masked value is never placed here — it is discarded and the field falls back to whatever full document is already on file, which for an open-payer charge is usually nothing. Treat it as sometimes absent even for a real, identified payer."
               },
               "documentType": {
                 "type": "string",
                 "nullable": true,
-                "enum": ["CPF", "CNPJ"],
+                "enum": [
+                  "CPF",
+                  "CNPJ"
+                ],
                 "description": "Payer document type."
               },
               "institutionName": {
@@ -2884,7 +3410,9 @@
             "format": "uuid"
           },
           "txId": {
-            "type": "string"
+            "type": "string",
+            "description": "Transaction identifier: `WIT` followed by a millisecond timestamp and 5 uppercase alphanumerics, e.g. `WIT1746280868443K3F9Q`. Treat it as an opaque string.",
+            "example": "WIT1746280868443K3F9Q"
           },
           "grossAmount": {
             "type": "number"
@@ -2901,7 +3429,7 @@
           },
           "pixKeyType": {
             "type": "string",
-            "description": "Type of PIX key (CPF, CNPJ, EMAIL, PHONE, RANDOM)."
+            "description": "Type of PIX key: `CPF`, `CNPJ`, `EMAIL`, `PHONE` or `EVP` (random key)."
           },
           "status": {
             "$ref": "#/components/schemas/WithdrawalStatus"
@@ -2942,15 +3470,15 @@
         "properties": {
           "currentLimit": {
             "type": "number",
-            "description": "Current daily limit in BRL."
+            "description": "Daily (or nightly, when `isNightTime` is true) limit in BRL."
           },
           "used": {
             "type": "number",
-            "description": "Amount already withdrawn today."
+            "description": "Amount already consumed today, in BRL. Counts `amount + feeAmount` of each withdrawal, and is a single counter for the whole Brazilian calendar day — the nightly limit is compared against a total that already includes daytime volume."
           },
           "remaining": {
             "type": "number",
-            "description": "Remaining withdrawal capacity."
+            "description": "Remaining capacity for the current window, in BRL. Because the fee counts towards the limit, the largest `amount` you can request is `remaining - fee`."
           },
           "isNightTime": {
             "type": "boolean",
@@ -2967,6 +3495,17 @@
           "dayEndHour": {
             "type": "integer",
             "description": "Hour when nighttime limits begin (BRT)."
+          },
+          "minAmount": {
+            "type": "number",
+            "description": "Minimum withdrawal amount in BRL."
+          },
+          "perTransactionLimit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply at the PIX provider that routes the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
           }
         }
       },
@@ -3087,22 +3626,6 @@
                 "description": "Additional error context."
               }
             }
-          }
-        }
-      },
-      "WebhookEvent": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "Unique event ID."
-          },
-          "type": {
-            "$ref": "#/components/schemas/WebhookEventType"
-          },
-          "data": {
-            "type": "object",
-            "description": "Event payload containing the resource data."
           }
         }
       },
@@ -3374,6 +3897,141 @@
         "required": [
           "payment"
         ]
+      },
+      "WebhookPayerBlock": {
+        "type": "object",
+        "description": "Payer block. `null` when every field would be null.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payer name as reported by the settling institution."
+          },
+          "document": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payer CPF or CNPJ. `null` when unavailable — including when the settling PIX provider returned it masked, in which case the masked value is discarded rather than delivered."
+          },
+          "documentType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`CPF` or `CNPJ`."
+          },
+          "institutionName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payer institution name."
+          },
+          "institutionIspb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Payer institution ISPB code."
+          }
+        }
+      },
+      "WebhookRecipientBlock": {
+        "type": "object",
+        "description": "Recipient block. `null` when every field would be null. There is no `documentType` here, unlike `payer`.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient name as reported by the settling institution."
+          },
+          "document": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient CPF or CNPJ. Populated when the withdrawal was created with `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`, or when the settling provider reported the receiving account. `null` otherwise."
+          },
+          "institutionName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient institution name."
+          },
+          "institutionIspb": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient institution ISPB code."
+          },
+          "branch": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient branch, when the provider reports it."
+          },
+          "account": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Recipient account, when the provider reports it."
+          }
+        }
+      },
+      "WithdrawalCreated": {
+        "type": "object",
+        "description": "The withdrawal as returned by `POST /v1/withdrawals`. This response is deliberately narrower than the object returned by the read endpoints: it omits `pixKey`, `pixKeyType`, `processedAt` and `errorMessage`, which are only meaningful once the network has acted.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txId": {
+            "type": "string",
+            "description": "Transaction identifier: `WIT` followed by a millisecond timestamp and 5 uppercase alphanumerics, e.g. `WIT1746280868443K3F9Q`. Treat it as an opaque string.",
+            "example": "WIT1746280868443K3F9Q"
+          },
+          "grossAmount": {
+            "type": "number"
+          },
+          "feeAmount": {
+            "type": "number"
+          },
+          "netAmount": {
+            "type": "number"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "PIX"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/WithdrawalStatus"
+          },
+          "isSandbox": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     },
     "responses": {
