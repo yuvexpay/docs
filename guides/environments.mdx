@@ -13,7 +13,7 @@ chosen by the API key you send — no separate hostname, no code fork.
 | API URL | `https://api.yuvexpay.com` | `https://api.yuvexpay.com` |
 | API key prefix | `ypk_test_` | `ypk_live_` |
 | Real money | No | Yes |
-| Webhooks | Simulated, signed with the same `v1` algorithm as production | Real events |
+| Webhooks | **Not delivered.** Poll the resource instead. | Delivered, signed with the `v1` algorithm |
 | Rate limits | Same as production | Per-account limits |
 | Data isolation | Sandbox payments and withdrawals are tagged separately and never appear in production reports. | |
 
@@ -26,14 +26,15 @@ Sandbox simulates the full payment lifecycle:
 
 - Payments are created with real-looking responses, including QR codes for PIX.
 - Status transitions (`PROCESSING`, `PAID`, `EXPIRED`) are simulated.
-- Webhooks fire with the same shape and headers as production, signed with your sandbox webhook secret.
+- Webhooks are **not** delivered for sandbox payments and withdrawals — poll `GET /v1/payments/{paymentId}` or `GET /v1/withdrawals/{withdrawalId}` instead. Use the dashboard **Send test** button to exercise your signature verifier.
 - No real money is moved.
 
 See the [Sandbox guide](/guides/sandbox) for the deterministic test recipes (specific amounts that trigger specific outcomes).
 
 <Tip>
-  Use sandbox to test your entire integration flow, including webhook handling
-  and error scenarios, before switching to production.
+  Use sandbox to test your entire integration flow and error scenarios before
+  switching to production. Webhook *delivery* is the one thing sandbox cannot
+  exercise; verify your handler against the dashboard test ping instead.
 </Tip>
 
 ## Going live
@@ -43,11 +44,11 @@ When you're ready to accept real payments:
 1. Create a **production** API key in the dashboard (requires completed KYB).
 2. Replace your sandbox `ypk_test_...` key with the `ypk_live_...` key in your
    environment variables.
-3. Verify your production webhook endpoints are configured and that your verifier accepts production signatures.
+3. Verify your webhook endpoint is configured and that your verifier accepts its signatures — use the dashboard **Send test** button. Live traffic is the first traffic that will actually deliver events.
 4. Start processing real transactions.
 
 <Warning>
-  Production transactions involve real money. Ensure your error handling,
-  idempotency logic and webhook verification are thoroughly tested in sandbox
-  before going live.
+  Production transactions involve real money. Ensure your error handling and
+  idempotency logic are thoroughly tested in sandbox, and your webhook verifier
+  against the dashboard test ping, before going live.
 </Warning>

@@ -11,23 +11,81 @@ asynchronously by the network.
 
 - **Currency**: BRL only.
 - **Method**: PIX only. Other rails (boleto, TED) are not exposed via the API.
-- **Minimum amount**: `R$ 10.00`.
-- **Maximum amount per request**: `R$ 1,000,000.00`.
+- **Minimum amount**: `R$ 10.00`, returned as `minAmount` by
+  [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits).
+- **Per-transaction cap**: account-dependent, not a fixed platform number.
+  The cap that applies to your account is returned as `perTransactionLimit`
+  by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits)
+  (`null` means no account-level cap). A second, lower ceiling can apply at
+  the network side depending on which PIX provider routes the payout. That
+  one is not knowable before submission, but it is still evaluated
+  synchronously: it comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or
+  `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call, after the
+  account-level checks have passed. Requests above `R$ 1,000,000.00` are
+  rejected by request validation before any of this is evaluated.
+
+  Both caps are compared against `amount + feeAmount`, so the largest `amount`
+  you can request is the cap minus the fee.
 - **Daily and nightly limits**: Each account has a daily limit. After
   business hours (BRT) a smaller "nightly" limit applies. Use
   [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) to fetch
   the live numbers, including how much you've already used today and the
-  current `dayStartHour` / `dayEndHour` cutoffs.
+  current `dayStartHour` / `dayEndHour` cutoffs. Day and night share one
+  counter: `used` is the running total for the whole Brazilian calendar day,
+  so the nightly cap is compared against a number that already includes your
+  daytime volume.
+- **`used` and `remaining` count the fee**: a withdrawal consumes
+  `amount + feeAmount` of your limit. The largest `amount` you can request is
+  therefore `remaining - fee`, not `remaining`.
 - **PIX key type**: detected automatically from `destination.pixKey`. CPF,
   CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), and random EVP/UUID keys
-  are all accepted. Invalid keys are rejected with `INVALID_PIX_KEY`. You do
-  not need to send a `pixKeyType` field.
-- **Recipient validation**: For CNPJ accounts, the destination PIX key must
-  belong to the company itself or to one of its registered partners. Personal
-  CPF accounts can withdraw to any PIX key associated with the same CPF.
-  Failed validation surfaces as `INVALID_WITHDRAWAL_RECIPIENT`.
+  are all accepted. You do not need to send a `pixKeyType` field.
+  `INVALID_PIX_KEY` covers **format only** — a key is rejected up front when
+  it is not a recognizable CPF, CNPJ, e-mail, phone or EVP (a CPF or CNPJ key
+  must also pass its check digits). Whether the key actually **exists** on the
+  PIX network is not checked before acceptance. Depending on when the network
+  rejects it, a well-formed key that belongs to nobody surfaces either as a
+  synchronous `400 PROVIDER_ERROR` on the create call or later as a
+  `WITHDRAWAL_FAILED` webhook. Handle both.
+- **Recipient document**: the PIX network requires a creditor document on
+  every payout. Send `destination.recipientDocument` whenever the destination
+  key belongs to someone other than you. See
+  [Recipient document](#recipient-document).
+
+## Recipient document
+
+Every PIX payout carries a **creditor document** — the CPF or CNPJ of the
+account that receives the money. YuvexPay resolves it in three steps, in this
+order:
+
+1. **`destination.recipientDocument`**, when you send it. Punctuation and
+   whitespace are stripped server-side, and the result must be a valid CPF
+   (11 digits) or CNPJ (14 digits) — check digits included.
+2. **The PIX key itself**, when `destination.pixKey` is a CPF or a CNPJ key.
+   Such a key belongs to that document by definition, so it is always a
+   better creditor than your own tax id.
+3. **Your own tax id** — the company CNPJ for business accounts, the owner's
+   CPF for individual accounts. In sandbox this step returns a placeholder
+   document rather than your real tax id, so a sandbox request never fails
+   with `CREDITOR_DOCUMENT_UNAVAILABLE`.
+
+Step 3 is a fallback, not a default. If you pay a third party on an e-mail,
+phone or random key and omit `recipientDocument`, the network is told **your**
+document is the creditor. The request is still accepted, but the payout can be
+rejected downstream by the receiving institution, arriving as a
+`WITHDRAWAL_FAILED` webhook minutes or hours later.
+
+If you send `recipientDocument` **and** the key is a CPF or CNPJ key, the two
+must agree. A disagreement is a typo in one of them and is rejected up front
+with `RECIPIENT_DOCUMENT_MISMATCH` rather than failing at the network later.
+
+Business accounts can send `creditorDocumentSource: "PERSONAL"` to make step 3
+resolve to the account owner's CPF instead of the company CNPJ. It only affects
+step 3 — a `recipientDocument` or a CPF/CNPJ key still wins.
 
 ## Create a withdrawal
+
+Paying a third party — send the holder's document:
 
 ```bash
 curl -X POST https://api.yuvexpay.com/v1/withdrawals \
@@ -40,9 +98,29 @@ curl -X POST https://api.yuvexpay.com/v1/withdrawals \
     "currency": "BRL",
     "destination": {
       "type": "pix",
-      "pixKey": "ana@example.com"
+      "pixKey": "ana@example.com",
+      "recipientDocument": "529.982.247-25"
     },
     "description": "Weekly payout"
+  }'
+```
+
+Paying a CPF or CNPJ key — the document is derived from the key, so
+`recipientDocument` is redundant:
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/withdrawals \
+  -H "Authorization: Bearer $YUVEX_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: payout-2026-05-03-2" \
+  -d '{
+    "amount": 250.00,
+    "method": "PIX",
+    "currency": "BRL",
+    "destination": {
+      "type": "pix",
+      "pixKey": "52998224725"
+    }
   }'
 ```
 
@@ -52,10 +130,10 @@ The response includes the withdrawal record:
 {
   "withdrawal": {
     "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
-    "txId": "WIT_3f2a8b9c4e6d1f5a7b3c8d2e9f4a6b1c",
-    "grossAmount": 250.00,
+    "txId": "WIT1746280868443K3F9Q",
+    "grossAmount": 251.50,
     "feeAmount": 1.50,
-    "netAmount": 248.50,
+    "netAmount": 250.00,
     "paymentMethod": "PIX",
     "currency": "BRL",
     "status": "PROCESSING",
@@ -65,7 +143,9 @@ The response includes the withdrawal record:
 }
 ```
 
-The fee is deducted from your balance at the time the withdrawal is created.
+`netAmount` is what reaches the recipient — the `amount` you requested.
+`grossAmount` is `amount + feeAmount`, and that is what is debited from your
+balance and counted against your limits, at the time the withdrawal is created.
 
 ## Lifecycle and statuses
 
@@ -81,10 +161,14 @@ Listen for `WITHDRAWAL_SENT` and `WITHDRAWAL_FAILED` webhook events to react
 to status changes.
 
 <Warning>
-  When the withdrawal stays in `PROCESSING` for an extended time after a
-  network or provider error, **do not retry the withdrawal**. Doing so risks
-  sending the same money twice. Wait for the next status update or reach out
-  to support if it's stuck for more than a few minutes.
+  **Never retry a withdrawal that is sitting in `PROCESSING`.** Retrying risks
+  sending the same money twice. `PROCESSING` means the transfer was handed to
+  the network and its outcome is not yet known — the horizon for that is
+  **hours, not minutes**, and a withdrawal can legitimately sit there for a
+  large part of a business day before settling or failing. Wait for the
+  `WITHDRAWAL_SENT` or `WITHDRAWAL_FAILED` webhook, or poll
+  `GET /v1/withdrawals/{withdrawalId}`. Funds are returned to your balance
+  automatically when a withdrawal fails.
 </Warning>
 
 ## PIX key in responses
@@ -98,9 +182,9 @@ use `txId` or your own metadata, not the masked `pixKey`.
 ## Fees
 
 The platform's withdrawal fee is fixed per request and is reported in the
-`feeAmount` field of every withdrawal. Daytime and nighttime windows may
-charge different fees; the active values are returned by
-[`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits).
+`feeAmount` field of every withdrawal. The active value is returned as `fee`
+by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). The fee
+is charged on top of `amount` and counts towards your daily limit.
 
 ## Idempotency
 
@@ -110,7 +194,9 @@ body returns `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
 
 ## Receipts
 
-Once a withdrawal is `COMPLETED` you can fetch a printable receipt:
+Once a withdrawal is `COMPLETED` you can fetch a printable receipt. The
+endpoint returns rendered HTML (`format=html`) or plain text (`format=text`),
+not a PDF, and requires the `documents:read` scope:
 
 ```
 GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
@@ -118,14 +204,34 @@ GET /v1/documents/withdrawals/{withdrawalId}/receipt?format=html
 
 ## Common error codes
 
-| Code | Meaning |
-|------|---------|
-| `WITHDRAWAL_BELOW_MINIMUM` | Amount is below `R$ 10.00`. |
-| `INSUFFICIENT_BALANCE` | The available balance is too low. |
-| `WITHDRAWAL_LIMIT_EXCEEDED` | The amount exceeds the remaining daily or nightly limit. |
-| `WITHDRAWALS_BLOCKED` | Withdrawals are currently disabled for this account. |
-| `INVALID_PIX_KEY` | The destination PIX key is not a recognizable CPF, CNPJ, e-mail, phone, or random key. |
-| `INVALID_WITHDRAWAL_RECIPIENT` | The destination PIX key is not allowed by the recipient policy. |
-| `PIX_KEY_VALIDATION_FAILED` | The PIX key could not be validated. |
-| `CREDITOR_DOCUMENT_UNAVAILABLE` | Your account's CNPJ (business) or owner CPF (individual) is not on file. Complete KYB/KYC before withdrawing. |
-| `VERIFICATION_REQUIRED` | The account requires additional verification before withdrawals can be processed. |
+| Code | Status | Meaning |
+|------|--------|---------|
+| `IDEMPOTENCY_KEY_REQUIRED` | 400 | `X-Idempotency-Key` is mandatory on this endpoint. This one is emitted before the API error envelope is applied, so its body is flat: `{ statusCode, error, message, code }`. |
+| `PROVIDER_ERROR` | 400 | The PIX network rejected the payout deterministically during the create call — most often a key that does not exist or an account that cannot receive. No money moved. |
+| `WITHDRAWAL_BELOW_MINIMUM` | 400 | Amount is below `R$ 10.00`. |
+| `INSUFFICIENT_BALANCE` | 400 | The available balance is too low. |
+| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
+| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum the routing PIX provider accepts. |
+| `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for this account. |
+| `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — existence is checked by the network after acceptance. |
+| `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |
+| `RECIPIENT_DOCUMENT_MISMATCH` | 400 | `destination.recipientDocument` disagrees with a CPF or CNPJ `destination.pixKey`. |
+| `WITHDRAWAL_PIX_KEY_BLOCKED` | 400 | This PIX key was rejected by the destination institution within the last 7 days (account not found, closed or blocked) and is short-circuited for this account. Use a different key — resending the same key with a different document does not clear the block. |
+| `BLOCKLIST_DENIED` | 400 | The destination is blocked by platform risk policy. |
+| `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | The creditor document fell through to your own tax id and it is not on file. Complete KYB/KYC, or send `destination.recipientDocument`. |
+| `VERIFICATION_REQUIRED` | 403 | The account requires additional verification before withdrawals can be processed. |
+| `SANDBOX_COMPANY_PRODUCTION_BLOCKED` | 403 | A production request was made by an account that is still sandbox-only. |
+| `CREDITOR_DOCUMENT_PERSONAL_FORBIDDEN` | 403 | `creditorDocumentSource: "PERSONAL"` was sent by a team member rather than the account owner. |
+| `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The idempotency key was already used with a different request body. |
+| `IDEMPOTENCY_CONFLICT` | 409 | A request with this idempotency key is still in flight, or the key was already consumed by a withdrawal that is no longer replayable from the 24-hour idempotency cache. |
+| `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH` | 400 | The network rejected the payout because the creditor document does not match the PIX key holder. Correct one of them and submit a new withdrawal. |
+| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout right now. Safe to retry with a **new** idempotency key. |
+| `WITHDRAWAL_TEMPORARILY_UNAVAILABLE` | 503 | The request was abandoned before reaching the network. No money moved; safe to retry. |
+| `WITHDRAWAL_PROCESSING_FAILED` | 503 | The withdrawal could not be recorded. No money moved; safe to retry. |
+
+<Note>
+  `INVALID_WITHDRAWAL_RECIPIENT` and `PIX_KEY_VALIDATION_FAILED` were removed.
+  The PIX key ownership policy they enforced no longer exists — withdrawals go
+  to any valid PIX key. Neither code can be returned by the API; remove any
+  branch in your integration that handles them.
+</Note>
