@@ -650,7 +650,7 @@
       "post": {
         "operationId": "createWithdrawal",
         "summary": "Create a withdrawal",
-        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key.\n\nThe PIX key type (CPF, CNPJ, e-mail, phone, or random key) is detected automatically from `destination.pixKey` — you do not need to declare it. `INVALID_PIX_KEY` covers format only. Whether the key exists on the PIX network is not checked before acceptance: depending on when the network rejects, a well-formed key that belongs to nobody surfaces either as a synchronous `400 PROVIDER_ERROR` on this call or later as a `WITHDRAWAL_FAILED` webhook.\n\nThe creditor document sent to the PIX network is resolved in three steps, in order: (1) `destination.recipientDocument` when you send it; (2) the PIX key itself when `destination.pixKey` is a CPF or CNPJ key; (3) your own verified tax id — company CNPJ for business accounts, owner CPF for individual accounts. Step 3 is a fallback, not a default: if you pay a third party on an e-mail, phone or random key and omit `destination.recipientDocument`, the network is told your own document is the creditor, and the payout may be rejected downstream by the receiving institution.\n\nWithdrawals may be blocked outside business hours or if your account has restrictions.\n\nBusiness accounts may also send `creditorDocumentSource: \"PERSONAL\"` to make step 3 resolve to the account owner CPF instead of the company CNPJ. It only affects step 3.",
+        "description": "Create a PIX withdrawal to transfer BRL funds from your YuvexPay balance. Requires an idempotency key.\n\nThe PIX key type (CPF, CNPJ, e-mail, phone, or random key) is detected automatically from `destination.pixKey` — you do not need to declare it. `INVALID_PIX_KEY` covers format only. Whether the key exists on the PIX network is not checked before acceptance: depending on when the network rejects, a well-formed key that belongs to nobody surfaces either as a synchronous `400 PROVIDER_ERROR` on this call or later as a `WITHDRAWAL_FAILED` webhook.\n\nThe creditor document sent to the PIX network is resolved in three steps, in order: (1) `destination.recipientDocument` when you send it; (2) the PIX key itself when `destination.pixKey` is a CPF or CNPJ key; (3) your own verified tax id — company CNPJ for business accounts, owner CPF for individual accounts. Step 3 is a fallback, not a default: if you pay a third party on an e-mail, phone or random key and omit `destination.recipientDocument`, the network is told your own document is the creditor, and the payout may be rejected downstream by the receiving institution.\n\nWithdrawals may be blocked outside business hours or if your account has restrictions.\n\n`creditorDocumentSource` is a dashboard-only field and is not accepted here: sending it returns `400 CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED` rather than being silently ignored. Use `destination.recipientDocument` to put a specific document on the payout.",
         "tags": [
           "Withdrawals"
         ],
@@ -726,7 +726,7 @@
             }
           },
           "400": {
-            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -759,7 +759,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Withdrawals blocked for this account. Codes: `WITHDRAWALS_BLOCKED`, `VERIFICATION_REQUIRED`, `CREDITOR_DOCUMENT_UNAVAILABLE`, `SANDBOX_COMPANY_PRODUCTION_BLOCKED`, `CREDITOR_DOCUMENT_PERSONAL_FORBIDDEN`, `CREDITOR_DOCUMENT_OVERRIDE_FORBIDDEN`, `WITHDRAWAL_PROVIDER_OVERRIDE_FORBIDDEN`.",
+            "description": "Withdrawals blocked for this account. Codes: `WITHDRAWALS_BLOCKED`, `VERIFICATION_REQUIRED`, `CREDITOR_DOCUMENT_UNAVAILABLE`, `SANDBOX_COMPANY_PRODUCTION_BLOCKED`, `CREDITOR_DOCUMENT_OVERRIDE_FORBIDDEN`, `WITHDRAWAL_PROVIDER_OVERRIDE_FORBIDDEN`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -773,6 +773,16 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "Code `CREDITOR_DOCUMENT_UNREADABLE`: your tax id is on file but could not be read, so no creditor document could be resolved. No money moved. Unlike a generic `INTERNAL_ERROR` this is deterministic — retrying the identical request fails the same way. Send `destination.recipientDocument` to unblock the payout, or contact support.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "503": {
             "description": "The withdrawal never reached the PIX network and no money moved. Codes: `WITHDRAWAL_PROVIDER_UNAVAILABLE`, `WITHDRAWAL_TEMPORARILY_UNAVAILABLE`, `WITHDRAWAL_PROCESSING_FAILED`. Safe to retry with a new idempotency key.",
@@ -1742,7 +1752,7 @@
       "get": {
         "operationId": "getPaymentReceipt",
         "summary": "Get payment receipt",
-        "description": "Render a receipt for a payment. Requires the `documents:read` scope. The payment must be `PAID` or `REFUNDED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`.",
+        "description": "Render a receipt for a payment. Requires the `documents:read` scope. The payment must be `PAID` or `REFUNDED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`. The lookup is scoped to the environment of the key: a production key resolves only production payments and a sandbox key only sandbox ones, so an id from the other environment returns `404` even when it belongs to your own account.",
         "tags": [
           "Documents"
         ],
@@ -1810,7 +1820,7 @@
       "get": {
         "operationId": "getWithdrawalReceipt",
         "summary": "Get withdrawal receipt",
-        "description": "Render a receipt for a completed withdrawal. Requires the `documents:read` scope. The withdrawal must be in status `COMPLETED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`.",
+        "description": "Render a receipt for a completed withdrawal. Requires the `documents:read` scope. The withdrawal must be in status `COMPLETED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`. The lookup is scoped to the environment of the key: a production key resolves only production withdrawals and a sandbox key only sandbox ones, so an id from the other environment returns `404` even when it belongs to your own account.",
         "tags": [
           "Documents"
         ],
@@ -1878,7 +1888,7 @@
       "get": {
         "operationId": "getStatement",
         "summary": "Get account statement",
-        "description": "Generate an account statement for a date range. Maximum range is 90 days.",
+        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances.",
         "tags": [
           "Documents"
         ],
@@ -3060,7 +3070,7 @@
             "minimum": 10,
             "maximum": 1000000,
             "multipleOf": 0.01,
-            "description": "Withdrawal amount in BRL (minimum R$10.00). The 1,000,000 ceiling is a request-validation bound, not your limit — the per-transaction cap that applies to your account is returned by `GET /v1/withdrawals/limits`."
+            "description": "The NET amount in BRL — exactly what the recipient receives. The platform fee is added on top, never deducted: your balance is debited `amount + feeAmount` (returned as `grossAmount`), and that gross is what counts against `INSUFFICIENT_BALANCE`, the daily/nightly limits and the per-transaction cap. The R$10.00 minimum is compared against `amount` (the net); it is the floor the platform never goes below, and the value that actually applies to you is `minAmount` from `GET /v1/withdrawals/limits`. The 1,000,000 ceiling is a request-validation bound, not your limit — the per-transaction cap that applies to your account is returned by `GET /v1/withdrawals/limits`."
           },
           "method": {
             "type": "string",
@@ -3289,8 +3299,10 @@
             "description": "Resolved decision (after applying the per-payment override, company default, and sub-R$1 forced passthrough) on whether the fee was added on top for the payer."
           },
           "payerFeeAmount": {
-            "type": "number",
-            "nullable": true,
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Fee amount added to the payer's total charge. Null when `feePassedToPayer` is false. When true, payer-charged total = `amount + payerFeeAmount`."
           },
           "status": {
@@ -3330,43 +3342,58 @@
             "additionalProperties": true
           },
           "paidAt": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "nullable": true,
             "description": "Timestamp when the payment was confirmed paid. Null until paid."
           },
           "payer": {
-            "type": "object",
-            "nullable": true,
+            "type": [
+              "object",
+              "null"
+            ],
             "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Provider-agnostic. Null for historical records or open-payer charges where no payer data was captured.",
             "properties": {
               "name": {
-                "type": "string",
-                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Payer full name."
               },
               "document": {
-                "type": "string",
-                "nullable": true,
-                "description": "Payer CPF or CNPJ. `null` when unavailable. Some PIX participants report the document masked; a masked value is never placed here — it is discarded and the field falls back to whatever full document is already on file, which for an open-payer charge is usually nothing. Treat it as sometimes absent even for a real, identified payer."
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Payer CPF or CNPJ, as digits. Some PIX participants report the document masked (for example `***405566**`); when that is all the network gave us, the masked string is what this field carries — a full document wins whenever one is on file. `null` when no document of either kind was captured, which for an open-payer charge is common. Match on `*` before parsing the value as a CPF or CNPJ."
               },
               "documentType": {
-                "type": "string",
-                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "enum": [
                   "CPF",
-                  "CNPJ"
+                  "CNPJ",
+                  null
                 ],
-                "description": "Payer document type."
+                "description": "Payer document type. `null` when the network did not say which kind of document it reported, which is the usual case alongside a masked `document`."
               },
               "institutionName": {
-                "type": "string",
-                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Payer bank/institution name."
               },
               "institutionIspb": {
-                "type": "string",
-                "nullable": true,
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Payer bank ISPB (Banco Central participant identifier)."
               }
             }
@@ -3454,13 +3481,17 @@
             ]
           },
           "processedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "errorMessage": {
-            "type": "string",
-            "nullable": true,
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Human-readable failure message. Treat as opaque text and surface only to internal operators."
           }
         }
@@ -3486,7 +3517,7 @@
           },
           "fee": {
             "type": "number",
-            "description": "Withdrawal fee (flat amount in BRL)."
+            "description": "Withdrawal fee, a flat amount in BRL charged on top of `amount`. Read it from here rather than hardcoding it: it is configurable per account."
           },
           "dayStartHour": {
             "type": "integer",
@@ -3498,7 +3529,7 @@
           },
           "minAmount": {
             "type": "number",
-            "description": "Minimum withdrawal amount in BRL."
+            "description": "Minimum withdrawal amount in BRL that applies to your account, compared against `amount` (the net) rather than against `amount + fee`. Never below the `R$ 10.00` platform floor, but it can be higher. Unrelated to the routing provider minimum, which surfaces as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
           },
           "perTransactionLimit": {
             "type": [
@@ -3629,6 +3660,28 @@
           }
         }
       },
+      "FlatError": {
+        "type": "object",
+        "description": "The flat error envelope used by low-level guards that reply before the API error envelope is applied — today the idempotency middleware. The machine-readable code is the top-level `code`; `error` is only the HTTP reason phrase.",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "description": "HTTP status code, repeated in the body."
+          },
+          "error": {
+            "type": "string",
+            "description": "HTTP reason phrase, for example `Conflict` or `Bad Request`. Not a machine-readable code."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message."
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code."
+          }
+        }
+      },
       "Balance": {
         "type": "object",
         "description": "Account balance for the company associated with the API key. The four buckets `available`, `frozen`, and `held` are independent and additive — `total = available + frozen + held`.",
@@ -3665,9 +3718,11 @@
             "description": "Environment of the API key used to make this call. Sandbox keys always return zeros."
           },
           "updatedAt": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "nullable": true,
             "description": "When the balance row was last updated. `null` if the company has never had any balance activity."
           }
         },
@@ -3694,8 +3749,10 @@
             "description": "Human-readable name set in the dashboard."
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "environment": {
             "type": "string",
@@ -3724,20 +3781,26 @@
             "description": "List of allowed IPs/CIDRs. Empty means no restriction."
           },
           "rateLimitPerMinute": {
-            "type": "integer",
-            "nullable": true,
+            "type": [
+              "integer",
+              "null"
+            ],
             "description": "Per-key rate limit in requests per minute, or null for the account default."
           },
           "expiresAt": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "date-time",
-            "nullable": true,
             "description": "Expiration timestamp, or null if the key does not expire."
           },
           "lastUsedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "createdAt": {
             "type": "string",
@@ -3772,8 +3835,10 @@
             "description": "Resolved decision on whether the fee was added on top for the payer."
           },
           "payerFeeAmount": {
-            "type": "number",
-            "nullable": true,
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
           },
           "isSandbox": {
@@ -3789,8 +3854,10 @@
             "$ref": "#/components/schemas/Currency"
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "expiresAt": {
             "type": "string",
@@ -3847,8 +3914,10 @@
             "description": "Resolved decision on whether the fee was added on top for the payer."
           },
           "payerFeeAmount": {
-            "type": "number",
-            "nullable": true,
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
           },
           "status": {
@@ -3914,7 +3983,7 @@
               "string",
               "null"
             ],
-            "description": "Payer CPF or CNPJ. `null` when unavailable — including when the settling PIX provider returned it masked, in which case the masked value is discarded rather than delivered."
+            "description": "Payer CPF or CNPJ, as digits, or the masked string the settling PIX provider reported (for example `***405566**`) when no full document is on file. `null` when neither was captured. Match on `*` before parsing the value as a CPF or CNPJ."
           },
           "documentType": {
             "type": [
@@ -4103,16 +4172,30 @@
         }
       },
       "IdempotencyConflict": {
-        "description": "Idempotency conflict. The key was already used with a different payload.",
+        "description": "Idempotency conflict, raised by the idempotency middleware. `IDEMPOTENCY_PAYLOAD_MISMATCH` means the key was already used with a different request body, at any point in the 24-hour window, including by a request still in flight. `IDEMPOTENCY_CONFLICT` means a request with the same key and the same body is still being processed. Both use the **flat** envelope: `error` is the HTTP reason phrase and the machine-readable code is the top-level `code`. Note that `IDEMPOTENCY_CONFLICT` raised later by the withdrawal service on an idempotency-key collision uses the nested `Error` envelope instead.",
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "#/components/schemas/Error"
+              "$ref": "#/components/schemas/FlatError"
             },
-            "example": {
-              "error": {
-                "code": "IDEMPOTENCY_PAYLOAD_MISMATCH",
-                "message": "Idempotency key already used with a different request body"
+            "examples": {
+              "payloadMismatch": {
+                "summary": "The key was reused with a different body",
+                "value": {
+                  "statusCode": 409,
+                  "error": "Conflict",
+                  "message": "This idempotency key was already used with a different request payload",
+                  "code": "IDEMPOTENCY_PAYLOAD_MISMATCH"
+                }
+              },
+              "inFlight": {
+                "summary": "The same request is still being processed",
+                "value": {
+                  "statusCode": 409,
+                  "error": "Conflict",
+                  "message": "A request with this idempotency key is already being processed",
+                  "code": "IDEMPOTENCY_CONFLICT"
+                }
               }
             }
           }

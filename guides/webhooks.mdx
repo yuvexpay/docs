@@ -83,12 +83,19 @@ historical records or open-payer charges where no payer data was captured.
 
 <Note>
   Some PIX participants report the payer's document **masked** (for example
-  `***405566**`). A masked value is never placed in `payer.document`: it is
-  discarded, and the field falls back to whatever full document is already on
-  file for the payment — which for an open-payer charge is usually nothing, so
-  the field comes through as `null`. Treat `payer.document` as *sometimes
-  absent even for a real, identified payer*, and never make settlement logic
-  depend on it.
+  `***405566**`). When that is all the network gave us, the masked value is
+  what `payer.document` carries — a full document is preferred whenever one is
+  on file, and the masked string is the fallback rather than `null`.
+
+  So `payer.document` is a string of digits **or** a partially-starred string,
+  and it is still `null` when no document of either kind was captured (an
+  open-payer charge, most historical records). Parse it defensively: match on
+  `*` before treating the value as a CPF or CNPJ, and never make settlement
+  logic depend on it. `payer.documentType` is normally `null` alongside a
+  masked value, since the network does not say which kind it masked — but it
+  can still be `CPF` or `CNPJ` when you supplied `customer.documentType` on
+  the charge, so use the `*` in `payer.document`, not `documentType`, to
+  detect a mask.
 </Note>
 
 A `WITHDRAWAL_SENT` body, verbatim:

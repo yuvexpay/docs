@@ -79,7 +79,7 @@ All errors follow a consistent structure:
 | Code | Status | Description |
 |------|--------|-------------|
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | POST endpoints that require an `X-Idempotency-Key` header. |
-| `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The same idempotency key was used with a different request body. |
+| `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The same idempotency key was used with a different request body, within the 24-hour window. |
 | `IDEMPOTENCY_CONFLICT` | 409 | The request is still being processed from a previous attempt. |
 
 ### Rate limiting errors
@@ -133,6 +133,8 @@ All errors follow a consistent structure:
 | `WITHDRAWAL_PIX_KEY_BLOCKED` | 400 | This PIX key was recently rejected by the network for the document used. |
 | `BLOCKLIST_DENIED` | 400 | The destination is blocked by platform risk policy. |
 | `CREDITOR_DOCUMENT_UNAVAILABLE` | 403 | The creditor document fell through to your own tax id and it is not on file. Complete KYB/KYC, or send `destination.recipientDocument`. |
+| `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED` | 400 | `creditorDocumentSource` was sent to `POST /v1/withdrawals`. The field is dashboard-only and is rejected rather than ignored. Send `destination.recipientDocument` instead. |
+| `CREDITOR_DOCUMENT_UNREADABLE` | 500 | Your tax id is on file but could not be read. No money moved, and retrying will not help — this is a platform-side fault. Send `destination.recipientDocument` to unblock, or contact support. |
 | `VERIFICATION_REQUIRED` | 403 | Account verification is required before withdrawals can be processed. |
 | `SANDBOX_COMPANY_PRODUCTION_BLOCKED` | 403 | A production request was made by an account that is still sandbox-only. |
 | `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout. No money moved; retry with a new idempotency key. |
@@ -150,6 +152,7 @@ All errors follow a consistent structure:
 | Code | Status | Description |
 |------|--------|-------------|
 | `INTERNAL_ERROR` | 500 | Unexpected server error. Retry with exponential backoff. |
+| `CREDITOR_DOCUMENT_UNREADABLE` | 500 | Withdrawal-specific. Unlike `INTERNAL_ERROR`, this one is deterministic: retrying the same request will fail the same way. |
 | `SERVICE_UNAVAILABLE` | 503 | The service is temporarily unavailable. Retry after a short delay. |
 
 ## Handling errors
