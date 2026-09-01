@@ -14,6 +14,22 @@ Webhooks let your application receive HTTP POST notifications when events happen
 
 You can register up to **two active webhook endpoints per event type per company**.
 
+<Warning>
+  **Webhooks are delivered for production activity only.** Sandbox payments and
+  withdrawals do not send webhooks to your configured endpoints, for any event
+  type on this page. An endpoint belongs to the account rather than to an
+  environment, so there is no separate sandbox endpoint or sandbox secret to
+  register.
+
+  Test a sandbox integration by polling
+  [`GET /v1/payments/{paymentId}`](/api-reference/payments/get) and by forcing
+  terminal outcomes with
+  [`POST /v1/payments/{paymentId}/simulate`](/guides/sandbox#forcing-a-terminal-status).
+  To exercise your verifier itself, use the dashboard **Send test** button,
+  which delivers a signed `TEST` event. See
+  [Sandbox testing](/guides/sandbox#webhooks-in-sandbox).
+</Warning>
+
 ## Event types
 
 These are the twelve subscribable event types. The value in this column is
@@ -178,13 +194,18 @@ Four things to design around:
 
 ### Sandbox
 
-Sandbox payments and withdrawals **do not deliver webhooks**. Events for
-sandbox resources are dropped before delivery, so a sandbox integration must
-poll `GET /v1/payments/{id}` or `GET /v1/withdrawals/{id}` instead. The only
-delivery a sandbox account receives is the `TEST` ping, whose body carries
-`data.livemode`, which reflects whether the **account** is a sandbox-only
-account — not which API key you used. The reactivation probe sends a different
-body: `data` there carries `message` and `webhookConfigId`, with no `livemode`.
+None of the bodies above are delivered for sandbox activity. Sandbox payments
+and withdrawals send no webhooks to a configured endpoint, for any event type,
+so a sandbox integration polls `GET /v1/payments/{id}` or
+`GET /v1/withdrawals/{id}` and drives terminal outcomes with
+[`POST /v1/payments/{paymentId}/simulate`](/guides/sandbox#forcing-a-terminal-status)
+instead — see [Sandbox testing](/guides/sandbox#webhooks-in-sandbox).
+
+The only delivery a sandbox account receives is the `TEST` ping, whose body
+carries `data.livemode`, which reflects whether the **account** is a
+sandbox-only account — not which API key you used. The reactivation probe sends
+a different body: `data` there carries `message` and `webhookConfigId`, with no
+`livemode`.
 
 ## Request headers
 
