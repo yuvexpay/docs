@@ -10,6 +10,16 @@ integration without moving any real money.
 This guide describes the deterministic recipes the simulator uses to drive
 specific outcomes.
 
+<Warning>
+  **Sandbox does not send webhooks to your configured endpoints — for any event
+  type.** A webhook endpoint belongs to the account, not to an environment, so
+  sandbox activity is never delivered to it. Drive a sandbox integration by
+  polling [`GET /v1/payments/{paymentId}`](/api-reference/payments/get) and by
+  forcing terminal outcomes with
+  [`POST /v1/payments/{paymentId}/simulate`](#forcing-a-terminal-status). See
+  [Webhooks in sandbox](#webhooks-in-sandbox).
+</Warning>
+
 ## Selecting sandbox
 
 Send a request with a `ypk_test_...` key. There is no separate URL — the same
@@ -106,18 +116,23 @@ refund request itself.
 ## Webhooks in sandbox
 
 <Warning>
-  **Sandbox transactions do not deliver webhooks.** Events for sandbox payments
-  and withdrawals are dropped before delivery, precisely so test traffic can
-  never reach the production endpoint you registered. There is no separate
-  sandbox webhook endpoint or sandbox webhook secret — a webhook endpoint
-  belongs to the account, not to an environment.
+  **Sandbox does not send webhooks to your configured endpoints.** This holds
+  for every event type in the [event table](/guides/webhooks#event-types) —
+  `PAYMENT_PAID` included — and for both payments and withdrawals. Sandbox
+  activity is never delivered to an endpoint you registered.
 </Warning>
 
-To drive your integration from sandbox, poll `GET /v1/payments/{paymentId}` or
+A webhook endpoint belongs to the account, not to an environment: there is no
+separate sandbox endpoint and no separate sandbox secret. So a sandbox charge
+that reaches `PAID` produces no `PAYMENT_PAID` delivery, and waiting for one
+will not succeed.
+
+Read the resource instead. Poll `GET /v1/payments/{paymentId}` or
 `GET /v1/withdrawals/{withdrawalId}` and read `status`. A withdrawal is already
 terminal on the first read; a payment reaches its terminal status about 5
 seconds after creation, or immediately if you call
-[`/simulate`](#forcing-a-terminal-status).
+[`/simulate`](#forcing-a-terminal-status), which is the fastest way to put a
+charge into the state your handler is waiting for.
 
 To exercise your **verifier** — signature, timestamp skew, header parsing — use
 the **Send test** button on the endpoint in the dashboard. It delivers a real,
