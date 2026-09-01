@@ -25,21 +25,60 @@ curl -X POST https://api.yuvexpay.com/v1/payments \
 
 ## Payment behavior matrix
 
-Sandbox payments transition automatically based on the **decimal cents** of the
-requested amount:
+The terminal status is **not** reached at creation. `POST /v1/payments` always
+returns the non-terminal status — `NEW`, or `PENDING_METHOD_SELECTION` for a
+hosted checkout. A status check runs about **5 seconds** later and writes the
+outcome; in the hosted flow, 5 seconds after the payer selects a method.
 
-| Cents | Final status   | Notes |
-|-------|----------------|-------|
+The outcome is picked from the **decimal cents** of the requested amount:
+
+| Cents | Status after the check | Notes |
+|-------|------------------------|-------|
 | `.01` | `PAID`         | Successful payment. |
-| `.02` | `NEW`          | Payer never pays — stays in `NEW` and eventually expires. |
+| `.02` | `NEW`          | Payer never pays. The charge stays `NEW` — nothing later moves it to `EXPIRED`. |
 | `.03` | `CANCELLED`    | Cancelled by the payer or provider. |
-| `.04` | `EXPIRED`      | Expires within the configured window. |
-| `.05` | `MED_FROZEN`   | Goes to `PAID`, then a MED is opened. |
-| Any other | `PAID`     | Defaults to a successful payment. |
+| `.04` | `EXPIRED`      | The charge is created already expiring: `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` you sent, and the check marks it `EXPIRED`. |
+| `.05` | `PAID`         | The charge settles. A MED freeze is not reachable from the amount — `MED_FROZEN` cannot be produced in sandbox. |
+| Any other | `PAID`     | Every cents value outside the list above falls through to a successful payment. `R$ 19.00` behaves exactly like `R$ 19.01`. |
 
 So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
-any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates an
-instant successful payment.
+any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates a
+successful payment.
+
+These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges are created
+at the card and boleto acquirer rather than at the PIX simulator, so their cents
+are ignored — drive those with
+[`POST /v1/payments/{paymentId}/simulate`](#forcing-a-terminal-status).
+
+## Forcing a terminal status
+
+`POST /v1/payments/{paymentId}/simulate` moves a sandbox payment to a terminal
+status immediately, whatever its amount and payment method. Use it instead of
+waiting for the check, and to reach outcomes the cents table cannot produce.
+
+It requires the `payments:write` scope and a `ypk_test_` key. A production key is
+rejected with `403` and error code `FORBIDDEN`. A production payment id is not
+visible to a sandbox key at all, so it returns `404`.
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/payments/{paymentId}/simulate \
+  -H "Authorization: Bearer ypk_test_ab12cd34ef_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "CANCELLED" }'
+```
+
+| `status` | Result |
+|----------|--------|
+| `PAID` | The payment is marked paid. This is the **default** when the body is empty or omitted. |
+| `CANCELLED` | The payment is marked `CANCELLED`. |
+| `EXPIRED` | The payment is marked `EXPIRED`. |
+| `REFUNDED` | Marks the payment paid if it isn't already, then issues a full refund. The refund follows the refund matrix below, so a payment whose cents are `.02` fails with `PSP_REFUND_FAILED` instead. |
+| `DISPUTED` | Marks the payment paid if it isn't already, then moves it to `CHARGEBACK`. This is a chargeback, not a MED. |
+
+Any other value is rejected with `400`. The response is the updated payment, in
+the same shape as `GET /v1/payments/{paymentId}`.
+
+`X-Idempotency-Key` is optional here — honoured when you send it, not required.
 
 ## Withdrawal behavior matrix
 
@@ -75,8 +114,10 @@ refund request itself.
 </Warning>
 
 To drive your integration from sandbox, poll `GET /v1/payments/{paymentId}` or
-`GET /v1/withdrawals/{withdrawalId}` and read `status`. The deterministic
-recipes above make the terminal status reachable within one or two polls.
+`GET /v1/withdrawals/{withdrawalId}` and read `status`. A withdrawal is already
+terminal on the first read; a payment reaches its terminal status about 5
+seconds after creation, or immediately if you call
+[`/simulate`](#forcing-a-terminal-status).
 
 To exercise your **verifier** — signature, timestamp skew, header parsing — use
 the **Send test** button on the endpoint in the dashboard. It delivers a real,

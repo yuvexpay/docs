@@ -646,6 +646,95 @@
         }
       }
     },
+    "/v1/payments/{paymentId}/simulate": {
+      "post": {
+        "operationId": "simulatePayment",
+        "summary": "Simulate a payment",
+        "description": "Drive a sandbox payment to a terminal status immediately, whatever its amount and payment method. Sandbox only: a production API key and a production payment id are both rejected with 403. `REFUNDED` marks the payment paid if it is not already and then issues a full refund; `DISPUTED` marks it paid if it is not already and then moves it to `CHARGEBACK`, which is a chargeback and not a MED.",
+        "tags": [
+          "Payments"
+        ],
+        "parameters": [
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The sandbox payment ID to simulate."
+          },
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Optional for this endpoint. Honoured when sent — replay and payload check apply — but omitting it is not rejected."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulatePaymentRequest"
+              },
+              "example": {
+                "status": "CANCELLED"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The payment after the simulated transition.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "payment": {
+                      "$ref": "#/components/schemas/Payment"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "The API key is a production key. Only sandbox API keys can simulate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "FORBIDDEN",
+                    "message": "Only sandbox payments can be simulated"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          }
+        }
+      }
+    },
     "/v1/withdrawals": {
       "post": {
         "operationId": "createWithdrawal",
@@ -3055,6 +3144,23 @@
             "type": "string",
             "maxLength": 500,
             "description": "Reason for the refund."
+          }
+        }
+      },
+      "SimulatePaymentRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "PAID",
+              "CANCELLED",
+              "EXPIRED",
+              "REFUNDED",
+              "DISPUTED"
+            ],
+            "default": "PAID",
+            "description": "Terminal outcome to apply. Defaults to `PAID` when the body is empty or omitted."
           }
         }
       },

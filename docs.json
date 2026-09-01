@@ -66,7 +66,8 @@
               "api-reference/payments/get-by-txid",
               "api-reference/payments/get-boleto",
               "api-reference/payments/refund",
-              "api-reference/payments/list-refunds"
+              "api-reference/payments/list-refunds",
+              "api-reference/payments/simulate"
             ]
           },
           {
