@@ -1064,7 +1064,7 @@
       "get": {
         "operationId": "getBalance",
         "summary": "Get account balance",
-        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The three balance buckets are independent and additive: `available` (withdrawable now), `frozen` (reserved for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), and `held` (confirmed but pending settlement). The total account balance is `available + frozen + held`. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
+        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The four balance buckets are independent and additive: `available` (withdrawable now), `frozen` (set aside for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), `held` (confirmed but pending settlement), and `reserved` (a rolling reserve withheld from settled funds and released on a schedule — not currently withdrawable). The total account balance is `available + frozen + held + reserved`. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
         "tags": [
           "Balance"
         ],
@@ -1092,6 +1092,7 @@
                         "available": 13.45,
                         "frozen": 0,
                         "held": 10.2,
+                        "reserved": 0,
                         "total": 23.65,
                         "currency": "BRL",
                         "environment": "PRODUCTION",
@@ -1106,7 +1107,23 @@
                         "available": 6.47,
                         "frozen": 6.99,
                         "held": 10.2,
+                        "reserved": 0,
                         "total": 23.66,
+                        "currency": "BRL",
+                        "environment": "PRODUCTION",
+                        "updatedAt": "2026-05-06T12:00:00.000Z"
+                      }
+                    }
+                  },
+                  "withReservedFunds": {
+                    "summary": "Production balance with part of settled funds in a rolling reserve",
+                    "value": {
+                      "balance": {
+                        "available": 90,
+                        "frozen": 0,
+                        "held": 0,
+                        "reserved": 10,
+                        "total": 100,
                         "currency": "BRL",
                         "environment": "PRODUCTION",
                         "updatedAt": "2026-05-06T12:00:00.000Z"
@@ -1120,6 +1137,7 @@
                         "available": 0,
                         "frozen": 0,
                         "held": 0,
+                        "reserved": 0,
                         "total": 0,
                         "currency": "BRL",
                         "environment": "SANDBOX",
@@ -3790,7 +3808,7 @@
       },
       "Balance": {
         "type": "object",
-        "description": "Account balance for the company associated with the API key. The four buckets `available`, `frozen`, and `held` are independent and additive — `total = available + frozen + held`.",
+        "description": "Account balance for the company associated with the API key. The four buckets `available`, `frozen`, `held`, and `reserved` are independent and additive — `total = available + frozen + held + reserved`.",
         "properties": {
           "available": {
             "type": "number",
@@ -3804,9 +3822,13 @@
             "type": "number",
             "description": "Confirmed amount pending settlement (for example, card or boleto payments confirmed but not yet liquidated). Will move to `available` once settled."
           },
+          "reserved": {
+            "type": "number",
+            "description": "Rolling reserve: a share of settled funds withheld when your account is subject to a reserve policy, released back to `available` on each release date. Not currently withdrawable and not usable for refunds until released. `0` when no reserve applies."
+          },
           "total": {
             "type": "number",
-            "description": "Total account balance: `available + frozen + held`."
+            "description": "Total account balance: `available + frozen + held + reserved`."
           },
           "currency": {
             "type": "string",
@@ -3836,6 +3858,7 @@
           "available",
           "frozen",
           "held",
+          "reserved",
           "total",
           "currency",
           "environment",
