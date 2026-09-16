@@ -106,14 +106,14 @@ All errors follow a consistent structure:
 | `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card installments are not currently supported; send `installments: 1` or omit. |
 | `SPLIT_RECIPIENT_LIMIT_EXCEEDED` | 400 | `splits` carries more entries than the recipient limit configured for your account (three by default). |
 | `SPLIT_SELF_RECIPIENT` | 400 | A split names your own company as the recipient. |
-| `SPLIT_RECIPIENT_NOT_FOUND` | 400 | `recipientCompanyId` does not match a YuvexPay company. |
-| `SPLIT_RECIPIENT_INACTIVE` | 400 | The recipient company exists but is not active. |
-| `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | The recipient has not completed KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ORIGINATOR_NOT_APPROVED` | 403 | Your own company has not completed KYC (and KYB, for a business), so it cannot originate split payments. |
-| `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A sandbox payment names a production recipient, or a production payment names a sandbox one. |
 | `SPLIT_AMOUNT_EXCEEDS_NET` | 400 | The splits total more than `netAmount`. The message names the overflow; nothing is clamped. |
-| `SPLIT_RELATIONSHIP_PENDING` | 400 | The recipient has not accepted split payments from your company yet. |
+| `SPLIT_RELATIONSHIP_PENDING` | 400 | The recipient has not accepted split payments from your company yet. This is the single answer for every recipient that cannot receive a split yet, whether or not the company ID exists, so it cannot be used to probe for company IDs. |
+| `SPLIT_RELATIONSHIP_REQUEST_LIMIT` | 400 | Your company already has the maximum number of split requests awaiting an answer (20 by default, per environment). Wait for answers before naming new recipients. |
 | `SPLIT_RELATIONSHIP_REVOKED` | 400 | The recipient revoked the relationship. Revocation is forward-only: payments created before it still settle. |
+| `SPLIT_RECIPIENT_INACTIVE` | 400 | A recipient that had accepted the relationship is no longer active. |
+| `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
+| `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
 | `ANTICIPATION_SPLIT_PAYMENT` | 400 | A payment that carries splits cannot be anticipated. |
 | `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502 | A downstream payment processor is unavailable. Retry with backoff. |
 

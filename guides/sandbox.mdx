@@ -163,9 +163,12 @@ match on retries.
   ledger.
 - **Splits** stay inside one environment. A sandbox payment can only split to a
   company that is in sandbox mode, and a production payment only to a production
-  company; the other direction is rejected with
-  `400 SPLIT_ENVIRONMENT_MISMATCH`, never silently ignored. A sandbox split
-  never touches a production balance, statement or report.
+  company; the other direction is always rejected, never silently ignored, with
+  `400 SPLIT_RELATIONSHIP_PENDING` when the recipient has not accepted in this
+  environment and `400 SPLIT_ENVIRONMENT_MISMATCH` when it had. Consent is per
+  environment, so a recipient that accepted in production still has to accept in
+  sandbox. A sandbox split never touches a production balance, statement or
+  report.
 - Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.
