@@ -161,6 +161,11 @@ match on retries.
   transactions never touch. `GET /v1/documents/statements` with a sandbox key
   therefore returns an empty statement with zero balances, not your production
   ledger.
+- **Splits** stay inside one environment. A sandbox payment can only split to a
+  company that is in sandbox mode, and a production payment only to a production
+  company; the other direction is rejected with
+  `400 SPLIT_ENVIRONMENT_MISMATCH`, never silently ignored. A sandbox split
+  never touches a production balance, statement or report.
 - Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.
