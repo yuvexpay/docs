@@ -3997,7 +3997,7 @@
         "properties": {
           "available": {
             "type": "number",
-            "description": "Amount available for immediate PIX withdrawal, in BRL."
+            "description": "Amount available for immediate PIX withdrawal, in BRL. This can be negative: when a refund or a PIX MED is apportioned across a split, each recipient is debited its share even if it has already withdrawn the money. A negative balance blocks withdrawals until it is covered by new settlements."
           },
           "frozen": {
             "type": "number",
