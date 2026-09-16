@@ -362,7 +362,7 @@
             }
           },
           "400": {
-            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_RECIPIENT_NOT_FOUND`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REVOKED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet, identical whether the company ID exists or not; the last three are returned only for a recipient that had already accepted the relationship. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
