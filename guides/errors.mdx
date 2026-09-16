@@ -104,6 +104,17 @@ All errors follow a consistent structure:
 | `CARD_HOLDER_INFO_REQUIRED` | 400 | Direct card payments require `card.holderInfo` (postal code and address number). |
 | `CARD_REMOTE_IP_REQUIRED` | 400 | Direct card payments require `card.remoteIp` (the payer's IP address). |
 | `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card installments are not currently supported; send `installments: 1` or omit. |
+| `SPLIT_RECIPIENT_LIMIT_EXCEEDED` | 400 | `splits` carries more entries than the recipient limit configured for your account (three by default). |
+| `SPLIT_SELF_RECIPIENT` | 400 | A split names your own company as the recipient. |
+| `SPLIT_RECIPIENT_NOT_FOUND` | 400 | `recipientCompanyId` does not match a YuvexPay company. |
+| `SPLIT_RECIPIENT_INACTIVE` | 400 | The recipient company exists but is not active. |
+| `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | The recipient has not completed KYC (and KYB, for a business). Approval is checked when the payment is created. |
+| `SPLIT_ORIGINATOR_NOT_APPROVED` | 403 | Your own company has not completed KYC (and KYB, for a business), so it cannot originate split payments. |
+| `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A sandbox payment names a production recipient, or a production payment names a sandbox one. |
+| `SPLIT_AMOUNT_EXCEEDS_NET` | 400 | The splits total more than `netAmount`. The message names the overflow; nothing is clamped. |
+| `SPLIT_RELATIONSHIP_PENDING` | 400 | The recipient has not accepted split payments from your company yet. |
+| `SPLIT_RELATIONSHIP_REVOKED` | 400 | The recipient revoked the relationship. Revocation is forward-only: payments created before it still settle. |
+| `ANTICIPATION_SPLIT_PAYMENT` | 400 | A payment that carries splits cannot be anticipated. |
 | `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502 | A downstream payment processor is unavailable. Retry with backoff. |
 
 ### Refund errors
@@ -111,11 +122,11 @@ All errors follow a consistent structure:
 | Code | Status | Description |
 |------|--------|-------------|
 | `INVALID_STATUS` | 400 | The payment is not in a refundable status. |
-| `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | Only full refunds are currently supported. Send no `amount` or send the full remaining refundable amount. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | A partial refund needs a settled payment and a routing provider that supports partial refunds; this payment fails one of the two. Send no `amount`, or the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | 400 | The payment has already been fully refunded. |
 | `REFUND_IN_PROGRESS` | 409 | A refund is already being processed for this payment. |
 | `REFUND_NOT_SUPPORTED` | 400 | Refunds are not supported for this payment method or processing route. |
-| `INSUFFICIENT_BALANCE_FOR_REFUND` | 400 | Your available balance is not sufficient to issue this refund. |
+| `INSUFFICIENT_BALANCE_FOR_REFUND` | 400 | Your available balance is not sufficient to issue this refund. On a payment with [splits](/guides/payments#splits), every party is debited in proportion to what it received and this check covers the originating company's share only — a recipient can go negative and never blocks the refund. |
 
 ### Withdrawal errors
 

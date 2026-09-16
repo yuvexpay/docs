@@ -58,7 +58,7 @@ NEW
 | `PAID` | Funds were received and credited to your balance. |
 | `EXPIRED` | The payment window passed without payment. |
 | `CANCELLED` | The payment was cancelled before being paid. |
-| `PARTIAL_REFUND` | A partial refund has been issued (currently only via inbound provider events). |
+| `PARTIAL_REFUND` | A partial refund has been issued and part of the payment is still refundable. |
 | `REFUNDED` | A full refund has been issued. |
 | `CHARGEBACK` | A chargeback was filed and processed. |
 | `MED_FROZEN` | A PIX MED (special refund) is open; funds are temporarily held. |
@@ -165,11 +165,148 @@ Each payment response includes:
 
 - `amount` — the gross amount charged to the payer.
 - `feeAmount` — the YuvexPay processing fee.
-- `netAmount` — the amount credited to your balance once the payment settles.
+- `netAmount` — the amount credited to your balance once the payment settles,
+  before any [splits](#splits).
 
 Fees are computed at creation time using the merchant's configured rate.
 `passFeeToPayer: true` shifts the fee onto the payer (the payer is charged
 `amount + feeAmount`); when `false`, the fee is deducted from `amount`.
+
+## Splits
+
+A payment can hand part of itself to other YuvexPay companies. Send `splits` on
+`POST /v1/payments`; each entry names the company that receives a share and how
+much of the payment it gets.
+
+```json
+{
+  "amount": 49.90,
+  "methods": ["PIX"],
+  "mode": "headless",
+  "splits": [
+    {
+      "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+      "type": "PERCENTAGE",
+      "value": 10
+    },
+    {
+      "recipientCompanyId": "c9a2d4e6-8b1f-4c3a-9d7e-2f5a8b0c1d3e",
+      "type": "FIXED",
+      "value": 5.00
+    }
+  ]
+}
+```
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `recipientCompanyId` | uuid | The YuvexPay company that receives the share. Must be a company other than your own, and unique within the array. |
+| `type` | `PERCENTAGE` or `FIXED` | How `value` is read. Both forms can coexist in the same array. |
+| `value` | `0.01`–`100` for `PERCENTAGE`; `0.01` or more for `FIXED` | A percentage of `amount`, or a BRL amount. At most two decimal places either way. |
+
+`splits` is optional. The maximum number of entries is the recipient limit
+configured for your account — three by default, and support can raise it.
+Splits are set at creation only: there is no endpoint to add, edit or remove one
+afterwards. The create response and the payment detail response echo them back
+as `splits`, each entry carrying an `id` alongside the three fields you sent,
+and `[]` when the payment has none.
+
+### How the money divides
+
+The YuvexPay fee is always the originating company's and is never apportioned.
+Shares are computed from `amount` — the gross — and the fee comes out of your
+share alone. When `passFeeToPayer` is true, nothing is deducted from `amount` at
+all.
+
+`netAmount` stays pre-split: it is still `amount - feeAmount`, or `amount` when
+the fee is passed to the payer. You keep `netAmount` minus the sum of the
+splits, and the recipients are credited when the payment settles.
+
+For `amount: 49.90` against a `2.99` fee, split 10% to one company and a fixed
+`R$ 5.00` to another:
+
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `amount` | `49.90` | The gross. Percentage shares are computed from it. |
+| `feeAmount` | `2.99` | Yours. Never apportioned. |
+| `netAmount` | `46.91` | `amount - feeAmount`, before splits. |
+| First split (`PERCENTAGE`, `10`) | `4.99` | 10% of `49.90`. |
+| Second split (`FIXED`, `5.00`) | `5.00` | Taken as sent. |
+| Your share | `36.92` | `netAmount` minus both splits. |
+
+The sum of the splits must be at most `netAmount`. A request that goes over
+fails with `SPLIT_AMOUNT_EXCEEDS_NET` and the response names the overflow.
+Nothing is clamped.
+
+Percentage shares are rounded **down** to the cent, and every remaining cent
+stays with the originating company. On `amount: 100.00` with a `2.99` fee and
+one recipient at `33.33%`, the recipient is credited `33.33` and you keep
+`97.01 - 33.33 = 63.68`.
+
+### Opting in
+
+The first time you split to a company, that company has to accept the
+relationship in its dashboard. Until it does, creating the payment fails with
+`SPLIT_RELATIONSHIP_PENDING`. Once it has accepted, later payments carry no
+further friction.
+
+The recipient can revoke at any time. New payments then fail with
+`SPLIT_RELATIONSHIP_REVOKED`.
+
+<Note>
+  Revocation is forward-only. Payments that were already created still settle,
+  refund and freeze normally, and the recipient still receives those shares.
+</Note>
+
+Both companies must be approved before a split payment can be created: KYC for
+an individual, KYC and KYB for a business, on both sides. The check runs when
+the payment is created, not when it settles. Your own company failing it returns
+`403 SPLIT_ORIGINATOR_NOT_APPROVED`; a recipient failing it returns
+`SPLIT_RECIPIENT_NOT_APPROVED`.
+
+### What a recipient sees
+
+A split is not the recipient's payment, and recipients get no webhook and no
+receipt for it.
+
+- `GET /v1/payments/{paymentId}` returns `404` for a recipient: the payment
+  belongs to the originating company.
+- The payment receipt is originator-only.
+- Recipients see the money in [`GET /v1/balance`](/api-reference/balance/get)
+  and in [`GET /v1/documents/statements`](/api-reference/documents/statement),
+  and in their dashboard.
+
+<Warning>
+  Don't build a recipient integration that waits for `PAYMENT_PAID`. No webhook
+  is delivered to a recipient for a split. Read the balance or the statement
+  instead.
+</Warning>
+
+### Refunds, MED and reserve
+
+Refunds and PIX MED are proportional. A refund debits every party in proportion
+to what it received, the originating company included, and partial refunds use
+the same proportions. A MED freezes each party's proportional share.
+
+A recipient that has already withdrawn its share goes negative. The shortfall is
+never moved onto the originating company, and
+`INSUFFICIENT_BALANCE_FOR_REFUND` is measured against the originating company's
+share only.
+
+A split credit is subject to the **recipient's own** rolling reserve policy, not
+the originator's. When a refund or MED debit lands on a recipient whose share is
+still in reserve, that payment's own reserve hold is released first and the
+debit is written against it.
+
+### Sandbox and anticipation
+
+A sandbox payment can only split to a company that is in sandbox mode, and a
+production payment only to a production company. The other direction returns
+`400 SPLIT_ENVIRONMENT_MISMATCH`, never a silent no-op. Sandbox splits never
+touch a production balance, statement or report.
+
+Payments that carry splits cannot be anticipated
+(`ANTICIPATION_SPLIT_PAYMENT`).
 
 ## Pagination and filtering
 

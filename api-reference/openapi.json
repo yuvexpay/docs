@@ -201,6 +201,38 @@
                       }
                     }
                   }
+                },
+                "headlessPixWithSplit": {
+                  "summary": "Headless PIX payment split with two other companies",
+                  "value": {
+                    "amount": 49.9,
+                    "methods": [
+                      "PIX"
+                    ],
+                    "currency": "BRL",
+                    "mode": "headless",
+                    "description": "Order #1234",
+                    "externalId": "order-1234",
+                    "expiresInMinutes": 30,
+                    "customer": {
+                      "name": "Pedro Álvares Cabral",
+                      "email": "user@example.com",
+                      "phone": "+5511999999999",
+                      "document": "12345678900"
+                    },
+                    "splits": [
+                      {
+                        "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+                        "type": "PERCENTAGE",
+                        "value": 10
+                      },
+                      {
+                        "recipientCompanyId": "c9a2d4e6-8b1f-4c3a-9d7e-2f5a8b0c1d3e",
+                        "type": "FIXED",
+                        "value": 5
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -286,16 +318,91 @@
                         "createdAt": "2026-05-03T14:30:00.000Z"
                       }
                     }
+                  },
+                  "headlessPixWithSplit": {
+                    "summary": "Headless PIX payment split with two other companies",
+                    "value": {
+                      "payment": {
+                        "id": "2c7d9e14-5b60-4a83-9f21-6d4e8a0b3c57",
+                        "txId": "PAY4d7e2f8a1b3c5d6e9f0a1b2c3d4e5f60",
+                        "amount": 49.9,
+                        "feeAmount": 2.99,
+                        "netAmount": 46.91,
+                        "splits": [
+                          {
+                            "id": "a1e4c7b2-9d38-4f61-8c05-2b7d6e9f4a31",
+                            "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+                            "type": "PERCENTAGE",
+                            "value": 10
+                          },
+                          {
+                            "id": "d3f8b1a6-27c4-4e09-9a5b-8c1e0d7f6b24",
+                            "recipientCompanyId": "c9a2d4e6-8b1f-4c3a-9d7e-2f5a8b0c1d3e",
+                            "type": "FIXED",
+                            "value": 5
+                          }
+                        ],
+                        "status": "NEW",
+                        "paymentMethod": "PIX",
+                        "currency": "BRL",
+                        "description": "Order #1234",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
+                        "createdAt": "2026-05-03T14:30:00.000Z",
+                        "methodData": {
+                          "type": "PIX",
+                          "pixCopyPaste": "00020126...",
+                          "qrCodeBase64": "data:image/png;base64,...",
+                          "qrCodeUrl": null
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_RECIPIENT_NOT_FOUND`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REVOKED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "splitAmountExceedsNet": {
+                    "summary": "The splits total more than netAmount",
+                    "value": {
+                      "error": {
+                        "code": "SPLIT_AMOUNT_EXCEEDS_NET",
+                        "message": "Splits total 48.00 but netAmount is 46.91, exceeding it by 1.09"
+                      }
+                    }
+                  },
+                  "splitRelationshipPending": {
+                    "summary": "The recipient has not accepted the split relationship yet",
+                    "value": {
+                      "error": {
+                        "code": "SPLIT_RELATIONSHIP_PENDING",
+                        "message": "Company b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f has not accepted split payments from your company yet"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Payment creation blocked for this account. Codes: `PAYMENT_CREATION_BLOCKED`, `SPLIT_ORIGINATOR_NOT_APPROVED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "409": {
             "$ref": "#/components/responses/IdempotencyConflict"
@@ -535,7 +642,7 @@
       "post": {
         "operationId": "refundPayment",
         "summary": "Refund a payment",
-        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key.",
+        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A partial refund additionally requires a settled payment and a routing provider that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company.",
         "tags": [
           "Payments"
         ],
@@ -1064,7 +1171,7 @@
       "get": {
         "operationId": "getBalance",
         "summary": "Get account balance",
-        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The four balance buckets are independent and additive: `available` (withdrawable now), `frozen` (set aside for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), `held` (confirmed but pending settlement), and `reserved` (a rolling reserve withheld from settled funds and released on a schedule — not currently withdrawable). The total account balance is `available + frozen + held + reserved`. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
+        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The four balance buckets are independent and additive: `available` (withdrawable now), `frozen` (set aside for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), `held` (confirmed but pending settlement), and `reserved` (a rolling reserve withheld from settled funds and released on a schedule — not currently withdrawable). The total account balance is `available + frozen + held + reserved`. A split credit received from another YuvexPay company follows your own rolling reserve policy, not the originating company's. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
         "tags": [
           "Balance"
         ],
@@ -1995,7 +2102,7 @@
       "get": {
         "operationId": "getStatement",
         "summary": "Get account statement",
-        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances.",
+        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances. Split credits received from other YuvexPay companies, and the proportional debits taken back on a refund or MED, appear here. Besides `GET /v1/balance`, this is the only public record a recipient has of a split: the payment itself belongs to the originating company and is not readable by the recipient.",
         "tags": [
           "Documents"
         ],
@@ -2888,6 +2995,36 @@
         ],
         "description": "Subscribable webhook event types. This value is delivered in the `X-Webhook-Event` header, never in the request body."
       },
+      "PaymentSplitInput": {
+        "type": "object",
+        "description": "One split recipient, set at creation. Shares are computed from `amount` (the gross), never from `netAmount` and never from the fee.",
+        "properties": {
+          "recipientCompanyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Company id of the YuvexPay account that receives this share. Must be a company other than your own, unique within `splits`, in the same environment as the payment, approved (KYC, plus KYB for a business), and it must have accepted split payments from your company."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENTAGE",
+              "FIXED"
+            ],
+            "description": "Whether `value` is a percentage of `amount` or a fixed BRL amount. Both forms may coexist in the same `splits` array."
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0.01,
+            "multipleOf": 0.01,
+            "description": "For `PERCENTAGE`, a percentage of `amount` between `0.01` and `100` with at most two decimal places; the resulting share is rounded down to the cent and every remaining cent stays with your company. For `FIXED`, a BRL amount of at least `0.01`."
+          }
+        },
+        "required": [
+          "recipientCompanyId",
+          "type",
+          "value"
+        ]
+      },
       "CreatePaymentRequest": {
         "type": "object",
         "properties": {
@@ -2995,6 +3132,13 @@
           "passFeeToPayer": {
             "type": "boolean",
             "description": "Whether the YuvexPay fee should be added on top of `amount` and charged to the payer instead of being deducted from the merchant's net. When omitted, the company-level `passFeeToPayerDefault` setting applies. Note: payments with a resolved amount below R$1,00 are always charged to the payer regardless of this value (forced passthrough to keep merchant net positive). The final decision is reflected back as `feePassedToPayer` on the Payment object."
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentSplitInput"
+            },
+            "description": "Share part of this payment with other YuvexPay companies when it settles. Optional. The maximum number of entries is the recipient limit configured for your account — three by default, and support can raise it; going over it returns `SPLIT_RECIPIENT_LIMIT_EXCEEDED`. The sum of the splits must not exceed `netAmount`, otherwise the request fails with `SPLIT_AMOUNT_EXCEEDS_NET` and nothing is clamped. The YuvexPay fee is always yours and is never apportioned. Splits are set only at creation: there is no endpoint to add, edit or remove one afterwards."
           },
           "card": {
             "type": "object",
@@ -3395,6 +3539,40 @@
           }
         }
       },
+      "PaymentSplit": {
+        "type": "object",
+        "description": "A split recorded on a payment. Immutable once the payment is created.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Identifier of this split entry."
+          },
+          "recipientCompanyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Company id of the YuvexPay account that receives this share."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENTAGE",
+              "FIXED"
+            ],
+            "description": "Whether `value` is a percentage of `amount` or a fixed BRL amount."
+          },
+          "value": {
+            "type": "number",
+            "description": "The percentage or the BRL amount, exactly as it was sent at creation."
+          }
+        },
+        "required": [
+          "id",
+          "recipientCompanyId",
+          "type",
+          "value"
+        ]
+      },
       "Payment": {
         "type": "object",
         "properties": {
@@ -3416,7 +3594,7 @@
           },
           "netAmount": {
             "type": "number",
-            "description": "Merchant's net receivable, in BRL. Equals `amount` when `feePassedToPayer` is true; equals `amount - feeAmount` otherwise."
+            "description": "Merchant's net receivable, in BRL. Equals `amount` when `feePassedToPayer` is true; equals `amount - feeAmount` otherwise. This figure is pre-split: when the payment carries `splits`, the originating company keeps `netAmount` minus the sum of the splits and the rest is credited to the recipients on settlement."
           },
           "feePassedToPayer": {
             "type": "boolean",
@@ -3428,6 +3606,13 @@
               "null"
             ],
             "description": "Fee amount added to the payer's total charge. Null when `feePassedToPayer` is false. When true, payer-charged total = `amount + payerFeeAmount`."
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentSplit"
+            },
+            "description": "Splits recorded on this payment, in the order they were sent. `[]` when the payment has none. Only the originating company can read them: a recipient calling `GET /v1/payments/{paymentId}` for this payment gets `404`."
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"
@@ -3824,7 +4009,7 @@
           },
           "reserved": {
             "type": "number",
-            "description": "Rolling reserve: a share of settled funds withheld when your account is subject to a reserve policy, released back to `available` on each release date. Not currently withdrawable and not usable for refunds until released. `0` when no reserve applies."
+            "description": "Rolling reserve: a share of settled funds withheld when your account is subject to a reserve policy, released back to `available` on each release date. Not currently withdrawable, and not usable to fund a refund you issue, until released. A split credit received from another YuvexPay company follows your own reserve policy, not the originating company's; when a refund or MED debit lands on a split share that is still reserved, that payment's own reserve hold is released first and the debit is written against it. `0` when no reserve applies."
           },
           "total": {
             "type": "number",
@@ -3957,7 +4142,7 @@
           },
           "netAmount": {
             "type": "number",
-            "description": "Merchant's net receivable."
+            "description": "Merchant's net receivable, pre-split. When the payment carries `splits`, the originating company keeps `netAmount` minus the sum of the splits."
           },
           "feePassedToPayer": {
             "type": "boolean",
@@ -3969,6 +4154,13 @@
               "null"
             ],
             "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentSplit"
+            },
+            "description": "Splits recorded on this payment, in the order they were sent. `[]` when the payment has none."
           },
           "isSandbox": {
             "type": "boolean"
@@ -4036,7 +4228,7 @@
           },
           "netAmount": {
             "type": "number",
-            "description": "Merchant's net receivable."
+            "description": "Merchant's net receivable, pre-split. When the payment carries `splits`, the originating company keeps `netAmount` minus the sum of the splits."
           },
           "feePassedToPayer": {
             "type": "boolean",
@@ -4048,6 +4240,13 @@
               "null"
             ],
             "description": "Fee added to payer's total when `feePassedToPayer` is true; null otherwise."
+          },
+          "splits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentSplit"
+            },
+            "description": "Splits recorded on this payment, in the order they were sent. `[]` when the payment has none."
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"

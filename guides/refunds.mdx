@@ -3,8 +3,11 @@ title: "Refunds"
 description: "Reverse a payment back to the payer, fully or partially."
 ---
 
-A refund returns funds from your YuvexPay balance back to the payer's source
-of funds. Refunds are issued via `POST /v1/payments/{paymentId}/refund`.
+A refund returns funds to the payer's source of funds. The money comes out of
+your YuvexPay balance — or, when the payment carries
+[splits](/guides/payments#splits), out of every party's balance in proportion to
+what it received. Refunds are issued via
+`POST /v1/payments/{paymentId}/refund`.
 
 ## What can be refunded
 
@@ -18,15 +21,20 @@ detail response under `refundEligibility`.
 | Payment is `EXPIRED`, `CANCELLED`, `REFUNDED`, `CHARGEBACK`, or `MED_FROZEN` | Not refundable. |
 | Payment is anticipated | Refunds are blocked until the anticipation is settled (`REFUND_BLOCKED_BY_ANTICIPATION`). |
 | Payment was processed via a non-refundable provider | `REFUND_NOT_SUPPORTED`. |
-| Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. |
+| Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. On a split payment only the originating company's share is checked. |
 
 A refund issued for a non-eligible payment returns a `400` with one of the
 codes above.
 
 ## Issue a refund
 
-Currently only **full refunds** are supported. Send no `amount` to refund the
-full remaining balance, or send the exact remaining refundable amount.
+Send no `amount` to refund the full remaining balance, or an `amount` between
+`0.01` and the remaining refundable amount for a partial refund.
+
+Partial refunds are conditional: they require a payment that has already settled
+**and** a routing provider that supports them. When either condition is missing
+the request fails with `PARTIAL_REFUND_NOT_SUPPORTED` and the payment stays
+fully refundable. A full refund is always available on a refundable payment.
 
 ```bash
 curl -X POST https://api.yuvexpay.com/v1/payments/5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d/refund \
@@ -53,6 +61,22 @@ The response contains the refund record:
   }
 }
 ```
+
+## Refunds on split payments
+
+When the payment carries [splits](/guides/payments#splits), the refund is
+apportioned: every party is debited in proportion to what it received, the
+originating company included. A partial refund uses the same proportions as a
+full one.
+
+A recipient that has already withdrawn its share goes negative. The shortfall is
+never moved onto the originating company, and
+`INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating
+company's share only — a recipient never blocks a refund. When a debit lands on
+a share that is still in the recipient's rolling reserve, that payment's reserve
+hold is released first and the debit is written against it.
+
+A PIX MED freezes each party's proportional share the same way.
 
 ## Refund lifecycle
 
@@ -92,10 +116,10 @@ history to your operations team.
 | Code | Meaning |
 |------|---------|
 | `INVALID_STATUS` | The payment is not in a refundable status. |
-| `PARTIAL_REFUND_NOT_SUPPORTED` | Only full refunds are supported. Either omit `amount` or send the full remaining refundable amount. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | The payment has not settled yet, or its routing provider cannot execute partial refunds. Either omit `amount` or send the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | A previous refund has already returned the full balance. |
 | `REFUND_IN_PROGRESS` | A refund is currently in flight against this payment. Retry once it settles. |
 | `REFUND_NOT_SUPPORTED` | This payment was processed via a method or route that doesn't support refunds via API. |
-| `INSUFFICIENT_BALANCE_FOR_REFUND` | Your available balance is too low to cover the refund. |
+| `INSUFFICIENT_BALANCE_FOR_REFUND` | Your available balance is too low to cover the refund. On a split payment, the check covers your own proportional share only. |
 | `PSP_REFUND_FAILED` | The underlying network rejected the refund. The funds remain on your balance and you can retry. |
 | `REFUND_BLOCKED_BY_ANTICIPATION` | The payment was anticipated; refunds are blocked until anticipation settles. |
