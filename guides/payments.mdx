@@ -243,38 +243,69 @@ stays with the originating company. On `amount: 100.00` with a `2.99` fee and
 one recipient at `33.33%`, the recipient is credited `33.33` and you keep
 `97.01 - 33.33 = 63.68`.
 
-### Opting in
+### Split partners
 
-The first time you split to a company, that company has to accept the
-relationship in its dashboard. Until it does, creating the payment fails with
-`SPLIT_RELATIONSHIP_PENDING`. Once it has accepted, later payments carry no
-further friction.
+You can only split to a company that has agreed to receive splits from you. The
+pair is created in the dashboard, under **Configurações &gt; Parceiros de
+divisão**: the originating company invites the recipient by its **company ID**
+— the same ID the recipient sees under **Configurações &gt; Empresa** — and the
+recipient accepts. The recipient never initiates.
+
+Consent is per environment and per direction. A recipient that accepted in
+production still has to accept in sandbox, and accepting your splits does not
+let it split to you.
+
+[`GET /v1/splits/partners`](/api-reference/splits/partners) lists the companies
+your account may split with, so an integration knows which IDs are usable
+without hardcoding them. Inviting, accepting, declining and revoking are
+dashboard-only: accepting is a human act.
+
+A relationship is in one of five states.
+
+| Status | Meaning |
+| --- | --- |
+| `PENDING` | Invited, waiting for the recipient to answer. |
+| `ACCEPTED` | Active. Only this state can be named in `splits[]`. |
+| `DECLINED` | The recipient said no. |
+| `REVOKED` | An active pair was ended, by either side. |
+| `CANCELLED` | The originator withdrew the invite before it was answered. |
+
+Invites do not expire; the originator can cancel one at any time. After
+`DECLINED`, `REVOKED` or `CANCELLED` the originator can invite the same company
+again — that starts a **new** relationship and the earlier one is kept as
+history.
+
+Creating a payment naming a recipient that has not accepted fails with
+`SPLIT_RELATIONSHIP_PENDING`, and one naming a recipient whose pair was revoked
+fails with `SPLIT_RELATIONSHIP_REVOKED`.
 
 `SPLIT_RELATIONSHIP_PENDING` is the single answer for every recipient that
 cannot receive a split yet. It reads the same whether the company ID belongs to
 a real company or to no company at all, so the error cannot be used to discover
-which company IDs exist. A consent request is created only for a recipient that
-does exist, is active, is in the same environment and is approved.
-
-Your company can hold a limited number of split requests awaiting an answer, 20
-by default and counted per environment. Beyond that, naming a new recipient
-fails with `SPLIT_RELATIONSHIP_REQUEST_LIMIT` until some of the outstanding
-requests are answered.
-
-The recipient can revoke at any time. New payments then fail with
-`SPLIT_RELATIONSHIP_REVOKED`.
+which company IDs exist.
 
 <Note>
-  Revocation is forward-only. Payments that were already created still settle,
-  refund and freeze normally, and the recipient still receives those shares.
+  Revocation is forward-only, and either side can revoke. Payments that were
+  already created still settle, refund and freeze normally, and the recipient
+  still receives those shares — a split is fixed at creation.
 </Note>
 
+Your company can hold a limited number of split requests awaiting an answer, 20
+by default and counted per environment, and a limited number of active partners
+(three by default). Beyond either, the request is rejected —
+`SPLIT_RELATIONSHIP_REQUEST_LIMIT` for outstanding invites,
+`SPLIT_PARTNER_LIMIT_EXCEEDED` for active partners.
+
 Both companies must be approved before a split payment can be created: KYC for
-an individual, KYC and KYB for a business, on both sides. The check runs when
-the payment is created, not when it settles. Your own company failing it returns
+an individual, KYC and KYB for a business, on both sides. The bar is checked
+when the invite is sent and again when the payment is created, not when it
+settles. Your own company failing it returns
 `403 SPLIT_ORIGINATOR_NOT_APPROVED`. A recipient that has not accepted yet
 returns `SPLIT_RELATIONSHIP_PENDING` whatever the reason; one that had accepted
 and has since stopped meeting the bar returns `SPLIT_RECIPIENT_NOT_APPROVED`.
+
+In sandbox the flow is identical but the KYC gate does not apply, so the whole
+invite → accept → split cycle is testable with unverified sandbox companies.
 
 ### What a recipient sees
 
