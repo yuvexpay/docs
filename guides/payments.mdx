@@ -291,10 +291,12 @@ which company IDs exist.
 </Note>
 
 Your company can hold a limited number of split requests awaiting an answer, 20
-by default and counted per environment, and a limited number of active partners
-(three by default). Beyond either, the request is rejected —
-`SPLIT_RELATIONSHIP_REQUEST_LIMIT` for outstanding invites,
-`SPLIT_PARTNER_LIMIT_EXCEEDED` for active partners.
+by default and counted per environment. Beyond that, naming a new recipient on
+a payment fails with `SPLIT_RELATIONSHIP_REQUEST_LIMIT` until some of the
+outstanding requests are answered. The number of *active* partners is capped
+too — three by default, the same recipient limit that bounds `splits[]` — but
+that ceiling is enforced in the dashboard when an invite is sent or accepted,
+so the API never returns it.
 
 Both companies must be approved before a split payment can be created: KYC for
 an individual, KYC and KYB for a business, on both sides. The bar is checked
