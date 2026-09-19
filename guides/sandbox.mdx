@@ -167,8 +167,9 @@ match on retries.
   `400 SPLIT_RELATIONSHIP_PENDING` when the recipient has not accepted in this
   environment and `400 SPLIT_ENVIRONMENT_MISMATCH` when it had. Consent is per
   environment, so a recipient that accepted in production still has to accept in
-  sandbox. A sandbox split never touches a production balance, statement or
-  report.
+  sandbox. The invite flow is identical in sandbox but the KYC gate does not
+  apply, so two unverified sandbox companies can exercise the whole cycle. A
+  sandbox split never touches a production balance, statement or report.
 - Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.

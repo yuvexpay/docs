@@ -110,7 +110,8 @@ All errors follow a consistent structure:
 | `SPLIT_AMOUNT_EXCEEDS_NET` | 400 | The splits total more than `netAmount`. The message names the overflow; nothing is clamped. |
 | `SPLIT_RELATIONSHIP_PENDING` | 400 | The recipient has not accepted split payments from your company yet. This is the single answer for every recipient that cannot receive a split yet, whether or not the company ID exists, so it cannot be used to probe for company IDs. |
 | `SPLIT_RELATIONSHIP_REQUEST_LIMIT` | 400 | Your company already has the maximum number of split requests awaiting an answer (20 by default, per environment). Wait for answers before naming new recipients. |
-| `SPLIT_RELATIONSHIP_REVOKED` | 400 | The recipient revoked the relationship. Revocation is forward-only: payments created before it still settle. |
+| `SPLIT_RELATIONSHIP_REVOKED` | 400 | The relationship was revoked, by either side. Revocation is forward-only: payments created before it still settle. |
+| `SPLIT_PARTNER_LIMIT_EXCEEDED` | 400 | The originating company already has as many active split partners as its recipient limit allows (three by default). |
 | `SPLIT_RECIPIENT_INACTIVE` | 400 | A recipient that had accepted the relationship is no longer active. |
 | `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
