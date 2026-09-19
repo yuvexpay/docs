@@ -276,13 +276,20 @@ again — that starts a **new** relationship and the earlier one is kept as
 history.
 
 Creating a payment naming a recipient that has not accepted fails with
-`SPLIT_RELATIONSHIP_PENDING`, and one naming a recipient whose pair was revoked
-fails with `SPLIT_RELATIONSHIP_REVOKED`.
+`SPLIT_RELATIONSHIP_PENDING`, one naming a recipient that declined the
+invitation fails with `SPLIT_RELATIONSHIP_DECLINED`, and one naming a recipient
+whose pair was revoked fails with `SPLIT_RELATIONSHIP_REVOKED`. Revoked is
+reported ahead of declined, and declined ahead of pending.
+`SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that
+refused; the pair becomes usable again only once you send a new invitation from
+the dashboard and that company accepts it.
 
-`SPLIT_RELATIONSHIP_PENDING` is the single answer for every recipient that
-cannot receive a split yet. It reads the same whether the company ID belongs to
-a real company or to no company at all, so the error cannot be used to discover
-which company IDs exist.
+`SPLIT_RELATIONSHIP_PENDING` is still the single answer for every other
+recipient that cannot receive a split yet. Declined and revoked are only
+reachable for a company your own company invited first, so neither tells you
+anything you did not already know, and a company you never invited reads the
+same as a company ID that belongs to no company at all — so the error cannot be
+used to discover which company IDs exist.
 
 <Note>
   Revocation is forward-only, and either side can revoke. Payments that were
@@ -302,9 +309,11 @@ Both companies must be approved before a split payment can be created: KYC for
 an individual, KYC and KYB for a business, on both sides. The bar is checked
 when the invite is sent and again when the payment is created, not when it
 settles. Your own company failing it returns
-`403 SPLIT_ORIGINATOR_NOT_APPROVED`. A recipient that has not accepted yet
-returns `SPLIT_RELATIONSHIP_PENDING` whatever the reason; one that had accepted
-and has since stopped meeting the bar returns `SPLIT_RECIPIENT_NOT_APPROVED`.
+`403 SPLIT_ORIGINATOR_NOT_APPROVED`. A recipient that has not accepted returns
+`SPLIT_RELATIONSHIP_PENDING` whatever the reason, or
+`SPLIT_RELATIONSHIP_DECLINED` if it refused your invitation; one that had
+accepted and has since stopped meeting the bar returns
+`SPLIT_RECIPIENT_NOT_APPROVED`.
 
 In sandbox the flow is identical but the KYC gate does not apply, so the whole
 invite → accept → split cycle is testable with unverified sandbox companies.
