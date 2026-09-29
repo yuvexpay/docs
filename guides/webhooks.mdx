@@ -160,7 +160,7 @@ no usable reason text. It is never `null`.
 | `PAYMENT_REFUNDED` | `paymentId`, `refundId`, `amount`; plus `source` on MED-driven refunds, naming the path that produced it |
 | `PAYMENT_REFUND_FAILED` | `paymentId`, `refundId`, `reason` |
 | `MED_RECEIVED` | `medId`, `paymentId`, `amount`, `frozenAmount`, `shortfall`; plus `providerMedId` when the provider supplied one |
-| `MED_RESOLVED` | `medId`, `paymentId`, `resolution`; plus `amount`, `refundId`, `shortfall` and `source` depending on which path resolved it. `resolution` is `ACCEPTED_BY_USER`, `REJECTED_BY_USER`, `ACCEPTED_BY_PSP`, `REJECTED_BY_PSP` or `CANCELLED_BY_PSP` — switch on it non-exhaustively |
+| `MED_RESOLVED` | `medId`, `paymentId`, `resolution`; plus `amount`, `refundId`, `shortfall` and `source` depending on which path resolved it. `shortfall` is the part of the amount returned to the payer that the frozen balance did not cover and that was debited from your available balance. `resolution` is `ACCEPTED_BY_USER`, `REJECTED_BY_USER`, `ACCEPTED_BY_PSP`, `REJECTED_BY_PSP` or `CANCELLED_BY_PSP` — switch on it non-exhaustively |
 | `WITHDRAWAL_REQUESTED` | `withdrawalId`, `txId`, `netAmount`, `status` |
 | `WITHDRAWAL_SENT` | `withdrawalId`, `txId`, `netAmount`, `status`, `endToEndId`, `recipient` |
 | `WITHDRAWAL_FAILED` | the `WITHDRAWAL_SENT` fields plus `failureReason` |
