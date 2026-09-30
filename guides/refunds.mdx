@@ -86,6 +86,11 @@ a chargeback debit the full amount returned to the payer, and the processing fee
 is not returned. On a split payment that debit is apportioned across the
 parties the same way.
 
+A cardholder can still open a chargeback on a card payment you already
+refunded. The chargeback is debited from your balance, even if it goes
+negative, and YuvexPay contests it with the refund receipt. If the dispute is
+won, the refunded part is credited back to your balance.
+
 ## Refund lifecycle
 
 A refund can be in one of these statuses:
