@@ -2959,7 +2959,7 @@
                   },
                   "failureReason": {
                     "type": "string",
-                    "description": "Merchant-safe failure description. Never `null` — the key is absent when the network supplied no usable reason text."
+                    "description": "Generic failure message from a fixed set: `Saque não processado. O valor foi devolvido ao saldo.`, `Saque recusado pela instituição de destino.`, `A chave PIX informada não existe ou já não está ativa. Confira a chave e tente de novo.`, `A conta de destino está bloqueada. Utilize outra chave PIX.`, `A conta de destino foi encerrada. Utilize outra chave PIX.`, `O documento informado não corresponde ao titular da chave PIX informada.`. Never `null` — the key is absent when no reason was recorded."
                   }
                 }
               },
@@ -3905,7 +3905,7 @@
               "string",
               "null"
             ],
-            "description": "Human-readable failure message. Treat as opaque text and surface only to internal operators."
+            "description": "Generic message from the same fixed set as the `WITHDRAWAL_FAILED` webhook `failureReason`, or `Saque em processamento.` while the withdrawal is `PENDING` or `PROCESSING`. `null` when no reason was recorded or the withdrawal is `COMPLETED`."
           }
         }
       },
