@@ -145,8 +145,15 @@ object of nulls. The same all-null collapse applies to `payer`.
 
 `WITHDRAWAL_FAILED` has the same shape plus a `failureReason` string. On
 `WITHDRAWAL_SENT` the `failureReason` key is **absent entirely** rather than
-`null`, and on `WITHDRAWAL_FAILED` it is absent too when the network supplied
-no usable reason text. It is never `null`.
+`null`, and on `WITHDRAWAL_FAILED` it is absent too when no reason was
+recorded. It is never `null`. Its value is always one of these messages:
+
+- `Saque não processado. O valor foi devolvido ao saldo.`
+- `Saque recusado pela instituição de destino.`
+- `A chave PIX informada não existe ou já não está ativa. Confira a chave e tente de novo.`
+- `A conta de destino está bloqueada. Utilize outra chave PIX.`
+- `A conta de destino foi encerrada. Utilize outra chave PIX.`
+- `O documento informado não corresponde ao titular da chave PIX informada.`
 
 ### Body per event type
 
