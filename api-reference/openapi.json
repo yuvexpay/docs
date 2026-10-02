@@ -112,7 +112,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "Create a payment",
-        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.\n\nA card payment can require a 3D Secure challenge from the card issuer. The payment then stays `NEW` and `methodData.challengeUrl` is set: redirect the payer to it. After the challenge the payer is sent to `card.returnUrl` with a `paymentId` query parameter, which is not a confirmation. The result arrives as `PAYMENT_CONFIRMED`, or as `PAYMENT_CANCELLED` with `reason: payment_failed`; you can also poll `GET /v1/payments/{paymentId}`.",
+        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.\n\nA card payment can require a 3D Secure challenge from the card issuer. The payment then stays `NEW` and `methodData.challengeUrl` is set: redirect the payer to it. After the challenge the payer is sent to `card.returnUrl` with a `paymentId` query parameter, or, without `card.returnUrl`, to `completionUrl` when the payment is approved. Neither is a confirmation. The result arrives as `PAYMENT_CONFIRMED`, or as `PAYMENT_CANCELLED` with `reason: payment_failed`; you can also poll `GET /v1/payments/{paymentId}`.",
         "tags": [
           "Payments"
         ],
@@ -3259,7 +3259,7 @@
           "completionUrl": {
             "type": "string",
             "format": "uri",
-            "description": "URL to redirect the payer after successful payment completion."
+            "description": "URL to redirect the payer after successful payment completion. On a headless card payment it is used after an approved 3D Secure challenge when `card.returnUrl` is not set, without the `paymentId` parameter."
           },
           "description": {
             "type": "string",
@@ -3358,7 +3358,7 @@
                 "type": "string",
                 "format": "uri",
                 "maxLength": 2000,
-                "description": "`https` URL the payer is sent to after a 3D Secure challenge, with the payment `id` appended as the `paymentId` query parameter. Reaching it is not a confirmation: wait for the `PAYMENT_CONFIRMED` or `PAYMENT_CANCELLED` webhook, or poll `GET /v1/payments/{paymentId}`."
+                "description": "`https` URL the payer is sent to after a 3D Secure challenge, with the payment `id` appended as the `paymentId` query parameter. Reaching it is not a confirmation: wait for the `PAYMENT_CONFIRMED` or `PAYMENT_CANCELLED` webhook, or poll `GET /v1/payments/{paymentId}`. Without it, an approved payment sends the payer to `completionUrl`, without the `paymentId` parameter, when set; otherwise the payer stays on a YuvexPay page."
               },
               "deviceInfo": {
                 "type": "object",

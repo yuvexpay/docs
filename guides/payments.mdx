@@ -213,7 +213,9 @@ The create response then returns the payment as `NEW` with a non-null
 3. The payer is sent to your `card.returnUrl` with the payment `id` in a
    `paymentId` query parameter, for example
    `https://store.example.com/orders/5678?paymentId=8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234`.
-   Without `card.returnUrl`, the payer stays on a YuvexPay page.
+   Without `card.returnUrl`, an approved payment sends the payer to the
+   payment's `completionUrl`, without the `paymentId` parameter, when you set
+   one; otherwise the payer stays on a YuvexPay page.
 4. The result arrives by webhook: `PAYMENT_CONFIRMED` when the payment is
    approved, or `PAYMENT_CANCELLED` with `reason: "payment_failed"` when the
    challenge fails or the card is refused, in which case the payment is
