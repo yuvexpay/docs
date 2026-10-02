@@ -1070,7 +1070,7 @@
                     "withdrawals": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Withdrawal"
+                        "$ref": "#/components/schemas/WithdrawalListItem"
                       }
                     },
                     "pagination": {
@@ -2541,8 +2541,11 @@
                     "description": "Refunded amount in BRL."
                   },
                   "source": {
-                    "type": "string",
-                    "description": "Present when the refund was driven by a PIX MED; names the settling provider."
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Present and `null` when the refund was driven by a PIX MED. Absent on every other refund."
                   }
                 }
               },
@@ -2586,14 +2589,14 @@
                   },
                   "reason": {
                     "type": "string",
-                    "description": "Failure reason, safe to surface to operators."
+                    "description": "Always `Reembolso não processado. O valor foi devolvido ao saldo.`"
                   }
                 }
               },
               "example": {
                 "paymentId": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
                 "refundId": "2c7f1a90-55b8-4a1e-9d33-6f0b2e4c7a11",
-                "reason": "Refund failed at provider [E42]"
+                "reason": "Reembolso não processado. O valor foi devolvido ao saldo."
               }
             }
           }
@@ -2669,8 +2672,11 @@
                     "description": "Payment id."
                   },
                   "providerMedId": {
-                    "type": "string",
-                    "description": "Provider MED id, when supplied."
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Always `null` when present. Kept for payload compatibility; use `medId`."
                   },
                   "amount": {
                     "type": "number",
@@ -2751,8 +2757,11 @@
                     "description": "Unfrozen shortfall, when applicable."
                   },
                   "source": {
-                    "type": "string",
-                    "description": "Names the path that resolved the MED when it was not a direct merchant action, e.g. `onlyup`, `unoip`, `merchant_refund` or `<provider>-reconciler`."
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "`merchant_refund` when your own refund resolved the MED. `null` or absent otherwise."
                   }
                 },
                 "required": [
@@ -3827,7 +3836,11 @@
             "type": "number"
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The reason sent with the refund request. `null` when none was sent and for refunds YuvexPay executed on its own, such as the return of a PIX MED."
           },
           "status": {
             "$ref": "#/components/schemas/TransactionStatus"
@@ -3906,8 +3919,81 @@
               "null"
             ],
             "description": "Generic message from the same fixed set as the `WITHDRAWAL_FAILED` webhook `failureReason`, or `Saque em processamento.` while the withdrawal is `PENDING` or `PROCESSING`. `null` when no reason was recorded or the withdrawal is `COMPLETED`."
+          },
+          "providerErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rejection code reported by the receiving institution: `AC03`, `AC06`, `AC07`, `AG03`, `AM18`, `RR04`, `SL02`, `BE01`, `CH11`, `PIX_KEY_NOT_FOUND`, `PIX_KEY_OWNER_MISMATCH`, `ACCOUNT_CLOSED` or `ACCOUNT_BLOCKED`. `null` for every other failure and for withdrawals that did not fail."
           }
-        }
+        },
+        "description": "The withdrawal as returned by `GET /v1/withdrawals/{withdrawalId}`."
+      },
+      "WithdrawalListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "txId": {
+            "type": "string",
+            "description": "Transaction identifier: `WIT` followed by a millisecond timestamp and 5 uppercase alphanumerics, e.g. `WIT1746280868443K3F9Q`. Treat it as an opaque string.",
+            "example": "WIT1746280868443K3F9Q"
+          },
+          "grossAmount": {
+            "type": "number"
+          },
+          "feeAmount": {
+            "type": "number"
+          },
+          "netAmount": {
+            "type": "number"
+          },
+          "pixKey": {
+            "type": "string",
+            "description": "The destination PIX key, masked. The full key is never returned by the API once the withdrawal is created."
+          },
+          "pixKeyType": {
+            "type": "string",
+            "description": "Type of PIX key: `CPF`, `CNPJ`, `EMAIL`, `PHONE` or `EVP` (random key)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/WithdrawalStatus"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paymentMethod": {
+            "type": "string",
+            "enum": [
+              "PIX"
+            ]
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          },
+          "processedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "providerErrorCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rejection code reported by the receiving institution: `AC03`, `AC06`, `AC07`, `AG03`, `AM18`, `RR04`, `SL02`, `BE01`, `CH11`, `PIX_KEY_NOT_FOUND`, `PIX_KEY_OWNER_MISMATCH`, `ACCOUNT_CLOSED` or `ACCOUNT_BLOCKED`. `null` for every other failure and for withdrawals that did not fail."
+          }
+        },
+        "description": "A withdrawal as returned by `GET /v1/withdrawals`. It carries no `errorMessage` and no `isSandbox`; read `GET /v1/withdrawals/{withdrawalId}` for the failure message."
       },
       "WithdrawalLimits": {
         "type": "object",
@@ -4490,7 +4576,7 @@
       },
       "WithdrawalCreated": {
         "type": "object",
-        "description": "The withdrawal as returned by `POST /v1/withdrawals`. This response is deliberately narrower than the object returned by the read endpoints: it omits `pixKey`, `pixKeyType`, `processedAt` and `errorMessage`, which are only meaningful once the network has acted.",
+        "description": "The withdrawal as returned by `POST /v1/withdrawals`. This response is deliberately narrower than `GET /v1/withdrawals/{withdrawalId}`: it omits `pixKey`, `pixKeyType`, `processedAt`, `errorMessage` and `providerErrorCode`, which are only meaningful once the network has acted.",
         "properties": {
           "id": {
             "type": "string",
