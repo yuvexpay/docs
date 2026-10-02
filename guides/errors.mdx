@@ -115,14 +115,15 @@ All errors follow a consistent structure:
 | `SPLIT_RECIPIENT_INACTIVE` | 400 | A recipient that had accepted the relationship is no longer active. |
 | `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
-| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502 | A downstream payment processor is unavailable. Retry with backoff. |
+| `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check the card details or use another card or payment method. |
+| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a card payment, see [Card errors](/guides/payments#card-errors) before retrying. |
 
 ### Refund errors
 
 | Code | Status | Description |
 |------|--------|-------------|
 | `INVALID_STATUS` | 400 | The payment is not in a refundable status. |
-| `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | A partial refund needs a settled payment and a routing provider that supports partial refunds; this payment fails one of the two. Send no `amount`, or the full remaining refundable amount. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | A partial refund needs a settled payment and a processing route that supports partial refunds; this payment fails one of the two. Send no `amount`, or the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | 400 | The payment has already been fully refunded. |
 | `REFUND_IN_PROGRESS` | 409 | A refund is already being processed for this payment. |
 | `REFUND_NOT_SUPPORTED` | 400 | Refunds are not supported for this payment method or processing route. |
@@ -136,7 +137,7 @@ All errors follow a consistent structure:
 | `WITHDRAWAL_BELOW_MINIMUM` | 400 | The amount is below the minimum withdrawal value. |
 | `INSUFFICIENT_BALANCE` | 400 | Your available balance is not sufficient. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
-| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum the routing PIX provider accepts. |
+| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for the account. |
 | `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — key existence is resolved by the network after acceptance. |
 | `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |
@@ -149,7 +150,7 @@ All errors follow a consistent structure:
 | `CREDITOR_DOCUMENT_UNREADABLE` | 500 | Your tax id is on file but could not be read. No money moved, and retrying will not help — this is a platform-side fault. Send `destination.recipientDocument` to unblock, or contact support. |
 | `VERIFICATION_REQUIRED` | 403 | Account verification is required before withdrawals can be processed. |
 | `SANDBOX_COMPANY_PRODUCTION_BLOCKED` | 403 | A production request was made by an account that is still sandbox-only. |
-| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout. No money moved; retry with a new idempotency key. |
+| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX route could accept the payout. No money moved; retry with a new idempotency key. |
 | `WITHDRAWAL_TEMPORARILY_UNAVAILABLE` | 503 | The request was abandoned before reaching the network. No money moved. |
 | `WITHDRAWAL_PROCESSING_FAILED` | 503 | The withdrawal could not be recorded. No money moved. |
 

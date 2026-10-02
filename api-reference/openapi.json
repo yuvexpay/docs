@@ -403,13 +403,22 @@
             }
           },
           "400": {
-            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; the last three are returned only for a recipient that had already accepted the relationship. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; the last three are returned only for a recipient that had already accepted the relationship. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused card payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
+                  "providerRejected": {
+                    "summary": "The payment was refused",
+                    "value": {
+                      "error": {
+                        "code": "PROVIDER_REJECTED",
+                        "message": "Não foi possível processar este pagamento. Verifique os dados informados ou tente outro método de pagamento."
+                      }
+                    }
+                  },
                   "splitAmountExceedsNet": {
                     "summary": "The splits total more than netAmount",
                     "value": {
@@ -450,6 +459,26 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "description": "Code `PROVIDER_TEMPORARILY_UNAVAILABLE`: the outcome of the charge is not known yet. A card or boleto payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. Repeat the request with the same `externalId` to read the payment instead of creating a new one.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Codes: `PROVIDER_TEMPORARILY_UNAVAILABLE`, the charge was not created and a card or boleto payment is recorded as `CANCELLED`, so retry later with a new `externalId`; `SERVICE_UNAVAILABLE`, the requested payment method is temporarily disabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -683,7 +712,7 @@
       "post": {
         "operationId": "refundPayment",
         "summary": "Refund a payment",
-        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A partial refund additionally requires a settled payment and a routing provider that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company.",
+        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A partial refund additionally requires a settled payment and a processing route that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company.",
         "tags": [
           "Payments"
         ],
@@ -2342,7 +2371,7 @@
                   },
                   "source": {
                     "type": "string",
-                    "description": "Present and equal to `reconciler` when the confirmation came from reconciliation rather than the provider callback."
+                    "description": "Present and equal to `reconciler` when the confirmation came from a periodic status check rather than a real-time notification."
                   }
                 }
               },
@@ -2535,7 +2564,7 @@
                       "payment_failed",
                       "payment_cancelled"
                     ],
-                    "description": "Why the payment ended. `payment_failed`: the card was refused or failed 3D Secure authentication. `payment_cancelled`: the charge was cancelled before it was paid. Absent from the JSON on the cancellation paths that carry `id` and `amount` instead. Switch on it non-exhaustively."
+                    "description": "Why the payment ended. `payment_failed`: the payment was refused or could not be completed, for example a card that was refused or failed 3D Secure authentication. `payment_cancelled`: the charge was cancelled before it was paid. Absent from the JSON on the cancellation paths that carry `id` and `amount` instead. Switch on it non-exhaustively."
                   }
                 }
               },
@@ -2786,7 +2815,7 @@
                   },
                   "amount": {
                     "type": "number",
-                    "description": "Disputed amount in BRL. Absent on the provider-lifecycle paths, which omit the key entirely."
+                    "description": "Disputed amount in BRL. Absent on some resolution paths, which omit the key entirely."
                   },
                   "refundId": {
                     "type": "string",
@@ -2959,7 +2988,7 @@
     "WITHDRAWAL_FAILED": {
       "post": {
         "summary": "Withdrawal failed",
-        "description": "The network rejected the transfer and the funds were returned to your balance. This also carries provider-driven reversals.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
+        "description": "The network rejected the transfer and the funds were returned to your balance. This also carries reversals initiated on the network side.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -3220,7 +3249,7 @@
               "headless"
             ],
             "default": "headless",
-            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method. Headless CARD requires the card payload for direct credit card capture. Hosted or multi-method CARD flows continue through checkout/provider invoice URLs, where debit remains available."
+            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method. Headless CARD requires the card payload for direct credit card capture. Hosted or multi-method CARD flows go through the YuvexPay checkout page, which accepts credit cards only."
           },
           "returnUrl": {
             "type": "string",
@@ -3252,7 +3281,7 @@
           "enforcePayerDocument": {
             "type": "boolean",
             "default": false,
-            "description": "PIX only. Opt-in request that the charge be paid from an account whose CPF/CNPJ matches the customer's document (same-document payment). Best-effort: when the provider cannot enforce it, the charge is still created and paid normally."
+            "description": "PIX only. Opt-in request that the charge be paid from an account whose CPF/CNPJ matches the customer's document (same-document payment). Best-effort: when it cannot be enforced, the charge is still created and paid normally."
           },
           "customer": {
             "type": "object",
@@ -3881,7 +3910,7 @@
               "object",
               "null"
             ],
-            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Provider-agnostic. Null for historical records or open-payer charges where no payer data was captured.",
+            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Null for historical records or open-payer charges where no payer data was captured.",
             "properties": {
               "name": {
                 "type": [
@@ -4133,14 +4162,14 @@
           },
           "minAmount": {
             "type": "number",
-            "description": "Minimum withdrawal amount in BRL that applies to your account, compared against `amount` (the net) rather than against `amount + fee`. Never below the `R$ 10.00` platform floor, but it can be higher. Unrelated to the routing provider minimum, which surfaces as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
+            "description": "Minimum withdrawal amount in BRL that applies to your account, compared against `amount` (the net) rather than against `amount + fee`. Never below the `R$ 10.00` platform floor, but it can be higher. Unrelated to the minimum of the PIX route that sends the payout, which surfaces as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
           },
           "perTransactionLimit": {
             "type": [
               "number",
               "null"
             ],
-            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply at the PIX provider that routes the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
+            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
           }
         }
       },
@@ -4615,7 +4644,7 @@
               "string",
               "null"
             ],
-            "description": "Payer CPF or CNPJ, as digits, or the masked string the settling PIX provider reported (for example `***405566**`) when no full document is on file. `null` when neither was captured. Match on `*` before parsing the value as a CPF or CNPJ."
+            "description": "Payer CPF or CNPJ, as digits, or a masked string (for example `***405566**`) when no full document is on file. `null` when neither was captured. Match on `*` before parsing the value as a CPF or CNPJ."
           },
           "documentType": {
             "type": [
@@ -4656,7 +4685,7 @@
               "string",
               "null"
             ],
-            "description": "Recipient CPF or CNPJ. Populated when the withdrawal was created with `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`, or when the settling provider reported the receiving account. `null` otherwise."
+            "description": "Recipient CPF or CNPJ. Populated when the withdrawal was created with `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`, or when the receiving account was reported back after the transfer. `null` otherwise."
           },
           "institutionName": {
             "type": [
@@ -4677,14 +4706,14 @@
               "string",
               "null"
             ],
-            "description": "Recipient branch, when the provider reports it."
+            "description": "Recipient branch, when it is reported back."
           },
           "account": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Recipient account, when the provider reports it."
+            "description": "Recipient account, when it is reported back."
           }
         }
       },

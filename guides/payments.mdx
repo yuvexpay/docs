@@ -216,7 +216,8 @@ The create response then returns the payment as `NEW` with a non-null
    Without `card.returnUrl`, the payer stays on a YuvexPay page.
 4. The result arrives by webhook: `PAYMENT_CONFIRMED` when the payment is
    approved, or `PAYMENT_CANCELLED` with `reason: "payment_failed"` when the
-   challenge fails or the card is refused. The payment is then `CANCELLED`.
+   challenge fails or the card is refused, in which case the payment is
+   `CANCELLED`.
 
 <Warning>
   The payer arriving at your `returnUrl` is not a confirmation. Show the order
@@ -229,6 +230,20 @@ the result arrives the same way. `methodData.challengeUrl` is present on every
 `CARD` payment, in the create response and in `GET /v1/payments`,
 `GET /v1/payments/{paymentId}` and `GET /v1/payments/txid/{txId}`. It is set
 only while a challenge is pending and the payment is `NEW`.
+
+### Card errors
+
+| Response | Meaning |
+|----------|---------|
+| `400 PROVIDER_REJECTED` | The card payment was refused. The payment is recorded as `CANCELLED`. The message is generic and does not say why. |
+| `503 PROVIDER_TEMPORARILY_UNAVAILABLE` | The charge was not created. The payment is recorded as `CANCELLED`. Retry later. |
+| `502 PROVIDER_TEMPORARILY_UNAVAILABLE` | The outcome is not known yet. The payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues as a normal card payment or ends `CANCELLED`. |
+
+A create request that reuses an `externalId` returns the existing payment
+instead of charging again. Send `externalId` on every card payment: after a
+`502`, repeating the request with the same `externalId` returns that payment
+and its current status, and does not submit a second charge. After a `400` or
+a `503`, use a new `externalId` to try again.
 
 ## Hosted checkout
 
