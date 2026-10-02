@@ -11,15 +11,17 @@ what it received. Refunds are issued via
 
 ## What can be refunded
 
-The eligibility rules are enforced server-side and surfaced in the payment
-detail response under `refundEligibility`.
+The eligibility rules are enforced server-side when you call
+`POST /v1/payments/{paymentId}/refund`. The payment detail response does not
+carry an eligibility field: an ineligible payment is reported by the refund
+call itself.
 
 | Condition | Effect |
 |-----------|--------|
 | Payment is `PAID` | Refundable. |
 | Payment is `PARTIAL_REFUND` | Refundable up to the remaining amount. |
 | Payment is `EXPIRED`, `CANCELLED`, `REFUNDED`, `CHARGEBACK`, or `MED_FROZEN` | Not refundable. |
-| Payment is anticipated | Refunds are blocked until the anticipation is settled (`REFUND_BLOCKED_BY_ANTICIPATION`). |
+| Payment needs a manual review before it can be refunded | `REFUND_REQUIRES_MANUAL_REVIEW`. Contact support. |
 | Payment was processed via a non-refundable provider | `REFUND_NOT_SUPPORTED`. |
 | Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. On a split payment only the originating company's share is checked. |
 
@@ -135,4 +137,4 @@ history to your operations team.
 | `REFUND_NOT_SUPPORTED` | This payment was processed via a method or route that doesn't support refunds via API. |
 | `INSUFFICIENT_BALANCE_FOR_REFUND` | Your available balance is too low to cover the refund. On a split payment, the check covers your own proportional share only. |
 | `PSP_REFUND_FAILED` | The underlying network rejected the refund. The funds remain on your balance and you can retry. |
-| `REFUND_BLOCKED_BY_ANTICIPATION` | The payment was anticipated; refunds are blocked until anticipation settles. |
+| `REFUND_REQUIRES_MANUAL_REVIEW` | The payment needs a manual review before it can be refunded. Contact support. |

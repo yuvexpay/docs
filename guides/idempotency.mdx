@@ -28,10 +28,7 @@ If you send the same request with the same idempotency key, the API returns the 
 | `POST /v1/withdrawals` | Yes |
 | `POST /v1/products` | Yes |
 | `POST /v1/customers` | Yes |
-| `POST /v1/anticipations` | Yes |
 | `POST /v1/payments/:id/simulate` | Optional |
-| `POST /v1/anticipations/simulate` | Optional |
-| `POST /v1/anticipations/:id/cancel` | Optional |
 
 "Optional" means the header is honoured when you send it — replay, payload check and all — but omitting it is not rejected, and the request then executes with no idempotency protection at all. Send one anyway.
 

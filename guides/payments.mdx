@@ -356,7 +356,7 @@ the originator's. When a refund or MED debit lands on a recipient whose share is
 still in reserve, that payment's own reserve hold is released first and the
 debit is written against it.
 
-### Sandbox and anticipation
+### Sandbox
 
 A sandbox payment can only split to a company that is in sandbox mode, and a
 production payment only to a production company. The other direction is always
@@ -364,9 +364,6 @@ rejected, never a silent no-op: `400 SPLIT_RELATIONSHIP_PENDING` for a recipient
 that has not accepted in this environment, and `400 SPLIT_ENVIRONMENT_MISMATCH`
 for one that had. Sandbox splits never touch a production balance, statement or
 report.
-
-Payments that carry splits cannot be anticipated
-(`ANTICIPATION_SPLIT_PAYMENT`).
 
 ## Pagination and filtering
 
