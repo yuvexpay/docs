@@ -55,6 +55,7 @@ All errors follow a consistent structure:
 | `409` | Conflict (idempotency key mismatch). |
 | `429` | Rate limit exceeded. |
 | `500` | Internal server error. |
+| `502` | Temporarily unavailable (`PROVIDER_TEMPORARILY_UNAVAILABLE`). |
 | `503` | Service unavailable. |
 
 ## Error codes
@@ -116,7 +117,7 @@ All errors follow a consistent structure:
 | `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
 | `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check the card details or use another card or payment method. |
-| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a card payment, see [Card errors](/guides/payments#card-errors) before retrying. |
+| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a card or boleto payment, a `502` means the outcome is not known yet and is replayed for the same `X-Idempotency-Key`: see [Card errors](/guides/payments#card-errors) before retrying. On a PIX payment, the payment is recorded as `CANCELLED`: retry with a new `externalId`. |
 
 ### Refund errors
 

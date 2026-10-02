@@ -461,7 +461,7 @@
             "$ref": "#/components/responses/RateLimited"
           },
           "502": {
-            "description": "Code `PROVIDER_TEMPORARILY_UNAVAILABLE`: the outcome of the charge is not known yet. A card or boleto payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. Repeat the request with the same `externalId` to read the payment instead of creating a new one.",
+            "description": "Code `PROVIDER_TEMPORARILY_UNAVAILABLE`. On a card or boleto payment the outcome of the charge is not known yet: the payment stays `PROCESSING`, with `methodData: null`, until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. This `502` is stored for the `X-Idempotency-Key`: a retry with the same key returns the same `502` for 24 hours and never submits a second charge. To recover the payment, repeat the request once with the same `externalId` and a new `X-Idempotency-Key`: the response is the existing payment, with its `id`, and no new charge is submitted. Then poll `GET /v1/payments/{paymentId}` until it leaves `PROCESSING`; a card payment that ends `CANCELLED` from that state sends no webhook. On a PIX payment the charge was not created and the payment is recorded as `CANCELLED`: retry with a new `externalId`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -471,7 +471,7 @@
             }
           },
           "503": {
-            "description": "Codes: `PROVIDER_TEMPORARILY_UNAVAILABLE`, the charge was not created and a card or boleto payment is recorded as `CANCELLED`, so retry later with a new `externalId`; `SERVICE_UNAVAILABLE`, the requested payment method is temporarily disabled.",
+            "description": "Codes: `PROVIDER_TEMPORARILY_UNAVAILABLE`, the charge was not created and the payment is recorded as `CANCELLED`, so retry later with a new `externalId`; `SERVICE_UNAVAILABLE`, the requested payment method is temporarily disabled.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3079,7 +3079,7 @@
           "type": "string",
           "maxLength": 100
         },
-        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours."
+        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours. Successful (`2xx`) responses are stored and replayed for the key. On `POST /v1/payments`, a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` for a card or boleto payment is stored and replayed too: to recover that payment, repeat the request once with the same `externalId` and a new key."
       },
       "Page": {
         "name": "page",

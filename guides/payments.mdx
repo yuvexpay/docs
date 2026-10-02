@@ -53,7 +53,7 @@ NEW
 |--------|---------|
 | `NEW` | Created and waiting for the payer. |
 | `PENDING_METHOD_SELECTION` | A hosted multi-method checkout is created and the payer hasn't picked a method yet. |
-| `PROCESSING` | The card or PIX network is processing the charge. |
+| `PROCESSING` | The card or PIX network is processing the charge, or the outcome of a card or boleto charge is not known yet after a `502` (see [Card errors](#card-errors)). |
 | `CONFIRMED` | The payment was authorized but funds are not yet settled (typical for cards/boleto). |
 | `PAID` | Funds were received and credited to your balance. |
 | `EXPIRED` | The payment window passed without payment. |
@@ -93,6 +93,10 @@ curl -X POST https://api.yuvexpay.com/v1/payments \
 
 The response includes `methodData.pixCopyPaste` (the BR-Code string) and
 `methodData.qrCodeBase64` (a data URI). Render either to the payer.
+
+A PIX payment whose create returns `502` or `503 PROVIDER_TEMPORARILY_UNAVAILABLE`
+is recorded as `CANCELLED`: the charge was not created, so retry with a new
+`externalId`.
 
 ## Headless direct credit card
 
@@ -240,16 +244,33 @@ charge was created.
 
 | Response | Meaning |
 |----------|---------|
-| `400 PROVIDER_REJECTED` | The card payment was refused. The payment is recorded as `CANCELLED`. The message is generic and does not say why. |
+| `400 PROVIDER_REJECTED` | The payment was refused. The payment is recorded as `CANCELLED`. The message is generic and does not say why. |
 | `503 PROVIDER_TEMPORARILY_UNAVAILABLE` | The charge was not created. The payment is recorded as `CANCELLED`. Retry later. |
-| `502 PROVIDER_TEMPORARILY_UNAVAILABLE` | The outcome is not known yet. The payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues as a normal card payment or ends `CANCELLED`. |
+| `502 PROVIDER_TEMPORARILY_UNAVAILABLE` | The outcome is not known yet. The payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. |
+
+A boleto payment returns the same responses, with the same meaning.
 
 A create request that reuses an `externalId` returns the existing payment
-instead of charging again. Send `externalId` on every card payment: after a
-`502`, repeating the request with the same `externalId` returns that payment
-and its current status, and does not submit a second charge. A payment that
-ends `CANCELLED` from that state sends no webhook, so read its status this way.
+instead of charging again. Send `externalId` on every card and boleto payment.
 After a `400` or a `503`, use a new `externalId` to try again.
+
+The `502` is stored for its `X-Idempotency-Key`: repeating the request with the
+same `X-Idempotency-Key` returns the same `502` for 24 hours and never submits
+a second charge. To recover the payment after a `502`:
+
+1. Repeat the request once with the same `externalId` and a new
+   `X-Idempotency-Key`. The response is the existing payment with its `id`, and
+   no second charge is submitted. Its `methodData` is `null` while it is
+   `PROCESSING`.
+2. Poll `GET /v1/payments/{paymentId}` until the status leaves `PROCESSING`. Do
+   not poll by repeating the create: a repeated create with the same key
+   replays the same response for 24 hours.
+3. If the payment ends `CANCELLED`, create a new payment with a new
+   `externalId`. A card payment that ends `CANCELLED` from `PROCESSING` sends
+   no webhook, so polling is the only way to see it.
+
+Without `externalId`, a request with a new `X-Idempotency-Key` creates a new
+payment and can charge the payer twice.
 
 ## Hosted checkout
 
