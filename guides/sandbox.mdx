@@ -46,7 +46,7 @@ The outcome is picked from the **decimal cents** of the requested amount:
 |-------|------------------------|-------|
 | `.01` | `PAID`         | Successful payment. |
 | `.02` | `NEW`          | Payer never pays. The charge stays `NEW` — nothing later moves it to `EXPIRED`. |
-| `.03` | `CANCELLED`    | Cancelled by the payer or provider. |
+| `.03` | `CANCELLED`    | Cancelled before payment. |
 | `.04` | `EXPIRED`      | The charge is created already expiring: `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` you sent, and the check marks it `EXPIRED`. |
 | `.05` | `PAID`         | The charge settles. A MED freeze is not reachable from the amount — `MED_FROZEN` cannot be produced in sandbox. |
 | Any other | `PAID`     | Every cents value outside the list above falls through to a successful payment. `R$ 19.00` behaves exactly like `R$ 19.01`. |
@@ -55,9 +55,8 @@ So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
 any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates a
 successful payment.
 
-These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges are created
-at the card and boleto acquirer rather than at the PIX simulator, so their cents
-are ignored — drive those with
+These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges do not go
+through the PIX simulator, so their cents are ignored — drive those with
 [`POST /v1/payments/{paymentId}/simulate`](#forcing-a-terminal-status).
 
 ## Forcing a terminal status
@@ -97,7 +96,7 @@ Sandbox withdrawals follow the same convention. The status is reached synchronou
 | Cents | Final status | Notes |
 |-------|--------------|-------|
 | `.01` | `COMPLETED`  | Successful payout. |
-| `.02` | `FAILED`     | Simulates "insufficient funds at provider". |
+| `.02` | `FAILED`     | Simulates a payout that fails for insufficient funds. |
 | `.03` | `FAILED`     | Simulates "invalid PIX key". |
 | `.04` | `PROCESSING` | Stays in `PROCESSING` so you can test long-running flows. |
 | Any other | `COMPLETED` | Defaults to a successful withdrawal. |

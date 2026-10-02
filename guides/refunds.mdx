@@ -11,16 +11,18 @@ what it received. Refunds are issued via
 
 ## What can be refunded
 
-The eligibility rules are enforced server-side and surfaced in the payment
-detail response under `refundEligibility`.
+The eligibility rules are enforced server-side when you call
+`POST /v1/payments/{paymentId}/refund`. The payment detail response does not
+carry an eligibility field: an ineligible payment is reported by the refund
+call itself.
 
 | Condition | Effect |
 |-----------|--------|
 | Payment is `PAID` | Refundable. |
-| Payment is `PARTIAL_REFUND` | Refundable up to the remaining amount. |
+| Payment is `PARTIAL_REFUND` | Not refundable. A payment can be refunded once (`REFUND_ALREADY_PERFORMED`). |
 | Payment is `EXPIRED`, `CANCELLED`, `REFUNDED`, `CHARGEBACK`, or `MED_FROZEN` | Not refundable. |
-| Payment is anticipated | Refunds are blocked until the anticipation is settled (`REFUND_BLOCKED_BY_ANTICIPATION`). |
-| Payment was processed via a non-refundable provider | `REFUND_NOT_SUPPORTED`. |
+| Payment needs a manual review before it can be refunded | `REFUND_REQUIRES_MANUAL_REVIEW`. Contact support. |
+| Payment was processed through a route that does not support refunds | `REFUND_NOT_SUPPORTED`. |
 | Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. On a split payment only the originating company's share is checked. |
 
 A refund issued for a non-eligible payment returns a `400` with one of the
@@ -28,11 +30,13 @@ codes above.
 
 ## Issue a refund
 
-Send no `amount` to refund the full remaining balance, or an `amount` between
-`0.01` and the remaining refundable amount for a partial refund.
+Send no `amount` to refund the full payment, or an `amount` between `0.01` and
+the payment amount for a partial refund. A payment can be refunded once, fully
+or partially: after a partial refund, the rest of the payment cannot be
+refunded.
 
 Partial refunds are conditional: they require a payment that has already settled
-**and** a routing provider that supports them. When either condition is missing
+**and** a processing route that supports them. When either condition is missing
 the request fails with `PARTIAL_REFUND_NOT_SUPPORTED` and the payment stays
 fully refundable. A full refund is always available on a refundable payment.
 
@@ -98,7 +102,7 @@ A refund can be in one of these statuses:
 | Status | Meaning |
 |--------|---------|
 | `PROCESSING` | The refund was accepted and is being executed at the underlying network. |
-| `COMPLETED`  | The refund cleared and the payment moved to `REFUNDED` (or `PARTIAL_REFUND` if there is remaining balance). |
+| `COMPLETED`  | The refund cleared and the payment moved to `REFUNDED` (or `PARTIAL_REFUND` after a partial refund). |
 | `FAILED`     | The refund could not be executed. The funds are returned to your balance and you can retry. |
 
 Listen for `PAYMENT_REFUNDED` and `PAYMENT_REFUND_FAILED` webhook events to
@@ -112,7 +116,9 @@ the original response. Reusing the key with a different body returns
 `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
 
 While a refund is being processed for a given payment, additional refund
-requests fail with `409 REFUND_IN_PROGRESS` until the current refund settles.
+requests fail with `400 REFUND_IN_PROGRESS` until the current refund settles.
+If it completes, the payment cannot be refunded again. If it fails, you can
+refund the payment again.
 
 ## Listing refunds for a payment
 
@@ -129,10 +135,11 @@ history to your operations team.
 | Code | Meaning |
 |------|---------|
 | `INVALID_STATUS` | The payment is not in a refundable status. |
-| `PARTIAL_REFUND_NOT_SUPPORTED` | The payment has not settled yet, or its routing provider cannot execute partial refunds. Either omit `amount` or send the full remaining refundable amount. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | The payment has not settled yet, or its processing route cannot execute partial refunds. Either omit `amount` or send the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | A previous refund has already returned the full balance. |
-| `REFUND_IN_PROGRESS` | A refund is currently in flight against this payment. Retry once it settles. |
+| `REFUND_ALREADY_PERFORMED` | The payment was already partially refunded. A payment can be refunded once. |
+| `REFUND_IN_PROGRESS` | A refund is currently in flight against this payment. Retry only if that refund fails. |
 | `REFUND_NOT_SUPPORTED` | This payment was processed via a method or route that doesn't support refunds via API. |
 | `INSUFFICIENT_BALANCE_FOR_REFUND` | Your available balance is too low to cover the refund. On a split payment, the check covers your own proportional share only. |
 | `PSP_REFUND_FAILED` | The underlying network rejected the refund. The funds remain on your balance and you can retry. |
-| `REFUND_BLOCKED_BY_ANTICIPATION` | The payment was anticipated; refunds are blocked until anticipation settles. |
+| `REFUND_REQUIRES_MANUAL_REVIEW` | The payment needs a manual review before it can be refunded. Contact support. |

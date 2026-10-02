@@ -174,9 +174,9 @@ through `customer` or `customerId`.
 ```
 
 <Tip>
-  `card` is only accepted for `headless` single-method `CARD` payments with
-  `installments: 1`. Hosted and multi-installment card flows go through the
-  hosted checkout.
+  `card` is only accepted for `headless` single-method `CARD` payments. Card
+  payments are charged in a single installment, so `installments` must be `1`.
+  Multi-method flows go through the hosted checkout.
 </Tip>
 
 ## 3. Listen for webhooks

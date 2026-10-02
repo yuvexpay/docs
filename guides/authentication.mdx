@@ -95,9 +95,9 @@ that only creates PIX charges only needs `payments:write`.
 The same base URL (`https://api.yuvexpay.com`) serves both environments — the
 key prefix decides which bucket the request lands in:
 
-- **`ypk_test_...`** → Sandbox. Fake money, predictable provider behaviour,
-  webhooks fire, no financial impact.
-- **`ypk_live_...`** → Production. Real provider, real settlement, real money.
+- **`ypk_test_...`** → Sandbox. Fake money, predictable outcomes, no webhooks
+  to your endpoint, no financial impact.
+- **`ypk_live_...`** → Production. Real settlement, real money.
 
 <Tip>
   Use a `ypk_test_` key during development. Switch the environment variable to

@@ -112,7 +112,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "Create a payment",
-        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.",
+        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.\n\nA card payment can require a 3D Secure challenge from the card issuer. The payment then stays `NEW` and `methodData.challengeUrl` is set: redirect the payer to it. After the challenge the payer is sent to `card.returnUrl` with a `paymentId` query parameter, or, without `card.returnUrl`, to `completionUrl` when the payment is approved. Neither is a confirmation. The result arrives as `PAYMENT_CONFIRMED`, or as `PAYMENT_CANCELLED` with `reason: payment_failed`; you can also poll `GET /v1/payments/{paymentId}`.",
         "tags": [
           "Payments"
         ],
@@ -198,6 +198,15 @@
                       "ccv": "123",
                       "installments": 1,
                       "remoteIp": "198.51.100.23",
+                      "returnUrl": "https://store.example.com/orders/5678",
+                      "deviceInfo": {
+                        "colorDepth": 24,
+                        "screenHeight": 1080,
+                        "screenWidth": 1920,
+                        "timeZoneOffset": 3,
+                        "language": "pt-BR",
+                        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+                      },
                       "holderInfo": {
                         "postalCode": "01310930",
                         "addressNumber": "100",
@@ -284,7 +293,7 @@
                         "amount": 149.9,
                         "feeAmount": 8.25,
                         "netAmount": 141.65,
-                        "status": "PROCESSING",
+                        "status": "NEW",
                         "paymentMethod": "CARD",
                         "currency": "BRL",
                         "description": "Order #5678",
@@ -296,7 +305,35 @@
                           "cardSubtype": "CREDIT",
                           "brand": "VISA",
                           "last4Digits": "1111",
-                          "installments": 1
+                          "installments": 1,
+                          "challengeUrl": null
+                        }
+                      }
+                    }
+                  },
+                  "headlessCardChallenge": {
+                    "summary": "Headless CARD payment that requires a 3D Secure challenge",
+                    "value": {
+                      "payment": {
+                        "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+                        "txId": "PAYa1b2c3d4e5f60718293a4b5c6d7e8f90",
+                        "amount": 149.9,
+                        "feeAmount": 8.25,
+                        "netAmount": 141.65,
+                        "status": "NEW",
+                        "paymentMethod": "CARD",
+                        "currency": "BRL",
+                        "description": "Order #5678",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
+                        "createdAt": "2026-05-03T14:30:00.000Z",
+                        "methodData": {
+                          "type": "CARD",
+                          "captureType": "DIRECT",
+                          "cardSubtype": "CREDIT",
+                          "brand": "VISA",
+                          "last4Digits": "1111",
+                          "installments": 1,
+                          "challengeUrl": "https://checkout.yuvexpay.com/checkout/8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234/3ds/challenge"
                         }
                       }
                     }
@@ -366,13 +403,22 @@
             }
           },
           "400": {
-            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; the last three are returned only for a recipient that had already accepted the relationship. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; the last three are returned only for a recipient that had already accepted the relationship. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused card payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 },
                 "examples": {
+                  "providerRejected": {
+                    "summary": "The payment was refused",
+                    "value": {
+                      "error": {
+                        "code": "PROVIDER_REJECTED",
+                        "message": "Não foi possível processar este pagamento. Verifique os dados informados ou tente outro método de pagamento."
+                      }
+                    }
+                  },
                   "splitAmountExceedsNet": {
                     "summary": "The splits total more than netAmount",
                     "value": {
@@ -413,6 +459,26 @@
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "description": "Code `PROVIDER_TEMPORARILY_UNAVAILABLE`. On a card or boleto payment the outcome of the charge is not known yet: the payment stays `PROCESSING`, with `methodData: null`, until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. This `502` is stored for the `X-Idempotency-Key`: a retry with the same key returns the same `502` for 24 hours and never submits a second charge. To recover the payment, repeat the request once with the same `externalId` and a new `X-Idempotency-Key`: the response is the existing payment, with its `id`, and no new charge is submitted. Then poll `GET /v1/payments/{paymentId}` until it leaves `PROCESSING`; a card payment that ends `CANCELLED` from that state sends no webhook. On a PIX payment the charge was not created and the payment is recorded as `CANCELLED`: retry with a new `externalId`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Codes: `PROVIDER_TEMPORARILY_UNAVAILABLE`, the charge was not created and the payment is recorded as `CANCELLED`, so retry later with a new `externalId`; `SERVICE_UNAVAILABLE`, the requested payment method is temporarily disabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -646,7 +712,7 @@
       "post": {
         "operationId": "refundPayment",
         "summary": "Refund a payment",
-        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A partial refund additionally requires a settled payment and a routing provider that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company.",
+        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A payment can be refunded once, fully or partially: after a partial refund a new refund is rejected with `REFUND_ALREADY_PERFORMED`, and after a full refund with `ALREADY_REFUNDED`. While a refund is being processed, a new one is rejected with `400 REFUND_IN_PROGRESS`. A partial refund additionally requires a settled payment and a processing route that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company.",
         "tags": [
           "Payments"
         ],
@@ -2305,7 +2371,7 @@
                   },
                   "source": {
                     "type": "string",
-                    "description": "Present and equal to `reconciler` when the confirmation came from reconciliation rather than the provider callback."
+                    "description": "Present and equal to `reconciler` when the confirmation came from a periodic status check rather than a real-time notification."
                   }
                 }
               },
@@ -2494,7 +2560,11 @@
                   },
                   "reason": {
                     "type": "string",
-                    "description": "Provider-supplied reason, when available."
+                    "enum": [
+                      "payment_failed",
+                      "payment_cancelled"
+                    ],
+                    "description": "Why the payment ended. `payment_failed`: the payment was refused or could not be completed, for example a card that was refused or failed 3D Secure authentication. `payment_cancelled`: the charge was cancelled before it was paid. Absent from the JSON on the cancellation paths that carry `id` and `amount` instead. Switch on it non-exhaustively."
                   }
                 }
               },
@@ -2745,7 +2815,7 @@
                   },
                   "amount": {
                     "type": "number",
-                    "description": "Disputed amount in BRL. Absent on the provider-lifecycle paths, which omit the key entirely."
+                    "description": "Disputed amount in BRL. Absent on some resolution paths, which omit the key entirely."
                   },
                   "refundId": {
                     "type": "string",
@@ -2918,7 +2988,7 @@
     "WITHDRAWAL_FAILED": {
       "post": {
         "summary": "Withdrawal failed",
-        "description": "The network rejected the transfer and the funds were returned to your balance. This also carries provider-driven reversals.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
+        "description": "The network rejected the transfer and the funds were returned to your balance. This also carries reversals initiated on the network side.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -3009,7 +3079,7 @@
           "type": "string",
           "maxLength": 100
         },
-        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours."
+        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours. Successful (`2xx`) responses are stored and replayed for the key. On `POST /v1/payments`, a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` for a card or boleto payment is stored and replayed too: to recover that payment, repeat the request once with the same `externalId` and a new key."
       },
       "Page": {
         "name": "page",
@@ -3179,7 +3249,7 @@
               "headless"
             ],
             "default": "headless",
-            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method. Headless CARD requires the card payload for direct credit card capture. Hosted or multi-method CARD flows continue through checkout/provider invoice URLs, where debit remains available."
+            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method. Headless CARD requires the card payload for direct credit card capture. Hosted or multi-method CARD flows go through the YuvexPay checkout page, which accepts credit cards only."
           },
           "returnUrl": {
             "type": "string",
@@ -3189,7 +3259,7 @@
           "completionUrl": {
             "type": "string",
             "format": "uri",
-            "description": "URL to redirect the payer after successful payment completion."
+            "description": "URL to redirect the payer after successful payment completion. On a headless card payment it is used after an approved 3D Secure challenge when `card.returnUrl` is not set, without the `paymentId` parameter."
           },
           "description": {
             "type": "string",
@@ -3211,7 +3281,7 @@
           "enforcePayerDocument": {
             "type": "boolean",
             "default": false,
-            "description": "PIX only. Opt-in request that the charge be paid from an account whose CPF/CNPJ matches the customer's document (same-document payment). Best-effort: when the provider cannot enforce it, the charge is still created and paid normally."
+            "description": "PIX only. Opt-in request that the charge be paid from an account whose CPF/CNPJ matches the customer's document (same-document payment). Best-effort: when it cannot be enforced, the charge is still created and paid normally."
           },
           "customer": {
             "type": "object",
@@ -3276,13 +3346,69 @@
               "installments": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 12,
+                "maximum": 1,
                 "default": 1,
-                "description": "Installment count for direct credit card charges."
+                "description": "Card payments are charged in a single installment (à vista). Only `1` is accepted; omit the field or send `1`. Any other value is rejected with `VALIDATION_ERROR` citing `INSTALLMENTS_NOT_SUPPORTED`."
               },
               "remoteIp": {
                 "type": "string",
-                "description": "Customer IP address required by the acquiring flow."
+                "description": "IP address (IPv4 or IPv6) of the payer's device, as your server sees it when the payer submits the payment. Never your own server's IP."
+              },
+              "returnUrl": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2000,
+                "description": "`https` URL the payer is sent to after a 3D Secure challenge, with the payment `id` appended as the `paymentId` query parameter. Reaching it is not a confirmation: wait for the `PAYMENT_CONFIRMED` or `PAYMENT_CANCELLED` webhook, or poll `GET /v1/payments/{paymentId}`. Without it, an approved payment sends the payer to `completionUrl`, without the `paymentId` parameter, when set; otherwise the payer stays on a YuvexPay page."
+              },
+              "deviceInfo": {
+                "type": "object",
+                "description": "Data about the payer's browser, used by the card issuer to authenticate the payment with 3D Secure. Optional, but recommended on every card payment. When sent, all six fields are required.",
+                "properties": {
+                  "colorDepth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64,
+                    "description": "Screen color depth in bits (`window.screen.colorDepth`)."
+                  },
+                  "screenHeight": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Screen height in pixels (`window.screen.height`)."
+                  },
+                  "screenWidth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Screen width in pixels (`window.screen.width`)."
+                  },
+                  "timeZoneOffset": {
+                    "type": "integer",
+                    "minimum": -14,
+                    "maximum": 14,
+                    "description": "Difference between UTC and the payer's local time, in hours: `Math.round(new Date().getTimezoneOffset() / 60)`. `3` for UTC-3. Never the raw minutes value."
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "description": "Browser language (`navigator.language`), for example `pt-BR`."
+                  },
+                  "userAgent": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "Browser user agent (`navigator.userAgent`)."
+                  }
+                },
+                "required": [
+                  "colorDepth",
+                  "screenHeight",
+                  "screenWidth",
+                  "timeZoneOffset",
+                  "language",
+                  "userAgent"
+                ]
               },
               "holderInfo": {
                 "type": "object",
@@ -3754,11 +3880,22 @@
             "format": "date-time"
           },
           "methodData": {
-            "type": "object",
-            "description": "Payment method-specific data (QR code for PIX, barcode for boleto, etc.).",
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Payment method-specific data (QR code for PIX, masked card data and `challengeUrl` for CARD, barcode for boleto). `null` while the payment has no method data: a card or boleto payment that is `PROCESSING` after a `502`, a payment recorded `CANCELLED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`.",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "challengeUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri",
+                "description": "CARD only. A `checkout.yuvexpay.com` URL while the card issuer requires a 3D Secure challenge and the payment is `NEW`; redirect the payer to it. `null` otherwise. The payment stays `NEW` until the result arrives."
               }
             },
             "additionalProperties": true
@@ -3776,7 +3913,7 @@
               "object",
               "null"
             ],
-            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Provider-agnostic. Null for historical records or open-payer charges where no payer data was captured.",
+            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Null for historical records or open-payer charges where no payer data was captured.",
             "properties": {
               "name": {
                 "type": [
@@ -4028,14 +4165,14 @@
           },
           "minAmount": {
             "type": "number",
-            "description": "Minimum withdrawal amount in BRL that applies to your account, compared against `amount` (the net) rather than against `amount + fee`. Never below the `R$ 10.00` platform floor, but it can be higher. Unrelated to the routing provider minimum, which surfaces as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
+            "description": "Minimum withdrawal amount in BRL that applies to your account, compared against `amount` (the net) rather than against `amount + fee`. Never below the `R$ 10.00` platform floor, but it can be higher. Unrelated to the minimum of the PIX route that sends the payout, which surfaces as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
           },
           "perTransactionLimit": {
             "type": [
               "number",
               "null"
             ],
-            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply at the PIX provider that routes the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
+            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
           }
         }
       },
@@ -4379,21 +4516,33 @@
             "format": "date-time"
           },
           "methodData": {
-            "type": "object",
+            "type": [
+              "object",
+              "null"
+            ],
             "additionalProperties": true,
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "challengeUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri",
+                "description": "CARD only. A `checkout.yuvexpay.com` URL while the card issuer requires a 3D Secure challenge and the payment is `NEW`; redirect the payer to it. `null` otherwise. The payment stays `NEW` until the result arrives."
               }
             },
-            "description": "Method-specific data. PIX returns QR data. Direct CARD returns captureType: DIRECT plus masked credit card data. Invoice-style CARD/BOLETO returns provider invoice links.",
+            "description": "Method-specific data. PIX returns QR data. CARD returns masked card data and `challengeUrl`. BOLETO returns the digitable line and barcode. `null` when the request returns an existing card or boleto payment that is `PROCESSING` after a `502`, or one recorded `CANCELLED` before a charge was created.",
             "example": {
               "type": "CARD",
               "captureType": "DIRECT",
               "cardSubtype": "CREDIT",
               "brand": "VISA",
               "last4Digits": "1111",
-              "installments": 1
+              "installments": 1,
+              "challengeUrl": null
             }
           }
         }
@@ -4501,7 +4650,7 @@
               "string",
               "null"
             ],
-            "description": "Payer CPF or CNPJ, as digits, or the masked string the settling PIX provider reported (for example `***405566**`) when no full document is on file. `null` when neither was captured. Match on `*` before parsing the value as a CPF or CNPJ."
+            "description": "Payer CPF or CNPJ, as digits, or a masked string (for example `***405566**`) when no full document is on file. `null` when neither was captured. Match on `*` before parsing the value as a CPF or CNPJ."
           },
           "documentType": {
             "type": [
@@ -4542,7 +4691,7 @@
               "string",
               "null"
             ],
-            "description": "Recipient CPF or CNPJ. Populated when the withdrawal was created with `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`, or when the settling provider reported the receiving account. `null` otherwise."
+            "description": "Recipient CPF or CNPJ. Populated when the withdrawal was created with `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`, or when the receiving account was reported back after the transfer. `null` otherwise."
           },
           "institutionName": {
             "type": [
@@ -4563,14 +4712,14 @@
               "string",
               "null"
             ],
-            "description": "Recipient branch, when the provider reports it."
+            "description": "Recipient branch, when it is reported back."
           },
           "account": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Recipient account, when the provider reports it."
+            "description": "Recipient account, when it is reported back."
           }
         }
       },
