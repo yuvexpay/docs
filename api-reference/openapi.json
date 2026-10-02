@@ -112,7 +112,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "Create a payment",
-        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.",
+        "description": "Create a new payment. Supports PIX, direct credit card charges for headless single-method CARD flows, hosted card checkout, and boleto. Requires an idempotency key.\n\nA card payment can require a 3D Secure challenge from the card issuer. The payment then stays `NEW` and `methodData.challengeUrl` is set: redirect the payer to it. After the challenge the payer is sent to `card.returnUrl` with a `paymentId` query parameter, which is not a confirmation. The result arrives as `PAYMENT_CONFIRMED`, or as `PAYMENT_CANCELLED` with `reason: payment_failed`; you can also poll `GET /v1/payments/{paymentId}`.",
         "tags": [
           "Payments"
         ],
@@ -198,6 +198,15 @@
                       "ccv": "123",
                       "installments": 1,
                       "remoteIp": "198.51.100.23",
+                      "returnUrl": "https://store.example.com/orders/5678",
+                      "deviceInfo": {
+                        "colorDepth": 24,
+                        "screenHeight": 1080,
+                        "screenWidth": 1920,
+                        "timeZoneOffset": 3,
+                        "language": "pt-BR",
+                        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
+                      },
                       "holderInfo": {
                         "postalCode": "01310930",
                         "addressNumber": "100",
@@ -284,7 +293,7 @@
                         "amount": 149.9,
                         "feeAmount": 8.25,
                         "netAmount": 141.65,
-                        "status": "PROCESSING",
+                        "status": "NEW",
                         "paymentMethod": "CARD",
                         "currency": "BRL",
                         "description": "Order #5678",
@@ -296,7 +305,35 @@
                           "cardSubtype": "CREDIT",
                           "brand": "VISA",
                           "last4Digits": "1111",
-                          "installments": 1
+                          "installments": 1,
+                          "challengeUrl": null
+                        }
+                      }
+                    }
+                  },
+                  "headlessCardChallenge": {
+                    "summary": "Headless CARD payment that requires a 3D Secure challenge",
+                    "value": {
+                      "payment": {
+                        "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
+                        "txId": "PAYa1b2c3d4e5f60718293a4b5c6d7e8f90",
+                        "amount": 149.9,
+                        "feeAmount": 8.25,
+                        "netAmount": 141.65,
+                        "status": "NEW",
+                        "paymentMethod": "CARD",
+                        "currency": "BRL",
+                        "description": "Order #5678",
+                        "expiresAt": "2026-05-03T15:00:00.000Z",
+                        "createdAt": "2026-05-03T14:30:00.000Z",
+                        "methodData": {
+                          "type": "CARD",
+                          "captureType": "DIRECT",
+                          "cardSubtype": "CREDIT",
+                          "brand": "VISA",
+                          "last4Digits": "1111",
+                          "installments": 1,
+                          "challengeUrl": "https://checkout.yuvexpay.com/checkout/8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234/3ds/challenge"
                         }
                       }
                     }
@@ -2494,7 +2531,11 @@
                   },
                   "reason": {
                     "type": "string",
-                    "description": "Provider-supplied reason, when available."
+                    "enum": [
+                      "payment_failed",
+                      "payment_cancelled"
+                    ],
+                    "description": "Why the payment ended. `payment_failed`: the card was refused or failed 3D Secure authentication. `payment_cancelled`: the charge was cancelled before it was paid. Absent from the JSON on the cancellation paths that carry `id` and `amount` instead. Switch on it non-exhaustively."
                   }
                 }
               },
@@ -3282,7 +3323,63 @@
               },
               "remoteIp": {
                 "type": "string",
-                "description": "Customer IP address required by the acquiring flow."
+                "description": "IP address (IPv4 or IPv6) of the payer's device, as your server sees it when the payer submits the payment. Never your own server's IP."
+              },
+              "returnUrl": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 2000,
+                "description": "`https` URL the payer is sent to after a 3D Secure challenge, with the payment `id` appended as the `paymentId` query parameter. Reaching it is not a confirmation: wait for the `PAYMENT_CONFIRMED` or `PAYMENT_CANCELLED` webhook, or poll `GET /v1/payments/{paymentId}`."
+              },
+              "deviceInfo": {
+                "type": "object",
+                "description": "Data about the payer's browser, used by the card issuer to authenticate the payment with 3D Secure. Optional, but recommended on every card payment. When sent, all six fields are required.",
+                "properties": {
+                  "colorDepth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64,
+                    "description": "Screen color depth in bits (`window.screen.colorDepth`)."
+                  },
+                  "screenHeight": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Screen height in pixels (`window.screen.height`)."
+                  },
+                  "screenWidth": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000,
+                    "description": "Screen width in pixels (`window.screen.width`)."
+                  },
+                  "timeZoneOffset": {
+                    "type": "integer",
+                    "minimum": -14,
+                    "maximum": 14,
+                    "description": "Difference between UTC and the payer's local time, in hours: `Math.round(new Date().getTimezoneOffset() / 60)`. `3` for UTC-3. Never the raw minutes value."
+                  },
+                  "language": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35,
+                    "description": "Browser language (`navigator.language`), for example `pt-BR`."
+                  },
+                  "userAgent": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "Browser user agent (`navigator.userAgent`)."
+                  }
+                },
+                "required": [
+                  "colorDepth",
+                  "screenHeight",
+                  "screenWidth",
+                  "timeZoneOffset",
+                  "language",
+                  "userAgent"
+                ]
               },
               "holderInfo": {
                 "type": "object",
@@ -3755,10 +3852,18 @@
           },
           "methodData": {
             "type": "object",
-            "description": "Payment method-specific data (QR code for PIX, barcode for boleto, etc.).",
+            "description": "Payment method-specific data (QR code for PIX, masked card data and `challengeUrl` for CARD, barcode for boleto).",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "challengeUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri",
+                "description": "CARD only. A `checkout.yuvexpay.com` URL while the card issuer requires a 3D Secure challenge and the payment is `NEW`; redirect the payer to it. `null` otherwise. The payment stays `NEW` until the result arrives."
               }
             },
             "additionalProperties": true
@@ -4384,16 +4489,25 @@
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "challengeUrl": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uri",
+                "description": "CARD only. A `checkout.yuvexpay.com` URL while the card issuer requires a 3D Secure challenge and the payment is `NEW`; redirect the payer to it. `null` otherwise. The payment stays `NEW` until the result arrives."
               }
             },
-            "description": "Method-specific data. PIX returns QR data. Direct CARD returns captureType: DIRECT plus masked credit card data. Invoice-style CARD/BOLETO returns provider invoice links.",
+            "description": "Method-specific data. PIX returns QR data. CARD returns masked card data and `challengeUrl`. BOLETO returns the digitable line and barcode.",
             "example": {
               "type": "CARD",
               "captureType": "DIRECT",
               "cardSubtype": "CREDIT",
               "brand": "VISA",
               "last4Digits": "1111",
-              "installments": 1
+              "installments": 1,
+              "challengeUrl": null
             }
           }
         }

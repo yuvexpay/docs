@@ -55,10 +55,12 @@ So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
 any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates a
 successful payment.
 
-These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges are created
-at the card and boleto acquirer rather than at the PIX simulator, so their cents
-are ignored — drive those with
+These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges do not go
+through the PIX simulator, so their cents are ignored — drive those with
 [`POST /v1/payments/{paymentId}/simulate`](#forcing-a-terminal-status).
+
+Sandbox card payments never ask for a 3D Secure challenge:
+`methodData.challengeUrl` is always `null`.
 
 ## Forcing a terminal status
 
