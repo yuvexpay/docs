@@ -22,7 +22,7 @@ call itself.
 | Payment is `PARTIAL_REFUND` | Refundable up to the remaining amount. |
 | Payment is `EXPIRED`, `CANCELLED`, `REFUNDED`, `CHARGEBACK`, or `MED_FROZEN` | Not refundable. |
 | Payment needs a manual review before it can be refunded | `REFUND_REQUIRES_MANUAL_REVIEW`. Contact support. |
-| Payment was processed via a non-refundable provider | `REFUND_NOT_SUPPORTED`. |
+| Payment was processed through a route that does not support refunds | `REFUND_NOT_SUPPORTED`. |
 | Insufficient available balance to cover the refund | `INSUFFICIENT_BALANCE_FOR_REFUND`. On a split payment only the originating company's share is checked. |
 
 A refund issued for a non-eligible payment returns a `400` with one of the
@@ -34,7 +34,7 @@ Send no `amount` to refund the full remaining balance, or an `amount` between
 `0.01` and the remaining refundable amount for a partial refund.
 
 Partial refunds are conditional: they require a payment that has already settled
-**and** a routing provider that supports them. When either condition is missing
+**and** a processing route that supports them. When either condition is missing
 the request fails with `PARTIAL_REFUND_NOT_SUPPORTED` and the payment stays
 fully refundable. A full refund is always available on a refundable payment.
 
@@ -131,7 +131,7 @@ history to your operations team.
 | Code | Meaning |
 |------|---------|
 | `INVALID_STATUS` | The payment is not in a refundable status. |
-| `PARTIAL_REFUND_NOT_SUPPORTED` | The payment has not settled yet, or its routing provider cannot execute partial refunds. Either omit `amount` or send the full remaining refundable amount. |
+| `PARTIAL_REFUND_NOT_SUPPORTED` | The payment has not settled yet, or its processing route cannot execute partial refunds. Either omit `amount` or send the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | A previous refund has already returned the full balance. |
 | `REFUND_IN_PROGRESS` | A refund is currently in flight against this payment. Retry once it settles. |
 | `REFUND_NOT_SUPPORTED` | This payment was processed via a method or route that doesn't support refunds via API. |

@@ -48,13 +48,14 @@ from there rather than hardcoding `2.49`.
   a platform floor that the platform never goes below, but it can be raised —
   read the value that applies to you from `minAmount` in
   [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) rather
-  than hardcoding `10`. It is unrelated to the routing provider's own
-  minimum, which surfaces separately as `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`.
+  than hardcoding `10`. It is unrelated to the minimum of the PIX route
+  that sends the payout, which surfaces separately as
+  `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`.
 - **Per-transaction cap**: account-dependent, not a fixed platform number.
   The cap that applies to your account is returned as `perTransactionLimit`
   by [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits)
   (`null` means no account-level cap). A second, lower ceiling can apply at
-  the network side depending on which PIX provider routes the payout. That
+  the network side depending on which PIX route sends the payout. That
   one is not knowable before submission, but it is still evaluated
   synchronously: it comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or
   `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call, after the
@@ -272,7 +273,7 @@ even for a withdrawal id that belongs to your own account.
 | `WITHDRAWAL_BELOW_MINIMUM` | 400 | `amount` is below the minimum that applies to your account — `R$ 10.00` unless it has been raised. Read `minAmount` from [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). |
 | `INSUFFICIENT_BALANCE` | 400 | The available balance is too low. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
-| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum the routing PIX provider accepts. |
+| `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for this account. |
 | `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — existence is checked by the network after acceptance. |
 | `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |
@@ -286,7 +287,7 @@ even for a withdrawal id that belongs to your own account.
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | 409 | The idempotency key was already used with a different request body. |
 | `IDEMPOTENCY_CONFLICT` | 409 | A request with this idempotency key is still in flight, or the key was already consumed by a withdrawal that is no longer replayable from the 24-hour idempotency cache. |
 | `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH` | 400 | The network rejected the payout because the creditor document does not match the PIX key holder. Correct one of them and submit a new withdrawal. |
-| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX provider could accept the payout right now. Safe to retry with a **new** idempotency key. |
+| `WITHDRAWAL_PROVIDER_UNAVAILABLE` | 503 | No PIX route could accept the payout right now. Safe to retry with a **new** idempotency key. |
 | `WITHDRAWAL_TEMPORARILY_UNAVAILABLE` | 503 | The request was abandoned before reaching the network. No money moved; safe to retry. |
 | `WITHDRAWAL_PROCESSING_FAILED` | 503 | The withdrawal could not be recorded. No money moved; safe to retry. |
 | `CREDITOR_DOCUMENT_UNREADABLE` | 500 | Your tax id is on file but could not be read. No money moved. Retrying will not help — this is a platform-side fault and is alerted on. Send `destination.recipientDocument` to unblock the payout, or contact support. |

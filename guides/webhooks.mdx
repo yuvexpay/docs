@@ -137,9 +137,9 @@ A `WITHDRAWAL_SENT` body, verbatim:
 `recipient.document` is populated when the withdrawal was created with a
 `destination.recipientDocument`, or with a CPF or CNPJ `destination.pixKey`
 (see [Withdrawals → Recipient document](/guides/withdrawals#recipient-document)),
-or when the settling provider reported the receiving account back to us. It is
-`null` otherwise. The other `recipient` fields are populated only when the
-provider reports them, which not every provider does — and when **all six**
+or when the receiving account was reported back to us. It is `null`
+otherwise. The other `recipient` fields are populated only when they are
+reported back, which does not always happen — and when **all six**
 fields would be null, the whole `recipient` block is `null` rather than an
 object of nulls. The same all-null collapse applies to `payer`.
 
@@ -160,9 +160,9 @@ recorded. It is never `null`. Its value is always one of these messages:
 | Event | Body fields |
 |-------|-------------|
 | `PAYMENT_PAID` | `id`, `txId`, `status`, `amount`, `paidAt`, `endToEndId`, `payer` |
-| `PAYMENT_CONFIRMED` | `txId`, `status`, `method`; plus `source: "reconciler"` when the confirmation came from reconciliation rather than the provider callback |
+| `PAYMENT_CONFIRMED` | `txId`, `status`, `method`; plus `source: "reconciler"` when the confirmation came from a periodic status check rather than a real-time notification |
 | `PAYMENT_EXPIRED` | `txId`, `status` — or `id`, `txId`, `status`, `amount` depending on which subsystem expired the charge |
-| `PAYMENT_CANCELLED` | `txId`, `status`, `reason` — or `id`, `txId`, `status`, `amount`. `reason` is `payment_failed` when the card was refused or failed 3D Secure authentication, and `payment_cancelled` when the charge was cancelled before it was paid |
+| `PAYMENT_CANCELLED` | `txId`, `status`, `reason` — or `id`, `txId`, `status`, `amount`. `reason` is `payment_failed` when the payment was refused or could not be completed, for example a card that was refused or failed 3D Secure authentication, and `payment_cancelled` when the charge was cancelled before it was paid |
 | `PAYMENT_CHARGEBACK` | `txId`, `status`. That is the entire body — no amount, no id |
 | `PAYMENT_REFUNDED` | `paymentId`, `refundId`, `amount`; plus `source: null` on MED-driven refunds |
 | `PAYMENT_REFUND_FAILED` | `paymentId`, `refundId`, `reason`. `reason` is always `Reembolso não processado. O valor foi devolvido ao saldo.` |
