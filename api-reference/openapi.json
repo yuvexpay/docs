@@ -3880,8 +3880,11 @@
             "format": "date-time"
           },
           "methodData": {
-            "type": "object",
-            "description": "Payment method-specific data (QR code for PIX, masked card data and `challengeUrl` for CARD, barcode for boleto).",
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Payment method-specific data (QR code for PIX, masked card data and `challengeUrl` for CARD, barcode for boleto). `null` while the payment has no method data: a card or boleto payment that is `PROCESSING` after a `502`, a payment recorded `CANCELLED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`.",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
@@ -4513,7 +4516,10 @@
             "format": "date-time"
           },
           "methodData": {
-            "type": "object",
+            "type": [
+              "object",
+              "null"
+            ],
             "additionalProperties": true,
             "properties": {
               "type": {
@@ -4528,7 +4534,7 @@
                 "description": "CARD only. A `checkout.yuvexpay.com` URL while the card issuer requires a 3D Secure challenge and the payment is `NEW`; redirect the payer to it. `null` otherwise. The payment stays `NEW` until the result arrives."
               }
             },
-            "description": "Method-specific data. PIX returns QR data. CARD returns masked card data and `challengeUrl`. BOLETO returns the digitable line and barcode.",
+            "description": "Method-specific data. PIX returns QR data. CARD returns masked card data and `challengeUrl`. BOLETO returns the digitable line and barcode. `null` when the request returns an existing card or boleto payment that is `PROCESSING` after a `502`, or one recorded `CANCELLED` before a charge was created.",
             "example": {
               "type": "CARD",
               "captureType": "DIRECT",

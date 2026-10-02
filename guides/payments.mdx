@@ -229,9 +229,12 @@ The create response then returns the payment as `NEW` with a non-null
 
 When `challengeUrl` is `null`, there is no challenge to send the payer to, and
 the result arrives the same way. `methodData.challengeUrl` is present on every
-`CARD` payment, in the create response and in `GET /v1/payments`,
-`GET /v1/payments/{paymentId}` and `GET /v1/payments/txid/{txId}`. It is set
-only while a challenge is pending and the payment is `NEW`.
+`CARD` payment that has card data, in the create response and in
+`GET /v1/payments`, `GET /v1/payments/{paymentId}` and
+`GET /v1/payments/txid/{txId}`. It is set only while a challenge is pending and
+the payment is `NEW`. `methodData` is `null` while a card or boleto payment is
+`PROCESSING` after a `502`, and on a payment recorded `CANCELLED` before a
+charge was created.
 
 ### Card errors
 
