@@ -13,7 +13,7 @@ and `hosted`).
 | Method | Headless | Hosted |
 |--------|----------|--------|
 | `PIX`     | Returns the BR-Code (copy-paste) and a QR code image. You render them in your own UI. | Returns a `checkoutUrl` to the YuvexPay-hosted checkout. |
-| `CARD`    | Direct charge: send card details server-side. **Single-method, single-installment only.** | Multi-method or multi-installment card flows. The payer enters card details on YuvexPay's hosted page. |
+| `CARD`    | Direct charge: send card details server-side. **Single-method only.** | The payer enters card details on YuvexPay's hosted page. |
 | `BOLETO`  | Returns a boleto barcode and a downloadable PDF. | Available through the hosted checkout. |
 
 Pick `headless` when you want to render the payment yourself; pick `hosted`
@@ -23,7 +23,7 @@ when you want YuvexPay to render the checkout, including method selection.
 
 - All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
 - The minimum chargeable amount is `R$ 0.01`. The maximum is `R$ 1,000,000.00`.
-- Card payments currently require `installments: 1` (a single installment). Larger card transactions must be sent through the hosted multi-installment flow.
+- Card payments are charged in a single installment (à vista), in both headless and hosted mode. `card.installments` accepts only `1`; any other value is rejected with a `VALIDATION_ERROR` citing `INSTALLMENTS_NOT_SUPPORTED`.
 
 ## Identifiers
 
@@ -128,9 +128,9 @@ servers.
 }
 ```
 
-Direct card payments are constrained to `methods: ["CARD"]` (a single method),
-`installments: 1`, and require `card.holderInfo` and `card.remoteIp`. For
-multi-method or multi-installment card flows, use the hosted checkout.
+Direct card payments are constrained to `methods: ["CARD"]` (a single method)
+and `installments: 1`, and require `card.holderInfo` and `card.remoteIp`. For
+multi-method flows, use the hosted checkout.
 
 ## Hosted checkout
 

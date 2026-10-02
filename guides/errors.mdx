@@ -103,7 +103,7 @@ All errors follow a consistent structure:
 | `CUSTOMER_DATA_REQUIRED` | 400 | The selected payment method requires customer data and none was provided. |
 | `CARD_HOLDER_INFO_REQUIRED` | 400 | Direct card payments require `card.holderInfo` (postal code and address number). |
 | `CARD_REMOTE_IP_REQUIRED` | 400 | Direct card payments require `card.remoteIp` (the payer's IP address). |
-| `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card installments are not currently supported; send `installments: 1` or omit. |
+| `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card payments are charged in a single installment only. Send `installments: 1` or omit it. Arrives as `VALIDATION_ERROR`, with this code in the validation details. |
 | `SPLIT_RECIPIENT_LIMIT_EXCEEDED` | 400 | `splits` carries more entries than the recipient limit configured for your account (three by default). |
 | `SPLIT_SELF_RECIPIENT` | 400 | A split names your own company as the recipient. |
 | `SPLIT_ORIGINATOR_NOT_APPROVED` | 403 | Your own company has not completed KYC (and KYB, for a business), so it cannot originate split payments. |

@@ -3276,9 +3276,9 @@
               "installments": {
                 "type": "integer",
                 "minimum": 1,
-                "maximum": 12,
+                "maximum": 1,
                 "default": 1,
-                "description": "Installment count for direct credit card charges."
+                "description": "Card payments are charged in a single installment (à vista). Only `1` is accepted; omit the field or send `1`. Any other value is rejected with `VALIDATION_ERROR` citing `INSTALLMENTS_NOT_SUPPORTED`."
               },
               "remoteIp": {
                 "type": "string",
