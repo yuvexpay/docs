@@ -125,7 +125,8 @@ All errors follow a consistent structure:
 | `INVALID_STATUS` | 400 | The payment is not in a refundable status. |
 | `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | A partial refund needs a settled payment and a processing route that supports partial refunds; this payment fails one of the two. Send no `amount`, or the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | 400 | The payment has already been fully refunded. |
-| `REFUND_IN_PROGRESS` | 409 | A refund is already being processed for this payment. |
+| `REFUND_ALREADY_PERFORMED` | 400 | The payment was already partially refunded. A payment can be refunded once. |
+| `REFUND_IN_PROGRESS` | 400 | A refund is already being processed for this payment. |
 | `REFUND_NOT_SUPPORTED` | 400 | Refunds are not supported for this payment method or processing route. |
 | `REFUND_REQUIRES_MANUAL_REVIEW` | 400 | The payment needs a manual review before it can be refunded. Contact support. |
 | `INSUFFICIENT_BALANCE_FOR_REFUND` | 400 | Your available balance is not sufficient to issue this refund. On a payment with [splits](/guides/payments#splits), every party is debited in proportion to what it received and this check covers the originating company's share only — a recipient can go negative and never blocks the refund. |
