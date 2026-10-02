@@ -212,6 +212,19 @@ to status changes.
   automatically when a withdrawal fails.
 </Warning>
 
+## Failure fields in responses
+
+| Field | `GET /v1/withdrawals` | `GET /v1/withdrawals/{withdrawalId}` |
+|-------|-----------------------|--------------------------------------|
+| `errorMessage` | not returned | a message from the [`failureReason` set](/guides/webhooks#webhook-payload), `Saque em processamento.` while `PENDING` or `PROCESSING`, `null` otherwise |
+| `providerErrorCode` | returned | returned |
+
+`providerErrorCode` carries only a rejection code reported by the receiving
+institution: `AC03`, `AC06`, `AC07`, `AG03`, `AM18`, `RR04`, `SL02`, `BE01`,
+`CH11`, `PIX_KEY_NOT_FOUND`, `PIX_KEY_OWNER_MISMATCH`, `ACCOUNT_CLOSED` or
+`ACCOUNT_BLOCKED`. It is `null` for every other failure and for withdrawals
+that did not fail.
+
 ## PIX key in responses
 
 The `pixKey` field is **always returned masked** in withdrawal responses
