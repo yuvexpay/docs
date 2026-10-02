@@ -242,8 +242,9 @@ only while a challenge is pending and the payment is `NEW`.
 A create request that reuses an `externalId` returns the existing payment
 instead of charging again. Send `externalId` on every card payment: after a
 `502`, repeating the request with the same `externalId` returns that payment
-and its current status, and does not submit a second charge. After a `400` or
-a `503`, use a new `externalId` to try again.
+and its current status, and does not submit a second charge. A payment that
+ends `CANCELLED` from that state sends no webhook, so read its status this way.
+After a `400` or a `503`, use a new `externalId` to try again.
 
 ## Hosted checkout
 
