@@ -1,6 +1,6 @@
 ---
 title: "Payments"
-description: "Accept payments via PIX, credit card and boleto using YuvexPay."
+description: "Accept payments via PIX, credit and debit cards, and boleto using YuvexPay."
 ---
 
 A payment is a charge against a payer for a fixed amount in BRL. YuvexPay
@@ -23,7 +23,7 @@ when you want YuvexPay to render the checkout, including method selection.
 
 - All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
 - The minimum chargeable amount is `R$ 0.01`. The maximum is `R$ 1,000,000.00`.
-- Card payments go through the hosted checkout only. They are charged to a credit card in a single installment (à vista) and need an `amount` of at least `R$ 5.00`.
+- Card payments go through the hosted checkout only. They are charged to a credit card in a single installment (à vista) or to a debit card, and need an `amount` of at least `R$ 5.00`.
 
 ## Identifiers
 
@@ -172,8 +172,8 @@ To charge a card:
    or `["PIX", "CARD"]` to let the payer choose. The `amount` must be at least
    `R$ 5.00`.
 2. Redirect the payer to the returned `checkoutUrl`. The checkout collects the
-   card and runs 3D Secure itself. It accepts credit cards only, charged in a
-   single installment; debit cards are not accepted.
+   card and runs 3D Secure itself. It accepts credit cards, charged in a
+   single installment, and debit cards.
 3. Read the result from the `PAYMENT_CONFIRMED`, `PAYMENT_PAID` and
    `PAYMENT_CANCELLED` webhooks, or poll `GET /v1/payments/{paymentId}`.
 
@@ -188,6 +188,11 @@ Payment links created in the dashboard open the same hosted checkout.
 Card payments already created with card data through `POST /v1/payments` keep
 working: `GET` returns their masked card `methodData`, and webhooks, refunds and
 chargebacks are unchanged.
+
+On a card payment, `GET /v1/payments/{paymentId}` returns
+`methodData.cardFundingType`: `credit` when the card was charged as a credit
+card, `debit` when it was charged as a debit card, and `null` when the funding
+type is not known, including older payments. Webhook bodies do not carry it.
 
 ## Fees and net amount
 

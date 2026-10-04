@@ -112,7 +112,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "Create a payment",
-        "description": "Create a new payment. Supports PIX and boleto, in headless or hosted mode, and card through the hosted checkout only. Requires an idempotency key.\n\nCard payments are not accepted through the API. A `card` object, `CARD` in `methods` in headless mode (`mode` omitted or `headless`), or any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`, is rejected with `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`, even without a valid API key, and the card data is not stored or logged.\n\nTo charge a card, create the payment with `mode: hosted` and `CARD` in `methods` (`[\"CARD\"]`, or `[\"PIX\", \"CARD\"]` to let the payer choose), with an `amount` of at least R$ 5.00, and redirect the payer to the returned `checkoutUrl`. The checkout collects the card, accepts credit cards only in a single installment, and runs 3D Secure itself. The result arrives as `PAYMENT_CONFIRMED`, `PAYMENT_PAID` or `PAYMENT_CANCELLED`; you can also poll `GET /v1/payments/{paymentId}`.",
+        "description": "Create a new payment. Supports PIX and boleto, in headless or hosted mode, and card through the hosted checkout only. Requires an idempotency key.\n\nCard payments are not accepted through the API. A `card` object, `CARD` in `methods` in headless mode (`mode` omitted or `headless`), or any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`, is rejected with `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`, even without a valid API key, and the card data is not stored or logged.\n\nTo charge a card, create the payment with `mode: hosted` and `CARD` in `methods` (`[\"CARD\"]`, or `[\"PIX\", \"CARD\"]` to let the payer choose), with an `amount` of at least R$ 5.00, and redirect the payer to the returned `checkoutUrl`. The checkout collects the card, accepts credit cards in a single installment and debit cards, and runs 3D Secure itself. The result arrives as `PAYMENT_CONFIRMED`, `PAYMENT_PAID` or `PAYMENT_CANCELLED`; you can also poll `GET /v1/payments/{paymentId}`.",
         "tags": [
           "Payments"
         ],
@@ -3184,7 +3184,7 @@
               "headless"
             ],
             "default": "headless",
-            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method, PIX or BOLETO. CARD is available in hosted mode only: the YuvexPay checkout collects the card, accepts credit cards only in a single installment, and runs 3D Secure itself."
+            "description": "hosted redirects the payer to a YuvexPay checkout page. headless returns method data directly for a single payment method, PIX or BOLETO. CARD is available in hosted mode only: the YuvexPay checkout collects the card, accepts credit cards in a single installment and debit cards, and runs 3D Secure itself."
           },
           "returnUrl": {
             "type": "string",
@@ -3686,10 +3686,22 @@
               "object",
               "null"
             ],
-            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`.",
+            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`. For CARD, `cardFundingType` is `credit` or `debit`, and `null` when the funding type is not known, including older payments.",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "cardFundingType": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "credit",
+                  "debit",
+                  null
+                ],
+                "description": "CARD only. `credit` when the card was charged as a credit card in a single installment, `debit` when it was charged as a debit card. `null` when the funding type is not known, including older payments."
               }
             },
             "additionalProperties": true
@@ -4318,9 +4330,21 @@
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
+              },
+              "cardFundingType": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "credit",
+                  "debit",
+                  null
+                ],
+                "description": "CARD only. `credit` when the card was charged as a credit card in a single installment, `debit` when it was charged as a debit card. `null` when the funding type is not known, including older payments."
               }
             },
-            "description": "Method-specific data. PIX returns QR data. BOLETO returns the digitable line and barcode. CARD returns masked card data, only when the request returns an existing card payment. `null` when the request returns an existing boleto payment that is `PROCESSING` after a `502`, or one recorded `CANCELLED` before a charge was created.",
+            "description": "Method-specific data. PIX returns QR data. BOLETO returns the digitable line and barcode. CARD returns masked card data and `cardFundingType`, only when the request returns an existing card payment. `null` when the request returns an existing boleto payment that is `PROCESSING` after a `502`, or one recorded `CANCELLED` before a charge was created.",
             "example": {
               "type": "PIX",
               "pixCopyPaste": "00020126...",

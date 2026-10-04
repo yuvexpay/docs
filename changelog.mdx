@@ -6,6 +6,31 @@ rss: true
 
 <Update
   label="2026-10-04"
+  tags={["Pagamentos"]}
+  rss={{
+    title: "2026-10-04: cartão de débito no checkout hospedado",
+    description: "O checkout hospedado aceita cartão de crédito à vista e cartão de débito. As leituras de pagamento com cartão trazem o novo campo somente leitura methodData.cardFundingType, com credit, debit ou null. Os webhooks não mudam."
+  }}
+>
+  ## Cartão de débito no checkout hospedado
+
+  O checkout hospedado aceita cartão de crédito à vista e cartão de débito. A
+  criação do pagamento não muda: `mode: "hosted"` com `CARD` em `methods`.
+
+  As leituras de pagamento com cartão (`GET /v1/payments`,
+  `GET /v1/payments/{paymentId}`, `GET /v1/payments/txid/{txId}` e
+  `POST /v1/payments/{paymentId}/simulate`) trazem o novo campo somente leitura
+  `methodData.cardFundingType`:
+
+  - `"credit"`: cartão de crédito, cobrado à vista.
+  - `"debit"`: cartão de débito.
+  - `null`: tipo não conhecido, inclusive em pagamentos mais antigos.
+
+  Nenhuma mudança nos webhooks: os corpos não trazem o campo.
+</Update>
+
+<Update
+  label="2026-10-04"
   tags={["Breaking change", "Sandbox", "Chargeback"]}
   rss={{
     title: "2026-10-04: cartão só pelo checkout hospedado",
