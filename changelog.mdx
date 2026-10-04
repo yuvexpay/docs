@@ -1,0 +1,134 @@
+---
+title: "Changelog"
+description: "Mudanças na API pública da YuvexPay."
+rss: true
+---
+
+<Update
+  label="2026-10-04"
+  tags={["Breaking change", "Sandbox", "Chargeback"]}
+  rss={{
+    title: "2026-10-04: cartão só pelo checkout hospedado",
+    description: "POST /v1/payments não aceita mais pagamentos com cartão e responde 400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API. Crie o pagamento com mode hosted e envie o pagador para o checkoutUrl. No sandbox, cartão e boleto seguem a tabela de centavos e os reembolsos funcionam para todos os métodos."
+  }}
+>
+  ## Mudança incompatível: cartão só pelo checkout hospedado
+
+  A partir de 4 de outubro de 2026, `POST /v1/payments` não aceita mais
+  pagamentos com cartão. O motivo é segurança: o lojista nunca manuseia nem
+  armazena dados de cartão, que são digitados apenas no checkout hospedado da
+  YuvexPay.
+
+  ### O que foi removido
+
+  - O objeto `card` da requisição, com todos os campos: `number`,
+    `expiryMonth`, `expiryYear`, `ccv`, `installments`, `remoteIp`,
+    `holderInfo`, `deviceInfo` e `returnUrl`.
+  - O campo `methodData.challengeUrl` das respostas de `GET /v1/payments`,
+    `GET /v1/payments/{paymentId}`, `GET /v1/payments/txid/{txId}`,
+    `POST /v1/payments/{paymentId}/simulate` e da repetição idempotente de uma
+    criação.
+  - Os códigos `CARD_HOLDER_INFO_REQUIRED`, `CARD_REMOTE_IP_REQUIRED` e
+    `INSTALLMENTS_NOT_SUPPORTED`, que não são mais retornados.
+
+  ### Novo erro
+
+  Uma requisição com o objeto `card`, com `CARD` em `methods` no modo headless
+  (`mode` omitido ou `"headless"`) ou com qualquer um destes campos na raiz do
+  corpo: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`,
+  `creditCardHolderInfo`, `creditCardToken`, `installmentCount`,
+  `installmentValue` ou `totalValue`, recebe `400`:
+
+  ```json
+  {
+    "error": {
+      "code": "CARD_PAYMENTS_NOT_AVAILABLE_VIA_API",
+      "message": "Pagamentos com cartão não são aceitos pela API. Use o checkout hospedado: crie o pagamento com mode \"hosted\" e envie o pagador para o checkoutUrl."
+    }
+  }
+  ```
+
+  Esse erro vem antes dos de validação e de autenticação: o `400` chega mesmo
+  sem uma chave de API válida, e os dados de cartão não são armazenados nem
+  registrados em log.
+
+  ### Como migrar
+
+  Crie o pagamento com `mode: "hosted"` e `CARD` em `methods` (`["CARD"]`, ou
+  `["PIX", "CARD"]` para o pagador escolher), com `amount` de pelo menos
+  R$ 5,00, e redirecione o pagador para o `checkoutUrl` da resposta:
+
+  ```bash
+  curl -X POST https://api.yuvexpay.com/v1/payments \
+    -H "Authorization: Bearer $YUVEX_API_KEY" \
+    -H "Content-Type: application/json" \
+    -H "X-Idempotency-Key: pedido-5678" \
+    -d '{
+      "amount": 149.90,
+      "methods": ["PIX", "CARD"],
+      "mode": "hosted",
+      "externalId": "pedido-5678",
+      "completionUrl": "https://loja.example.com/pedidos/5678",
+      "customer": {
+        "name": "Pedro Álvares Cabral",
+        "email": "user@example.com",
+        "document": "12345678900"
+      }
+    }'
+  ```
+
+  O checkout coleta o cartão (só crédito, à vista, sem débito) e faz o
+  3D Secure. `completionUrl` e `returnUrl` funcionam como em qualquer pagamento
+  hospedado. O resultado chega pelos webhooks `PAYMENT_CONFIRMED`,
+  `PAYMENT_PAID` e `PAYMENT_CANCELLED`, ou por `GET /v1/payments/{paymentId}`.
+  Os links de pagamento criados no painel usam o mesmo checkout, e não existe
+  outra forma de integrar cartão. Detalhes no
+  [guia de pagamentos](/guides/payments#card-payments).
+
+  ### O que continua funcionando
+
+  Os pagamentos com cartão já criados pela API continuam valendo: `GET` devolve
+  o `methodData` com o cartão mascarado, sem `challengeUrl`, e webhooks,
+  reembolsos e chargebacks seguem iguais.
+
+  Repetir uma criação antiga com cartão usando a mesma `X-Idempotency-Key`
+  agora também recebe o `400`, e não mais a resposta armazenada (`201` ou
+  `502`). Recupere esse pagamento com `GET /v1/payments/txid/{txId}` ou pelo
+  `externalId`: uma criação com o mesmo `externalId`, `mode: "hosted"` e
+  `methods: ["CARD"]`, sem campos de cartão e com uma chave nova, devolve o
+  pagamento existente. A repetição do `502` armazenado continua valendo para
+  boleto.
+
+  ## Sandbox
+
+  - Cartão e boleto agora seguem a mesma tabela de centavos do PIX: `,01` pago,
+    `,02` continua `NEW`, `,03` cancelado, `,04` expirado, `,05` e qualquer
+    outro centavo pago. O resultado é gravado cerca de 5 segundos depois da
+    criação, ou 5 segundos depois de o pagador escolher o método no checkout
+    hospedado. Nada é cobrado e nenhum boleto real é registrado.
+  - Os centavos vêm do `amount` enviado, antes de qualquer taxa repassada ao
+    pagador. Para PIX com `passFeeToPayer`, isso muda o resultado: antes valiam
+    os centavos do total cobrado.
+  - Os reembolsos no sandbox agora funcionam para PIX, cartão e boleto, inclusive
+    pelo `POST /v1/payments/{paymentId}/simulate` com `REFUNDED`. Antes eram
+    recusados com `REFUND_NOT_SUPPORTED`. O resultado segue os centavos do valor
+    do pagamento, não do valor do reembolso: `,02` falha com `PSP_REFUND_FAILED`.
+  - Cartão de teste: qualquer número que passe na verificação de Luhn, como
+    `4111 1111 1111 1111`, sem desafio de 3D Secure. Boleto de teste: linha
+    digitável e código de barras em formato válido, e
+    `GET /v1/payments/{paymentId}/boleto` devolve um PDF de teste que avisa que
+    não deve ser pago.
+
+  Detalhes no [guia do sandbox](/guides/sandbox).
+
+  ## Chargeback com disputa vencida
+
+  Quando a disputa de um chargeback de cartão é vencida, o valor debitado pelo
+  chargeback volta automaticamente para o seu saldo e a taxa de processamento
+  continua retida. O pagamento sai de `CHARGEBACK` e volta ao status que tinha
+  antes (`PAID`, `CONFIRMED`, `REFUNDED` ou `PARTIAL_REFUND`), e o webhook
+  `PAYMENT_PAID` ou `PAYMENT_CONFIRMED` é enviado de novo para esse status. Um
+  pagamento que volta para `REFUNDED` ou `PARTIAL_REFUND` não envia webhook.
+  Você também recebe um aviso no painel. Detalhes no
+  [guia de reembolsos](/guides/refunds#fees-on-refunds-med-and-chargebacks).
+</Update>

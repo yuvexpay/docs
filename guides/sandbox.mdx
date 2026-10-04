@@ -40,24 +40,37 @@ returns the non-terminal status — `NEW`, or `PENDING_METHOD_SELECTION` for a
 hosted checkout. A status check runs about **5 seconds** later and writes the
 outcome; in the hosted flow, 5 seconds after the payer selects a method.
 
-The outcome is picked from the **decimal cents** of the requested amount:
+The outcome is picked from the **decimal cents** of the payment `amount` you
+send, the same way for `PIX`, `CARD` and `BOLETO`. The cents are read before any
+fee passed to the payer: with `passFeeToPayer`, an `amount` of `R$ 49.02` is
+read as `.02` whatever total the payer is shown.
 
 | Cents | Status after the check | Notes |
 |-------|------------------------|-------|
 | `.01` | `PAID`         | Successful payment. |
 | `.02` | `NEW`          | Payer never pays. The charge stays `NEW` — nothing later moves it to `EXPIRED`. |
 | `.03` | `CANCELLED`    | Cancelled before payment. |
-| `.04` | `EXPIRED`      | The charge is created already expiring: `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` you sent, and the check marks it `EXPIRED`. |
+| `.04` | `EXPIRED`      | The charge expires before payment and the check marks it `EXPIRED`. `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` or `boleto.dueDate` you sent. |
 | `.05` | `PAID`         | The charge settles. A MED freeze is not reachable from the amount — `MED_FROZEN` cannot be produced in sandbox. |
 | Any other | `PAID`     | Every cents value outside the list above falls through to a successful payment. `R$ 19.00` behaves exactly like `R$ 19.01`. |
 
-So `R$ 49.02` simulates an unpaid PIX, `R$ 99.04` simulates an expired PIX, and
-any value ending in `.01` (`R$ 1.01`, `R$ 49.01`, `R$ 1000.01`) simulates a
-successful payment.
+So `R$ 49.02` simulates a payment the payer never completes, `R$ 99.04` an
+expired one, and any value ending in `.01` (`R$ 5.01`, `R$ 49.01`,
+`R$ 1000.01`) a successful one, whatever the method.
 
-These recipes drive **PIX** only. Sandbox `CARD` and `BOLETO` charges do not go
-through the PIX simulator, so their cents are ignored — drive those with
-[`POST /v1/payments/{paymentId}/simulate`](#forcing-a-terminal-status).
+Nothing is charged in sandbox: no card is debited and no real boleto is
+registered.
+
+### Card and boleto
+
+A sandbox card payment goes through the hosted checkout like any card payment.
+The checkout accepts any test card number that passes the Luhn check, for
+example `4111 1111 1111 1111`. Only the last four digits and the brand are
+stored, and sandbox never asks for a 3D Secure challenge.
+
+A sandbox boleto carries a test digitable line and barcode in the valid format.
+[`GET /v1/payments/{paymentId}/boleto`](/api-reference/payments/get-boleto)
+returns a generated test PDF that says it must not be paid.
 
 ## Forcing a terminal status
 
@@ -103,14 +116,17 @@ Sandbox withdrawals follow the same convention. The status is reached synchronou
 
 ## Refund behavior matrix
 
+Sandbox refunds work for `PIX`, `CARD` and `BOLETO` payments, through
+`POST /v1/payments/{paymentId}/refund` and the `REFUNDED` simulation.
+
 | Cents | Outcome    |
 |-------|------------|
 | `.01` | Success.   |
 | `.02` | Refund fails with `PSP_REFUND_FAILED`. |
 | Any other | Success. |
 
-The decimal portion is read from the **payment amount being refunded**, not the
-refund request itself.
+The decimal portion is read from the **payment amount**, the `amount` you sent
+when you created the payment, not from the refund request amount.
 
 ## Webhooks in sandbox
 

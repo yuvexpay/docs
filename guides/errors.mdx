@@ -102,9 +102,7 @@ All errors follow a consistent structure:
 | `PAYMENT_CREATION_BLOCKED` | 403 | The account is currently not allowed to create payments (KYB pending, suspended, or the requested method is disabled). |
 | `AMOUNT_REQUIRED` | 400 | A direct amount is required when no `productId` is supplied. |
 | `CUSTOMER_DATA_REQUIRED` | 400 | The selected payment method requires customer data and none was provided. |
-| `CARD_HOLDER_INFO_REQUIRED` | 400 | Direct card payments require `card.holderInfo` (postal code and address number). |
-| `CARD_REMOTE_IP_REQUIRED` | 400 | Direct card payments require `card.remoteIp` (the payer's IP address). |
-| `INSTALLMENTS_NOT_SUPPORTED` | 400 | Card payments are charged in a single installment only. Send `installments: 1` or omit it. Arrives as `VALIDATION_ERROR`, with this code in the validation details. |
+| `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` | 400 | Card payments are not accepted through the API. Returned for a `card` object, for `CARD` in `methods` in headless mode (`mode` omitted or `"headless"`), and for any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`. It takes precedence over validation and authentication errors, so the request gets this `400` even without a valid API key, and the card data is not stored or logged. The message is always `Pagamentos com cartão não são aceitos pela API. Use o checkout hospedado: crie o pagamento com mode "hosted" e envie o pagador para o checkoutUrl.` Create the payment with `mode: "hosted"` and send the payer to `checkoutUrl`: see [Card payments](/guides/payments#card-payments). |
 | `SPLIT_RECIPIENT_LIMIT_EXCEEDED` | 400 | `splits` carries more entries than the recipient limit configured for your account (three by default). |
 | `SPLIT_SELF_RECIPIENT` | 400 | A split names your own company as the recipient. |
 | `SPLIT_ORIGINATOR_NOT_APPROVED` | 403 | Your own company has not completed KYC (and KYB, for a business), so it cannot originate split payments. |
@@ -116,8 +114,14 @@ All errors follow a consistent structure:
 | `SPLIT_RECIPIENT_INACTIVE` | 400 | A recipient that had accepted the relationship is no longer active. |
 | `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
-| `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check the card details or use another card or payment method. |
-| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a card or boleto payment, a `502` means the outcome is not known yet and is replayed for the same `X-Idempotency-Key`: see [Card errors](/guides/payments#card-errors) before retrying. On a PIX payment, the payment is recorded as `CANCELLED`: retry with a new `externalId`. |
+| `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check their details or use another payment method. |
+| `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a boleto payment, a `502` means the outcome is not known yet and is replayed for the same `X-Idempotency-Key`: see [Boleto errors](/guides/payments#boleto-errors) before retrying. On a PIX payment, the payment is recorded as `CANCELLED`: retry with a new `externalId`. |
+
+<Note>
+  `CARD_HOLDER_INFO_REQUIRED`, `CARD_REMOTE_IP_REQUIRED` and
+  `INSTALLMENTS_NOT_SUPPORTED` were removed along with the `card` object of
+  `POST /v1/payments`. None of these codes can be returned by the API any more.
+</Note>
 
 ### Refund errors
 
