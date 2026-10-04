@@ -190,7 +190,8 @@
                     "completionUrl": "https://store.example.com/checkout/done",
                     "customer": {
                       "name": "Pedro Álvares Cabral",
-                      "email": "user@example.com"
+                      "email": "user@example.com",
+                      "document": "12345678900"
                     }
                   }
                 },
