@@ -3014,7 +3014,7 @@
           "type": "string",
           "maxLength": 100
         },
-        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours. Successful (`2xx`) responses are stored and replayed for the key. On `POST /v1/payments`, a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` for a boleto payment is stored and replayed too: to recover that payment, repeat the request once with the same `externalId` and a new key. A retry of an earlier card payment request now returns `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` instead of the stored `502`: recover that payment with `GET /v1/payments/txid/{txId}`, or with a create request that reuses its `externalId`, without card data and with a new key."
+        "description": "A unique string to ensure the request is processed only once. Must be unique per request. Valid for 24 hours. Successful (`2xx`) responses are stored and replayed for the key. On `POST /v1/payments`, a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` for a boleto payment is stored and replayed too: to recover that payment, repeat the request once with the same `externalId` and a new key. A retry of an earlier card payment request now returns `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` instead of the stored response (`201` or `502`): recover that payment with `GET /v1/payments/txid/{txId}`, or with a create request with the same `externalId`, `mode: \"hosted\"` and `methods: [\"CARD\"]`, no `card` object or card fields, and a new key."
       },
       "Page": {
         "name": "page",

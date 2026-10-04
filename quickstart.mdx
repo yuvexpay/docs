@@ -139,8 +139,8 @@ Render `pixCopyPaste` as a copy-paste string and `qrCodeBase64` as a QR code
 image. Use `id` as the path parameter for follow-up calls (`GET /v1/payments/{paymentId}`,
 `POST /v1/payments/{paymentId}/refund`).
 
-To accept a card, create the payment with `mode: "hosted"` and send the payer to
-the returned `checkoutUrl`: see [Card payments](/guides/payments#card-payments).
+To accept a card, create the payment with `mode: "hosted"` and `CARD` in
+`methods`, and send the payer to the returned `checkoutUrl`: see [Card payments](/guides/payments#card-payments).
 
 ## 3. Listen for webhooks
 

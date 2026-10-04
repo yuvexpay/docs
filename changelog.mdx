@@ -92,11 +92,12 @@ rss: true
   reembolsos e chargebacks seguem iguais.
 
   Repetir uma criação antiga com cartão usando a mesma `X-Idempotency-Key`
-  agora também recebe o `400`, e não mais o `502` armazenado. Recupere esse
-  pagamento com `GET /v1/payments/txid/{txId}` ou pelo `externalId`: uma
-  criação sem dados de cartão que reutilize o `externalId`, com uma chave nova,
-  devolve o pagamento existente. A repetição do `502` armazenado continua
-  valendo para boleto.
+  agora também recebe o `400`, e não mais a resposta armazenada (`201` ou
+  `502`). Recupere esse pagamento com `GET /v1/payments/txid/{txId}` ou pelo
+  `externalId`: uma criação com o mesmo `externalId`, `mode: "hosted"` e
+  `methods: ["CARD"]`, sem campos de cartão e com uma chave nova, devolve o
+  pagamento existente. A repetição do `502` armazenado continua valendo para
+  boleto.
 
   ## Sandbox
 

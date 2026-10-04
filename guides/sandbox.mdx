@@ -50,7 +50,7 @@ read as `.02` whatever total the payer is shown.
 | `.01` | `PAID`         | Successful payment. |
 | `.02` | `NEW`          | Payer never pays. The charge stays `NEW` — nothing later moves it to `EXPIRED`. |
 | `.03` | `CANCELLED`    | Cancelled before payment. |
-| `.04` | `EXPIRED`      | The charge expires before payment and the check marks it `EXPIRED`. For PIX, `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` you sent. |
+| `.04` | `EXPIRED`      | The charge expires before payment and the check marks it `EXPIRED`. `expiresAt` lands a couple of seconds out regardless of the `expiresInMinutes` or `boleto.dueDate` you sent. |
 | `.05` | `PAID`         | The charge settles. A MED freeze is not reachable from the amount — `MED_FROZEN` cannot be produced in sandbox. |
 | Any other | `PAID`     | Every cents value outside the list above falls through to a successful payment. `R$ 19.00` behaves exactly like `R$ 19.01`. |
 
