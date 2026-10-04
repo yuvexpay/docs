@@ -2616,7 +2616,7 @@
     "PAYMENT_CHARGEBACK": {
       "post": {
         "summary": "Payment chargeback",
-        "description": "A chargeback was opened or processed. These two fields are the entire body — there is no id, amount or reason.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
+        "description": "A chargeback was opened or processed. These two fields are the entire body — there is no id, amount or reason. If the card dispute is won, the payment returns to the status it had before the chargeback and `PAYMENT_PAID` or `PAYMENT_CONFIRMED` is sent again for that status; a payment restored to `REFUNDED` or `PARTIAL_REFUND` sends no webhook.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],

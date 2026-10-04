@@ -90,6 +90,11 @@ a chargeback debit the full amount returned to the payer, and the processing fee
 is not returned. On a split payment that debit is apportioned across the
 parties the same way.
 
+If the card dispute is won, the amount debited for the chargeback is credited back to your balance, the processing fee stays with YuvexPay, and the payment returns to the status it had before the chargeback: `PAID`, `CONFIRMED`, `REFUNDED` or `PARTIAL_REFUND`. On a split payment each party is credited back the
+share it was debited. You are notified in the dashboard, and the payment's
+`PAYMENT_PAID` or `PAYMENT_CONFIRMED` webhook is sent again for its restored
+status; a payment restored to `REFUNDED` or `PARTIAL_REFUND` sends no webhook.
+
 A cardholder can still open a chargeback on a card payment you already
 refunded. The chargeback is debited from your balance, even if it goes
 negative, and YuvexPay contests it with the refund receipt. If the dispute is

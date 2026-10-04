@@ -6,7 +6,7 @@ rss: true
 
 <Update
   label="2026-10-04"
-  tags={["Breaking change", "Sandbox"]}
+  tags={["Breaking change", "Sandbox", "Chargeback"]}
   rss={{
     title: "2026-10-04: cartão só pelo checkout hospedado",
     description: "POST /v1/payments não aceita mais pagamentos com cartão e responde 400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API. Crie o pagamento com mode hosted e envie o pagador para o checkoutUrl. No sandbox, cartão e boleto seguem a tabela de centavos e os reembolsos funcionam para todos os métodos."
@@ -120,4 +120,15 @@ rss: true
     não deve ser pago.
 
   Detalhes no [guia do sandbox](/guides/sandbox).
+
+  ## Chargeback com disputa vencida
+
+  Quando a disputa de um chargeback de cartão é vencida, o valor debitado pelo
+  chargeback volta automaticamente para o seu saldo e a taxa de processamento
+  continua retida. O pagamento sai de `CHARGEBACK` e volta ao status que tinha
+  antes (`PAID`, `CONFIRMED`, `REFUNDED` ou `PARTIAL_REFUND`), e o webhook
+  `PAYMENT_PAID` ou `PAYMENT_CONFIRMED` é enviado de novo para esse status. Um
+  pagamento que volta para `REFUNDED` ou `PARTIAL_REFUND` não envia webhook.
+  Você também recebe um aviso no painel. Detalhes no
+  [guia de reembolsos](/guides/refunds#fees-on-refunds-med-and-chargebacks).
 </Update>

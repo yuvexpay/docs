@@ -43,7 +43,7 @@ exactly what arrives in the `X-Webhook-Event` header.
 | `PAYMENT_CANCELLED` | The payment was cancelled or definitively failed before completing. |
 | `PAYMENT_REFUNDED` | A refund completed for this payment. |
 | `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
-| `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. |
+| `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. If the card dispute is won, the payment leaves `CHARGEBACK` and `PAYMENT_PAID` or `PAYMENT_CONFIRMED` is sent again for its restored status. |
 | `MED_RECEIVED` | A PIX MED (special refund) request was opened by the payer's bank. |
 | `MED_RESOLVED` | A PIX MED was resolved (approved or rejected). |
 | `WITHDRAWAL_REQUESTED` | A withdrawal was created and is being processed. |

@@ -60,7 +60,7 @@ NEW
 | `CANCELLED` | The payment was cancelled before being paid. |
 | `PARTIAL_REFUND` | A partial refund has been issued. No further refund is possible. |
 | `REFUNDED` | A full refund has been issued. |
-| `CHARGEBACK` | A chargeback was filed and processed. |
+| `CHARGEBACK` | A chargeback was filed and processed. If the card dispute is won, the payment returns to the status it had before the chargeback. |
 | `MED_FROZEN` | A PIX MED (special refund) is open; funds are temporarily held. |
 
 Listen for the corresponding [webhook events](/guides/webhooks) to react to
