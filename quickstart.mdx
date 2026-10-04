@@ -139,45 +139,8 @@ Render `pixCopyPaste` as a copy-paste string and `qrCodeBase64` as a QR code
 image. Use `id` as the path parameter for follow-up calls (`GET /v1/payments/{paymentId}`,
 `POST /v1/payments/{paymentId}/refund`).
 
-## Direct credit card charges
-
-For headless direct credit card charges, send a single `CARD` method together
-with the `card` payload. The payer must have `name` and `document` available
-through `customer` or `customerId`.
-
-```json
-{
-  "amount": 149.90,
-  "methods": ["CARD"],
-  "currency": "BRL",
-  "mode": "headless",
-  "customer": {
-    "name": "Pedro Álvares Cabral",
-    "document": "12345678900",
-    "email": "user@example.com",
-    "phone": "+5511999999999"
-  },
-  "card": {
-    "number": "4111111111111111",
-    "expiryMonth": "12",
-    "expiryYear": "2030",
-    "ccv": "123",
-    "installments": 1,
-    "remoteIp": "198.51.100.23",
-    "holderInfo": {
-      "postalCode": "01310930",
-      "addressNumber": "100",
-      "phone": "+5511999999999"
-    }
-  }
-}
-```
-
-<Tip>
-  `card` is only accepted for `headless` single-method `CARD` payments. Card
-  payments are charged in a single installment, so `installments` must be `1`.
-  Multi-method flows go through the hosted checkout.
-</Tip>
+To accept a card, create the payment with `mode: "hosted"` and send the payer to
+the returned `checkoutUrl`: see [Card payments](/guides/payments#card-payments).
 
 ## 3. Listen for webhooks
 

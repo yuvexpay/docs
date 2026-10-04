@@ -39,13 +39,17 @@ If you send the same request with the same idempotency key, the API returns the 
 - **Scope:** Keys are scoped per company **and** environment. The same key can be used in sandbox and production without colliding — they're separate keyspaces.
 - **Payload check:** If you reuse a key with a different request body, the API returns a `409 Conflict` with error code `IDEMPOTENCY_PAYLOAD_MISMATCH`. This holds for the whole 24h window and for concurrent requests, not only for retries that arrive shortly after the first one.
 - **Concurrent requests:** If a request with the **same** body and key is already being processed, the API returns a `409 Conflict` with error code `IDEMPOTENCY_CONFLICT`. A concurrent request with a **different** body gets `IDEMPOTENCY_PAYLOAD_MISMATCH` instead.
-- **Replay:** Once a request completes **successfully** (`2xx`), subsequent retries with the same key return the original status code and body for the remainder of the 24h window. A `502 PROVIDER_TEMPORARILY_UNAVAILABLE` on a card or boleto payment is stored and replayed the same way.
+- **Replay:** Once a request completes **successfully** (`2xx`), subsequent retries with the same key return the original status code and body for the remainder of the 24h window. A `502 PROVIDER_TEMPORARILY_UNAVAILABLE` on a boleto payment is stored and replayed the same way.
 
 <Warning>
-  Only successful (`2xx`) responses are stored, with one exception: a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` on a card or boleto payment. That `502` means the outcome of the charge is not known yet, so a retry with the same key returns the same `502` and never submits a second charge. To recover the payment, repeat the request once with the same `externalId` and a new `X-Idempotency-Key`, then follow [Card errors](/guides/payments#card-errors).
+  Only successful (`2xx`) responses are stored, with one exception: a `502 PROVIDER_TEMPORARILY_UNAVAILABLE` on a boleto payment. That `502` means the outcome of the charge is not known yet, so a retry with the same key returns the same `502` and never submits a second charge. To recover the payment, repeat the request once with the same `externalId` and a new `X-Idempotency-Key`, then follow [Boleto errors](/guides/payments#boleto-errors).
 
   Every other error response, client error (`4xx`) or server error (`5xx`), is **not** stored, so retrying with the same key after one executes the request again.
 </Warning>
+
+<Note>
+  Card payments are no longer accepted through the API, so a retry of an earlier card payment request with the same `X-Idempotency-Key` now returns `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` instead of the stored `502`. Recover that payment with [`GET /v1/payments/txid/{txId}`](/api-reference/payments/get-by-txid), or by its `externalId`: a create request that reuses the `externalId`, without card data and with a new `X-Idempotency-Key`, returns the existing payment.
+</Note>
 
 ## Generating keys
 
@@ -63,5 +67,5 @@ const key = Date.now().toString();
 ```
 
 <Tip>
-  Append a version suffix (e.g., `-v1`, `-v2`) to the key if you need to intentionally retry with different parameters, or to recover a card or boleto payment after a `502`.
+  Append a version suffix (e.g., `-v1`, `-v2`) to the key if you need to intentionally retry with different parameters, or to recover a boleto payment after a `502`.
 </Tip>

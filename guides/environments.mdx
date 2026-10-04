@@ -24,10 +24,10 @@ choose the **Sandbox** environment. The key will be prefixed with `ypk_test_`.
 
 Sandbox simulates the full payment lifecycle:
 
-- Payments are created with real-looking responses, including QR codes for PIX.
+- Payments are created with real-looking responses for every method: QR codes for PIX, a test digitable line, barcode and PDF for boleto, and test card numbers in the hosted checkout.
 - Status transitions (`PROCESSING`, `PAID`, `EXPIRED`) are simulated.
 - Webhooks are **not** delivered for sandbox payments and withdrawals — poll `GET /v1/payments/{paymentId}` or `GET /v1/withdrawals/{withdrawalId}` instead. Use the dashboard **Send test** button to exercise your signature verifier.
-- No real money is moved.
+- No real money is moved: no card is debited and no real boleto is registered.
 
 See the [Sandbox guide](/guides/sandbox) for the deterministic test recipes (specific amounts that trigger specific outcomes).
 

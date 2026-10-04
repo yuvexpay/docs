@@ -13,7 +13,7 @@ and `hosted`).
 | Method | Headless | Hosted |
 |--------|----------|--------|
 | `PIX`     | Returns the BR-Code (copy-paste) and a QR code image. You render them in your own UI. | Returns a `checkoutUrl` to the YuvexPay-hosted checkout. |
-| `CARD`    | Direct charge: send card details server-side. **Single-method only.** | The payer enters card details on YuvexPay's hosted page. |
+| `CARD`    | Not available. Use the hosted checkout. | The payer enters card details on YuvexPay's hosted page. See [Card payments](#card-payments). |
 | `BOLETO`  | Returns a boleto barcode and a downloadable PDF. | Available through the hosted checkout. |
 
 Pick `headless` when you want to render the payment yourself; pick `hosted`
@@ -23,7 +23,7 @@ when you want YuvexPay to render the checkout, including method selection.
 
 - All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
 - The minimum chargeable amount is `R$ 0.01`. The maximum is `R$ 1,000,000.00`.
-- Card payments are charged in a single installment (à vista), in both headless and hosted mode. `card.installments` accepts only `1`; any other value is rejected with a `VALIDATION_ERROR` citing `INSTALLMENTS_NOT_SUPPORTED`.
+- Card payments go through the hosted checkout only. They are charged to a credit card in a single installment (à vista) and need an `amount` of at least `R$ 5.00`.
 
 ## Identifiers
 
@@ -53,7 +53,7 @@ NEW
 |--------|---------|
 | `NEW` | Created and waiting for the payer. |
 | `PENDING_METHOD_SELECTION` | A hosted multi-method checkout is created and the payer hasn't picked a method yet. |
-| `PROCESSING` | The card or PIX network is processing the charge, or the outcome of a card or boleto charge is not known yet after a `502` (see [Card errors](#card-errors)). |
+| `PROCESSING` | The card or PIX network is processing the charge, or the outcome of a boleto charge is not known yet after a `502` (see [Boleto errors](#boleto-errors)). |
 | `CONFIRMED` | The payment was authorized but funds are not yet settled (typical for cards/boleto). |
 | `PAID` | Funds were received and credited to your balance. |
 | `EXPIRED` | The payment window passed without payment. |
@@ -98,149 +98,7 @@ A PIX payment whose create returns `502` or `503 PROVIDER_TEMPORARILY_UNAVAILABL
 is recorded as `CANCELLED`: the charge was not created, so retry with a new
 `externalId`.
 
-## Headless direct credit card
-
-Direct card payments submit the charge on creation. The payer stays in your UI
-unless the card issuer asks for a [3D Secure challenge](#3d-secure), and you
-assume PCI scope: card data flows through your servers.
-
-```json
-{
-  "amount": 149.90,
-  "methods": ["CARD"],
-  "currency": "BRL",
-  "mode": "headless",
-  "externalId": "order-5678",
-  "customer": {
-    "name": "Pedro Álvares Cabral",
-    "document": "12345678900",
-    "email": "user@example.com",
-    "phone": "+5511999999999"
-  },
-  "card": {
-    "number": "4111111111111111",
-    "expiryMonth": "12",
-    "expiryYear": "2030",
-    "ccv": "123",
-    "installments": 1,
-    "remoteIp": "198.51.100.23",
-    "returnUrl": "https://store.example.com/orders/5678",
-    "deviceInfo": {
-      "colorDepth": 24,
-      "screenHeight": 1080,
-      "screenWidth": 1920,
-      "timeZoneOffset": 3,
-      "language": "pt-BR",
-      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
-    },
-    "holderInfo": {
-      "postalCode": "01310930",
-      "addressNumber": "100",
-      "phone": "+5511999999999"
-    }
-  }
-}
-```
-
-Direct card payments are constrained to `methods: ["CARD"]` (a single method)
-and `installments: 1`, and require `card.holderInfo` and `card.remoteIp`. For
-multi-method flows, use the hosted checkout.
-
-`card.remoteIp` is the payer's IP address as your server sees it when the payer
-submits the payment, never your own server's IP.
-
-### 3D Secure
-
-A card payment can go through 3D Secure, where the card issuer authenticates
-the payer. The issuer either authenticates silently or asks for a challenge,
-such as a code sent by SMS or an approval in the bank app.
-
-Send `card.deviceInfo` on every card payment. The issuer uses it to assess the
-risk of the payment. Collect it in the payer's browser and send it to your
-server along with the card form:
-
-```javascript
-const deviceInfo = {
-  colorDepth: window.screen.colorDepth,
-  screenHeight: window.screen.height,
-  screenWidth: window.screen.width,
-  timeZoneOffset: Math.round(new Date().getTimezoneOffset() / 60),
-  language: navigator.language,
-  userAgent: navigator.userAgent.slice(0, 1024),
-};
-```
-
-`deviceInfo` is optional, but when you send it all six fields are required.
-
-| Field | Type | Accepted values |
-|-------|------|-----------------|
-| `colorDepth` | integer | `1` to `64`. Screen color depth in bits. |
-| `screenHeight` | integer | `1` to `100000`. Screen height in pixels. |
-| `screenWidth` | integer | `1` to `100000`. Screen width in pixels. |
-| `timeZoneOffset` | integer | `-14` to `14`. Difference between UTC and the payer's local time, in **hours**: `3` for UTC-3. |
-| `language` | string | 2 to 35 characters, for example `pt-BR`. |
-| `userAgent` | string | 1 to 1024 characters. |
-
-`timeZoneOffset` is in hours, not minutes: send the rounded result of
-`getTimezoneOffset() / 60`, never the raw `180`.
-
-`card.returnUrl` is optional: an `https` URL of at most 2000 characters where
-the payer lands after a challenge.
-
-#### When the issuer asks for a challenge
-
-The create response then returns the payment as `NEW` with a non-null
-`methodData.challengeUrl`:
-
-```json
-{
-  "payment": {
-    "id": "8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234",
-    "status": "NEW",
-    "paymentMethod": "CARD",
-    "methodData": {
-      "type": "CARD",
-      "captureType": "DIRECT",
-      "cardSubtype": "CREDIT",
-      "brand": "VISA",
-      "last4Digits": "1111",
-      "installments": 1,
-      "challengeUrl": "https://checkout.yuvexpay.com/checkout/8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234/3ds/challenge"
-    }
-  }
-}
-```
-
-1. Redirect the payer to `challengeUrl`, a `checkout.yuvexpay.com` page that
-   takes them to their card issuer.
-2. The payer completes the challenge. The payment stays `NEW` meanwhile.
-3. The payer is sent to your `card.returnUrl` with the payment `id` in a
-   `paymentId` query parameter, for example
-   `https://store.example.com/orders/5678?paymentId=8f3c0a85-7c29-4e3a-9e07-5b1a7b6d1234`.
-   Without `card.returnUrl`, an approved payment sends the payer to the
-   payment's `completionUrl`, without the `paymentId` parameter, when you set
-   one; otherwise the payer stays on a YuvexPay page.
-4. The result arrives by webhook: `PAYMENT_CONFIRMED` when the payment is
-   approved, or `PAYMENT_CANCELLED` with `reason: "payment_failed"` when the
-   challenge fails or the card is refused, in which case the payment is
-   `CANCELLED`.
-
-<Warning>
-  The payer arriving at your `returnUrl` is not a confirmation. Show the order
-  as processing until the webhook arrives, or poll
-  `GET /v1/payments/{paymentId}` until the status leaves `NEW`.
-</Warning>
-
-When `challengeUrl` is `null`, there is no challenge to send the payer to, and
-the result arrives the same way. `methodData.challengeUrl` is present on every
-`CARD` payment that has card data, in the create response and in
-`GET /v1/payments`, `GET /v1/payments/{paymentId}` and
-`GET /v1/payments/txid/{txId}`. It is set only while a challenge is pending and
-the payment is `NEW`. `methodData` is `null` while a card or boleto payment is
-`PROCESSING` after a `502`, and on a payment recorded `CANCELLED` before a
-charge was created.
-
-### Card errors
+## Boleto errors
 
 | Response | Meaning |
 |----------|---------|
@@ -248,10 +106,11 @@ charge was created.
 | `503 PROVIDER_TEMPORARILY_UNAVAILABLE` | The charge was not created. The payment is recorded as `CANCELLED`. Retry later. |
 | `502 PROVIDER_TEMPORARILY_UNAVAILABLE` | The outcome is not known yet. The payment stays `PROCESSING` until it is resolved, which can take 15 minutes or more, and then either continues normally or ends `CANCELLED`. |
 
-A boleto payment returns the same responses, with the same meaning.
+`methodData` is `null` while a boleto payment is `PROCESSING` after a `502`,
+and on a payment recorded `CANCELLED` before a charge was created.
 
 A create request that reuses an `externalId` returns the existing payment
-instead of charging again. Send `externalId` on every card and boleto payment.
+instead of creating another one. Send `externalId` on every boleto payment.
 After a `400` or a `503`, use a new `externalId` to try again.
 
 The `502` is stored for its `X-Idempotency-Key`: repeating the request with the
@@ -266,11 +125,10 @@ a second charge. To recover the payment after a `502`:
    not poll by repeating the create: a repeated create with the same key
    replays the same response for 24 hours.
 3. If the payment ends `CANCELLED`, create a new payment with a new
-   `externalId`. A card payment that ends `CANCELLED` from `PROCESSING` sends
-   no webhook, so polling is the only way to see it.
+   `externalId`.
 
 Without `externalId`, a request with a new `X-Idempotency-Key` creates a new
-payment and can charge the payer twice.
+payment, and the payer can end up with two boletos for the same order.
 
 ## Hosted checkout
 
@@ -299,11 +157,36 @@ YuvexPay handles method selection, card capture and PIX rendering.
 Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
 method, then transition through the same lifecycle as a headless payment.
 
-For card, the hosted checkout collects the device data and takes the payer
-through any [3D Secure](#3d-secure) challenge itself. A hosted card payment
-that fails the challenge, or is refused after it, ends `CANCELLED` and you
-receive `PAYMENT_CANCELLED` with `reason: "payment_failed"`. The payer cannot
-pick another method for that payment: create a new one.
+### Card payments
+
+The hosted checkout is the only way to accept a card. `POST /v1/payments`
+rejects card data, and `CARD` in headless mode, with
+`400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` (see
+[Payment errors](/guides/errors#payment-errors)), so your servers never handle
+or store card data.
+
+To charge a card:
+
+1. Create the payment with `mode: "hosted"` and `CARD` in `methods`: `["CARD"]`,
+   or `["PIX", "CARD"]` to let the payer choose. The `amount` must be at least
+   `R$ 5.00`.
+2. Redirect the payer to the returned `checkoutUrl`. The checkout collects the
+   card and runs 3D Secure itself. It accepts credit cards only, charged in a
+   single installment; debit cards are not accepted.
+3. Read the result from the `PAYMENT_CONFIRMED`, `PAYMENT_PAID` and
+   `PAYMENT_CANCELLED` webhooks, or poll `GET /v1/payments/{paymentId}`.
+
+`returnUrl` and `completionUrl` work as for any hosted payment. A hosted card
+payment that fails the 3D Secure challenge, or is refused after it, ends
+`CANCELLED` and you receive `PAYMENT_CANCELLED` with
+`reason: "payment_failed"`. The payer cannot pick another method for that
+payment: create a new one.
+
+Payment links created in the dashboard open the same hosted checkout.
+
+Card payments already created with card data through `POST /v1/payments` keep
+working: `GET` returns their masked card `methodData`, and webhooks, refunds and
+chargebacks are unchanged.
 
 ## Fees and net amount
 
