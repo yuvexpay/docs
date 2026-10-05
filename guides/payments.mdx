@@ -45,6 +45,7 @@ NEW
                                        ├── CHARGEBACK
                                        └── MED_FROZEN
   └── PENDING_METHOD_SELECTION ──► (one of the above, after the payer picks a method)
+                               └──► EXPIRED (no method picked before expiresAt)
   └── EXPIRED
   └── CANCELLED
 ```
@@ -156,7 +157,9 @@ YuvexPay handles method selection, card capture and PIX rendering.
 - `completionUrl` is where YuvexPay redirects after a successful payment.
 
 Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
-method, then transition through the same lifecycle as a headless payment.
+method, then transition through the same lifecycle as a headless payment. If
+the payer doesn't pick a method before `expiresAt`, the payment moves to
+`EXPIRED` shortly after and you receive `PAYMENT_EXPIRED`.
 
 ### Card payments
 

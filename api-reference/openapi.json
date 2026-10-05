@@ -3686,7 +3686,7 @@
               "object",
               "null"
             ],
-            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`. For CARD, `cardFundingType` is `credit` or `debit`, and `null` when the funding type is not known, including older payments.",
+            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` or `EXPIRED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`. For CARD, `cardFundingType` is `credit` or `debit`, and `null` when the funding type is not known, including older payments.",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
