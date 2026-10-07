@@ -5,6 +5,43 @@ rss: true
 ---
 
 <Update
+  label="2026-10-07"
+  tags={["Pagamentos"]}
+  rss={{
+    title: "2026-10-07: disponibilidade do cartão",
+    description: "O aceite de cartão passa a exigir o e-mail do titular da conta confirmado e pode ser suspenso temporariamente pelos controles de risco da YuvexPay. Em uma conta com cartão habilitado, enquanto o cartão estiver indisponível, o checkout hospedado não oferece CARD, uma criação com outros métodos segue sem CARD e uma criação só com CARD recebe 403 PAYMENT_METHOD_NOT_ENABLED."
+  }}
+>
+  ## Disponibilidade do cartão
+
+  O aceite de cartão passa a exigir que o e-mail do titular da conta esteja
+  confirmado, e pode ser suspenso temporariamente pelos controles de risco da
+  YuvexPay. Enquanto o cartão estiver indisponível, os outros métodos continuam
+  funcionando, e:
+
+  - O checkout hospedado não oferece `CARD`, inclusive em pagamentos e links de
+    pagamento criados quando o cartão estava disponível.
+  - Em uma conta com cartão habilitado, uma criação com `CARD` e outros métodos
+    cria o pagamento sem `CARD`.
+  - Uma criação que tem `CARD` como único método recebe `403`:
+
+  ```json
+  {
+    "error": {
+      "code": "PAYMENT_METHOD_NOT_ENABLED",
+      "message": "Método de pagamento não habilitado para esta empresa.",
+      "details": { "method": "CARD" }
+    }
+  }
+  ```
+
+  O mesmo código já era retornado para um método de `methods` que não está
+  habilitado na conta, e agora está no
+  [guia de erros](/guides/errors#payment-errors). Detalhes no
+  [guia de pagamentos](/guides/payments#card-payments).
+</Update>
+
+<Update
   label="2026-10-04 cartão de débito"
   tags={["Pagamentos"]}
   rss={{
