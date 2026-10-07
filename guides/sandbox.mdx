@@ -65,9 +65,9 @@ registered.
 
 A sandbox card payment goes through the hosted checkout like any card payment.
 The checkout accepts any test card number that passes the Luhn check, for
-example `4111 1111 1111 1111`. Only the last four digits and the brand are
-stored, and sandbox never asks for a 3D Secure challenge. A card charged in
-sandbox is always recorded as `credit` in `methodData.cardFundingType`,
+example `4111 1111 1111 1111`. The full card number and the security code are
+never stored, and sandbox never asks for a 3D Secure challenge. A card charged
+in sandbox is always recorded as `credit` in `methodData.cardFundingType`,
 whatever test card number you use, so `debit` cannot be produced in sandbox.
 
 A sandbox boleto carries a test digitable line and barcode in the valid format.

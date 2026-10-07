@@ -9,7 +9,7 @@ rss: true
   tags={["Pagamentos"]}
   rss={{
     title: "2026-10-07: disponibilidade do cartão",
-    description: "O aceite de cartão passa a exigir o e-mail do titular da conta confirmado e pode ser suspenso temporariamente pelos controles de risco da YuvexPay. Enquanto o cartão estiver indisponível, o checkout hospedado não oferece CARD, uma criação com outros métodos segue sem CARD e uma criação só com CARD recebe 403 PAYMENT_METHOD_NOT_ENABLED."
+    description: "O aceite de cartão passa a exigir o e-mail do titular da conta confirmado e pode ser suspenso temporariamente pelos controles de risco da YuvexPay. Em uma conta com cartão habilitado, enquanto o cartão estiver indisponível, o checkout hospedado não oferece CARD, uma criação com outros métodos segue sem CARD e uma criação só com CARD recebe 403 PAYMENT_METHOD_NOT_ENABLED."
   }}
 >
   ## Disponibilidade do cartão
@@ -21,7 +21,8 @@ rss: true
 
   - O checkout hospedado não oferece `CARD`, inclusive em pagamentos e links de
     pagamento criados quando o cartão estava disponível.
-  - Uma criação com `CARD` e outros métodos cria o pagamento sem `CARD`.
+  - Em uma conta com cartão habilitado, uma criação com `CARD` e outros métodos
+    cria o pagamento sem `CARD`.
   - Uma criação que tem `CARD` como único método recebe `403`:
 
   ```json

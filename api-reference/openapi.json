@@ -380,7 +380,7 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Payment creation blocked for this account. Codes: `PAYMENT_CREATION_BLOCKED`, `SPLIT_ORIGINATOR_NOT_APPROVED`, `PAYMENT_METHOD_NOT_ENABLED`. `PAYMENT_METHOD_NOT_ENABLED`: a method in `methods` is not enabled for your account (`details.method` names it), or `CARD` is the only method while card acceptance is unavailable; with other methods, the payment is created without `CARD`.",
+            "description": "Payment creation blocked for this account. Codes: `PAYMENT_CREATION_BLOCKED`, `SPLIT_ORIGINATOR_NOT_APPROVED`, `PAYMENT_METHOD_NOT_ENABLED`. `PAYMENT_METHOD_NOT_ENABLED`: a method in `methods` is not enabled for your account (`details.method` names it). If card payments are enabled for your account but card acceptance is temporarily unavailable, it is returned only when `CARD` is the only method; with other methods, the payment is created without `CARD`.",
             "content": {
               "application/json": {
                 "schema": {
