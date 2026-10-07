@@ -188,6 +188,17 @@ payment: create a new one.
 
 Payment links created in the dashboard open the same hosted checkout.
 
+Card acceptance requires the account owner's e-mail to be confirmed, and
+YuvexPay's risk controls can suspend it temporarily. While card acceptance is
+unavailable, other methods keep working, and:
+
+- The hosted checkout does not offer `CARD`, even on payments and payment links
+  created while it was available.
+- Creating a payment with `CARD` and other methods succeeds without `CARD`.
+- Creating a payment whose only method is `CARD` returns
+  `403 PAYMENT_METHOD_NOT_ENABLED` (see
+  [Payment errors](/guides/errors#payment-errors)).
+
 Card payments already created with card data through `POST /v1/payments` keep
 working: `GET` returns their masked card `methodData`, and webhooks, refunds and
 chargebacks are unchanged.

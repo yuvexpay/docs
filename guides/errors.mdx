@@ -99,7 +99,8 @@ All errors follow a consistent structure:
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `PAYMENT_CREATION_BLOCKED` | 403 | The account is currently not allowed to create payments (KYB pending, suspended, or the requested method is disabled). |
+| `PAYMENT_CREATION_BLOCKED` | 403 | The account is currently not allowed to create payments (KYB pending or suspended). |
+| `PAYMENT_METHOD_NOT_ENABLED` | 403 | A method in `methods` is not enabled for your account, and `details.method` names it. While card acceptance is unavailable, a request gets this error only when `CARD` is its only method; with other methods, the payment is created without `CARD`. See [Card payments](/guides/payments#card-payments). |
 | `AMOUNT_REQUIRED` | 400 | A direct amount is required when no `productId` is supplied. |
 | `CUSTOMER_DATA_REQUIRED` | 400 | The selected payment method requires customer data and none was provided. |
 | `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API` | 400 | Card payments are not accepted through the API. Returned for a `card` object, for `CARD` in `methods` in headless mode (`mode` omitted or `"headless"`), and for any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`. It takes precedence over validation and authentication errors, so the request gets this `400` even without a valid API key, and the card data is not stored or logged. The message is always `Pagamentos com cartão não são aceitos pela API. Use o checkout hospedado: crie o pagamento com mode "hosted" e envie o pagador para o checkoutUrl.` Create the payment with `mode: "hosted"` and send the payer to `checkoutUrl`: see [Card payments](/guides/payments#card-payments). |
