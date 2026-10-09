@@ -2211,7 +2211,7 @@
       "get": {
         "operationId": "listSplitPartners",
         "summary": "List split partners",
-        "description": "Return the companies your account may split payments with, in both directions, for the environment of the API key. A pair is created in the dashboard: the originating company invites the recipient by company ID and the recipient accepts. There is no API to invite, accept, decline or revoke — accepting is a human act. The one exception is an approved split platform, which connects a seller on the seller's first payment by sending `X-Split-Platform-Key` on `POST /v1/payments`, in production only. Use this endpoint to discover which `companyId` values you may send as `recipientCompanyId` in `splits[]`: only a partner whose `status` is `ACCEPTED` is usable. The list carries the live row for each pair, plus the most recent answered row for a pair that has no live one, so a rejected or revoked pair is still visible. Results are paginated, newest first: at most `limit` relationships are read per call, and a page can carry fewer partners than `limit`. Pass `nextCursor` back as `cursor` until it is `null`. Requires the `payments:read` scope.",
+        "description": "Return the companies your account may split payments with, in both directions, for the environment of the API key. A pair is created in the dashboard: the originating company invites the recipient by company ID and the recipient accepts. There is no API to invite, accept, decline or revoke — accepting is a human act. The one exception is an approved split platform, which connects a seller on the seller's first payment by sending `X-Split-Platform-Key` on `POST /v1/payments`, in production only. Use this endpoint to discover which `companyId` values you may send as `recipientCompanyId` in `splits[]`: only a partner whose `status` is `ACCEPTED` is usable. The list carries the live row for each pair, plus the most recent answered row for a pair that has no live one, so a rejected or revoked pair is still visible. Every partner is returned in one response, newest first, unless `limit` is sent: then at most `limit` relationships are read per call, a page can carry fewer partners than `limit`, and you pass `nextCursor` back as `cursor` until it is `null`. Requires the `payments:read` scope.",
         "tags": [
           "Splits"
         ],
@@ -2252,10 +2252,9 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 100,
-              "default": 100
+              "maximum": 100
             },
-            "description": "Maximum number of relationships read for this page. A page can carry fewer partners than `limit`."
+            "description": "Maximum number of relationships read for this page. A page can carry fewer partners than `limit`. Omit it to get every partner in one response. When `cursor` is sent without `limit`, a page reads up to 100 relationships."
           },
           {
             "name": "cursor",
@@ -2277,10 +2276,12 @@
                   "type": "object",
                   "properties": {
                     "nextCursor": {
-                      "type": "string",
+                      "type": [
+                        "string",
+                        "null"
+                      ],
                       "format": "uuid",
-                      "nullable": true,
-                      "description": "Send it as `cursor` to read the next page. `null` on the last page."
+                      "description": "Send it as `cursor` to read the next page. `null` on the last page, and whenever the whole list was returned."
                     },
                     "partners": {
                       "type": "array",
@@ -4696,8 +4697,10 @@
             "description": "Only `ACCEPTED` can be named in `splits[]`. `ACCEPTED` is the active state."
           },
           "feeCap": {
-            "type": "string",
-            "nullable": true,
+            "type": [
+              "string",
+              "null"
+            ],
             "pattern": "^\\d+\\.\\d{2}$",
             "example": "4.00",
             "description": "Fee cap recorded on the relationship when the recipient is an approved split platform: the most it may take of each payment, in percent of `amount`, as a string with two decimal places. `null` for an ordinary partner. The cap applied to a payment can be lower than this value: see the Split platforms guide."
@@ -4707,9 +4710,11 @@
             "format": "date-time"
           },
           "acceptedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           }
         },
         "required": [

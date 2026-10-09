@@ -123,14 +123,18 @@ A pair that was revoked or declined before is never connected by a payment: see
 ## Calls that do not connect
 
 A call that does not connect the seller follows the regular flow, the same in
-production and in sandbox. It fails with `400 SPLIT_RELATIONSHIP_PENDING` and
-opens a pending request to each recipient that has no relationship with the
-seller yet. That is the case when the call:
+production and in sandbox. That is the case when the call:
 
 - Carries no `X-Split-Platform-Key`.
 - Carries a valid key whose company is not the recipient in `splits[]`, or is
   not an approved platform.
 - Names two or more recipients that have no accepted relationship.
+
+The call fails with `400 SPLIT_RELATIONSHIP_PENDING` and opens a pending
+request to each recipient that has no relationship with the seller yet and can
+receive splits in that environment: an active company, in the same environment
+as the request and, in production, with verification approved. For any other
+company ID the answer is the same and no request is opened.
 
 You accept the request in your dashboard, as any other recipient does. A later
 call with the header accepts it too, under the rules above. Until then, every
@@ -190,8 +194,11 @@ connects nobody and the seller is not notified.
 [`GET /v1/splits/partners`](/api-reference/splits/partners) returns the cap
 recorded on each relationship as `feeCap`, whether the seller connected through
 the header or you accepted its request by hand. Call it with
-`direction=INCOMING` to list the sellers connected to you. You are not notified
-seller by seller.
+`direction=INCOMING&status=ACCEPTED` to list the sellers connected to you.
+Without `status`, the list also carries pending, declined, revoked and
+cancelled pairs. Every partner comes back in one response unless you send
+`limit`: then pass `nextCursor` back as `cursor` until it is `null`. You are
+not notified seller by seller.
 
 ## Error codes
 
@@ -221,12 +228,17 @@ The platform is listed there as an active partner, with a **Revogar** button.
 Either side can revoke. Revocation is forward-only: payments already created
 still settle, and the platform still receives those shares.
 
-After a revocation, every new payment that names the platform fails with
-`SPLIT_RELATIONSHIP_REVOKED`, with or without the header. The same holds for a
-pair the platform once declined, with `SPLIT_RELATIONSHIP_DECLINED`. Neither is
-ever reconnected by a payment, even if a later invitation was cancelled. To
-connect again, the seller sends a new invitation from the dashboard and the
-platform accepts it in its own dashboard.
+After a revocation, a payment that names the platform fails with
+`SPLIT_RELATIONSHIP_REVOKED`, with or without the header, and a pair the
+platform declined fails with `SPLIT_RELATIONSHIP_DECLINED`. The header never
+reconnects such a pair, even after a later invitation was cancelled.
+
+To connect again, the seller sends a new invitation from the dashboard and the
+platform accepts it in its own dashboard. While that invitation is pending,
+payments answer `SPLIT_RELATIONSHIP_PENDING`. If the seller cancels it, a
+payment with the header answers `SPLIT_RELATIONSHIP_REVOKED` or
+`SPLIT_RELATIONSHIP_DECLINED` again, and a payment without the header opens a
+new pending request and answers `SPLIT_RELATIONSHIP_PENDING`.
 
 If you are a seller and do not recognise the platform, revoke the connection
 and replace your API key.
@@ -259,8 +271,9 @@ YuvexPay can withdraw the approval of a platform. From that moment:
   `400 SPLIT_RELATIONSHIP_PENDING`.
 - Payments already created are not changed: a split is fixed at creation.
 
-If the approval is given back, connected sellers work again with the cap
-recorded on their relationship.
+If the approval is given back, connected sellers work again under
+[the same rule](#the-fee-cap): the lowest of the cap recorded on their
+relationship, the platform's new cap and the YuvexPay maximum.
 
 ## Payment links
 
@@ -277,10 +290,17 @@ fails with `SPLIT_FEE_CAP_EXCEEDED`.
 ## Sandbox
 
 The platform connection does not exist in sandbox. On a request made with a
-`ypk_test_` key the header is ignored: the call returns
-`SPLIT_RELATIONSHIP_PENDING` and the recipient accepts in its dashboard, as any
-other partner does. Test the split itself with the
-[sandbox invite flow](/guides/sandbox#limits-and-isolation).
+`ypk_test_` key the header is ignored.
+
+Your approved company is a production company, and a sandbox payment can only
+split to a company in sandbox mode. A `ypk_test_` payment that names your
+approved company ID returns `SPLIT_RELATIONSHIP_PENDING`, opens no request and
+leaves nothing for you to accept.
+
+To test the split itself, use a separate company in sandbox mode as the
+recipient and follow the
+[sandbox invite flow](/guides/sandbox#limits-and-isolation). No company in
+sandbox mode is an approved platform, so no fee cap applies there.
 
 ## Refunds, MED and chargebacks
 
