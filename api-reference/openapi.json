@@ -119,6 +119,15 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "name": "X-Split-Platform-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "API key of an approved split platform, sent as the key itself, without `Bearer`. It lets the platform named in `splits[]` connect the seller on this call, with no dashboard invitation: the relationship is recorded as `ACCEPTED` with the platform's fee cap and the payment is created. The header is read only on a production request in which exactly one recipient in `splits[]` has no accepted relationship with your company. It is ignored otherwise, and always on a request made with a `ypk_test_` key: the platform connection does not exist in sandbox. A key that is unknown, revoked or expired, is a sandbox key, lacks the `payments:write` scope, is used from outside its IP allowlist or belongs to your own company returns `403 SPLIT_PLATFORM_KEY_INVALID`. A valid key whose company is not that recipient, or is not an approved platform, connects nobody and the request returns `SPLIT_RELATIONSHIP_PENDING`. Send it from a server only. See the Split platforms guide."
           }
         ],
         "requestBody": {
@@ -329,7 +338,7 @@
             }
           },
           "400": {
-            "description": "Validation failed, or the request was refused. `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`: the request carries card data or asks for `CARD` in headless mode; card payments go through the hosted checkout only. It takes precedence over validation and authentication errors, so it is returned even without a valid API key. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; the last three are returned only for a recipient that had already accepted the relationship. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused boleto payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed, or the request was refused. `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`: the request carries card data or asks for `CARD` in headless mode; card payments go through the hosted checkout only. It takes precedence over validation and authentication errors, so it is returned even without a valid API key. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`, `SPLIT_FEE_CAP_EXCEEDED`, `SPLIT_PLATFORM_SUSPENDED`, `SPLIT_PARTNER_LIMIT_EXCEEDED`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; in production the request creates nothing and the invitation is sent from the dashboard, while in sandbox it also opens the pending request for the recipient to accept. `SPLIT_RELATIONSHIP_REQUEST_LIMIT` is returned by this endpoint in sandbox only. `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED` and `SPLIT_ENVIRONMENT_MISMATCH` are returned only for a recipient that had already accepted the relationship. `SPLIT_FEE_CAP_EXCEEDED`: a split to an approved split platform is above its fee cap, with `details.recipientCompanyId` and `details.feeCap`. `SPLIT_PLATFORM_SUSPENDED`: the recipient is a platform connected with a fee cap whose approval was withdrawn, with `details.recipientCompanyId`. `SPLIT_PARTNER_LIMIT_EXCEEDED`: a platform connection through `X-Split-Platform-Key` would take your company past its limit of active partners, with `details.limit`. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused boleto payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -371,6 +380,19 @@
                         "message": "Company b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f has not accepted split payments from your company yet"
                       }
                     }
+                  },
+                  "splitFeeCapExceeded": {
+                    "summary": "A split to an approved platform is above its fee cap (example cap)",
+                    "value": {
+                      "error": {
+                        "code": "SPLIT_FEE_CAP_EXCEEDED",
+                        "message": "A divisão para a plataforma excede o teto de 4.00% do valor do pagamento.",
+                        "details": {
+                          "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+                          "feeCap": "4.00"
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -380,11 +402,22 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
-            "description": "Payment creation blocked for this account. Codes: `PAYMENT_CREATION_BLOCKED`, `SPLIT_ORIGINATOR_NOT_APPROVED`, `PAYMENT_METHOD_NOT_ENABLED`. `PAYMENT_METHOD_NOT_ENABLED`: a method in `methods` is not enabled for your account (`details.method` names it). If card payments are enabled for your account but card acceptance is temporarily unavailable, it is returned only when `CARD` is the only method; with other methods, the payment is created without `CARD`.",
+            "description": "Payment creation blocked for this account, or the platform key was refused. Codes: `PAYMENT_CREATION_BLOCKED`, `SPLIT_ORIGINATOR_NOT_APPROVED`, `PAYMENT_METHOD_NOT_ENABLED`, `SPLIT_PLATFORM_KEY_INVALID`. `PAYMENT_METHOD_NOT_ENABLED`: a method in `methods` is not enabled for your account (`details.method` names it). If card payments are enabled for your account but card acceptance is temporarily unavailable, it is returned only when `CARD` is the only method; with other methods, the payment is created without `CARD`. `SPLIT_PLATFORM_KEY_INVALID`: the key sent in `X-Split-Platform-Key` was refused. Every reason gets this same answer, with no `details`.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "splitPlatformKeyInvalid": {
+                    "summary": "The key in X-Split-Platform-Key was refused",
+                    "value": {
+                      "error": {
+                        "code": "SPLIT_PLATFORM_KEY_INVALID",
+                        "message": "A chave enviada em X-Split-Platform-Key não é válida para conectar a plataforma a esta empresa."
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2178,7 +2211,7 @@
       "get": {
         "operationId": "listSplitPartners",
         "summary": "List split partners",
-        "description": "Return the companies your account may split payments with, in both directions, for the environment of the API key. A pair is created in the dashboard: the originating company invites the recipient by company ID and the recipient accepts. There is no API to invite, accept, decline or revoke — accepting is a human act. Use this endpoint to discover which `companyId` values you may send as `recipientCompanyId` in `splits[]`: only a partner whose `status` is `ACCEPTED` is usable. The list carries the live row for each pair, plus the most recent answered row for a pair that has no live one, so a rejected or revoked pair is still visible. Requires the `payments:read` scope.",
+        "description": "Return the companies your account may split payments with, in both directions, for the environment of the API key. A pair is created in the dashboard: the originating company invites the recipient by company ID and the recipient accepts. There is no API to invite, accept, decline or revoke — accepting is a human act. The one exception is an approved split platform, which connects a seller on the seller's first payment by sending `X-Split-Platform-Key` on `POST /v1/payments`, in production only. Use this endpoint to discover which `companyId` values you may send as `recipientCompanyId` in `splits[]`: only a partner whose `status` is `ACCEPTED` is usable. The list carries the live row for each pair, plus the most recent answered row for a pair that has no live one, so a rejected or revoked pair is still visible. Results are paginated, newest first: at most `limit` relationships are read per call, and a page can carry fewer partners than `limit`. Pass `nextCursor` back as `cursor` until it is `null`. Requires the `payments:read` scope.",
         "tags": [
           "Splits"
         ],
@@ -2211,6 +2244,28 @@
               ]
             },
             "description": "`OUTGOING` lists companies you may split to; `INCOMING` lists companies that split to you."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 100
+            },
+            "description": "Maximum number of relationships read for this page. A page can carry fewer partners than `limit`."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The `nextCursor` of the previous page. Omit it for the first page."
           }
         ],
         "responses": {
@@ -2221,6 +2276,12 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "nextCursor": {
+                      "type": "string",
+                      "format": "uuid",
+                      "nullable": true,
+                      "description": "Send it as `cursor` to read the next page. `null` on the last page."
+                    },
                     "partners": {
                       "type": "array",
                       "items": {
@@ -2229,6 +2290,7 @@
                     }
                   },
                   "required": [
+                    "nextCursor",
                     "partners"
                   ]
                 },
@@ -2236,6 +2298,7 @@
                   "mixed": {
                     "summary": "One usable partner and one that revoked",
                     "value": {
+                      "nextCursor": null,
                       "partners": [
                         {
                           "id": "0f0e1f5e-1d6a-4a77-9c1b-1c1a9f2a44c1",
@@ -2243,6 +2306,7 @@
                           "tradeName": "Ateliê Norte",
                           "direction": "OUTGOING",
                           "status": "ACCEPTED",
+                          "feeCap": null,
                           "requestedAt": "2026-09-10T12:00:00.000Z",
                           "acceptedAt": "2026-09-10T18:22:41.000Z"
                         },
@@ -2252,8 +2316,27 @@
                           "tradeName": "Studio Sul",
                           "direction": "OUTGOING",
                           "status": "REVOKED",
+                          "feeCap": null,
                           "requestedAt": "2026-08-02T09:14:00.000Z",
                           "acceptedAt": "2026-08-02T10:01:12.000Z"
+                        }
+                      ]
+                    }
+                  },
+                  "platform": {
+                    "summary": "A seller connected to an approved platform (example cap)",
+                    "value": {
+                      "nextCursor": null,
+                      "partners": [
+                        {
+                          "id": "6a2d8c41-0b7e-4f39-a5d2-9e1c3b7f4a60",
+                          "companyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+                          "tradeName": "Checkout Leste",
+                          "direction": "OUTGOING",
+                          "status": "ACCEPTED",
+                          "feeCap": "4.00",
+                          "requestedAt": "2026-10-09T13:05:00.000Z",
+                          "acceptedAt": "2026-10-09T13:05:00.000Z"
                         }
                       ]
                     }
@@ -3120,7 +3203,7 @@
           "recipientCompanyId": {
             "type": "string",
             "format": "uuid",
-            "description": "Company id of the YuvexPay account that receives this share. Must be a company other than your own, unique within `splits`, in the same environment as the payment, approved (KYC, plus KYB for a business), and it must have accepted split payments from your company."
+            "description": "Company id of the YuvexPay account that receives this share. Must be a company other than your own, unique within `splits`, in the same environment as the payment, approved (KYC, plus KYB for a business), and it must have accepted split payments from your company. An approved split platform that is not connected yet can be named when the request carries its key in `X-Split-Platform-Key`. A split to an approved platform is limited by its fee cap (`SPLIT_FEE_CAP_EXCEEDED`)."
           },
           "type": {
             "type": "string",
@@ -4612,6 +4695,13 @@
             ],
             "description": "Only `ACCEPTED` can be named in `splits[]`. `ACCEPTED` is the active state."
           },
+          "feeCap": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^\\d+\\.\\d{2}$",
+            "example": "4.00",
+            "description": "Fee cap recorded on the relationship when the recipient is an approved split platform: the most it may take of each payment, in percent of `amount`, as a string with two decimal places. `null` for an ordinary partner. The cap applied to a payment can be lower than this value: see the Split platforms guide."
+          },
           "requestedAt": {
             "type": "string",
             "format": "date-time"
@@ -4628,6 +4718,7 @@
           "tradeName",
           "direction",
           "status",
+          "feeCap",
           "requestedAt",
           "acceptedAt"
         ]

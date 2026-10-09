@@ -315,6 +315,14 @@ your account may split with, so an integration knows which IDs are usable
 without hardcoding them. Inviting, accepting, declining and revoking are
 dashboard-only: accepting is a human act.
 
+There is one exception. A platform approved by YuvexPay connects a seller on
+the seller's first payment, with no invitation, by sending its own API key in
+the `X-Split-Platform-Key` header of `POST /v1/payments`. That connection
+exists in production only and carries a fee cap: a split to an approved
+platform above the cap fails with `SPLIT_FEE_CAP_EXCEEDED`, and one to a
+platform whose approval was withdrawn fails with `SPLIT_PLATFORM_SUSPENDED`.
+See [Split platforms](/guides/split-platforms).
+
 A relationship is in one of five states.
 
 | Status | Meaning |
@@ -346,6 +354,17 @@ anything you did not already know, and a company you never invited reads the
 same as a company ID that belongs to no company at all — so the error cannot be
 used to discover which company IDs exist.
 
+In production, `POST /v1/payments` never opens a split request. Naming a
+recipient your company has no relationship with returns
+`SPLIT_RELATIONSHIP_PENDING` and creates nothing: no request and no e-mail to
+the recipient. Send the invitation from the dashboard. In sandbox the call
+returns the same error and also opens the pending request, which the recipient
+accepts in its dashboard.
+
+A production request that a payment opened in the past cannot be accepted any
+more: the recipient's dashboard answers `SPLIT_RELATIONSHIP_REINVITE_REQUIRED`.
+Cancel it and send a new invitation from the dashboard.
+
 <Note>
   Revocation is forward-only, and either side can revoke. Payments that were
   already created still settle, refund and freeze normally, and the recipient
@@ -353,12 +372,19 @@ used to discover which company IDs exist.
 </Note>
 
 Your company can hold a limited number of split requests awaiting an answer, 20
-by default and counted per environment. Beyond that, naming a new recipient on
-a payment fails with `SPLIT_RELATIONSHIP_REQUEST_LIMIT` until some of the
-outstanding requests are answered. The number of *active* partners is capped
-too — three by default, the same recipient limit that bounds `splits[]` — but
-that ceiling is enforced in the dashboard when an invite is sent or accepted,
-so the API never returns it.
+by default and counted per environment. Beyond that, a new invitation is
+refused until some of the outstanding requests are answered. On
+`POST /v1/payments` the limit is reachable in sandbox only, where naming a new
+recipient opens a request: the call fails with
+`SPLIT_RELATIONSHIP_REQUEST_LIMIT`. A production payment never opens a request,
+so it never returns this code.
+
+The number of *active* partners is capped too: three by default, the same
+recipient limit that bounds `splits[]`. The dashboard enforces that ceiling
+when an invite is sent or accepted. The API returns it in one case: a
+[platform connection](/guides/split-platforms) that would take the seller past
+the limit fails with `SPLIT_PARTNER_LIMIT_EXCEEDED`, and `details.limit`
+carries the limit.
 
 Both companies must be approved before a split payment can be created: KYC for
 an individual, KYC and KYB for a business, on both sides. The bar is checked
@@ -415,6 +441,11 @@ rejected, never a silent no-op: `400 SPLIT_RELATIONSHIP_PENDING` for a recipient
 that has not accepted in this environment, and `400 SPLIT_ENVIRONMENT_MISMATCH`
 for one that had. Sandbox splits never touch a production balance, statement or
 report.
+
+The invite, accept and split cycle works in sandbox. The
+[platform connection](/guides/split-platforms) does not: `X-Split-Platform-Key`
+is ignored on a request made with a `ypk_test_` key, and the recipient accepts
+in its dashboard as any other partner does.
 
 ## Pagination and filtering
 
