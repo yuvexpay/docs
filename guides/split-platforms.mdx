@@ -72,9 +72,13 @@ On that call YuvexPay:
    seller.
 5. Creates the payment and answers `201`, as for any other payment.
 
-Nobody opens the dashboard: no invitation and no manual accept. If the seller
-had already sent you an invitation that is still pending, the same call accepts
-it.
+Nobody opens the dashboard: no invitation and no manual accept. A connection
+opens no split request and does not count toward the seller's limit of pending
+requests.
+
+If a request from the seller is already pending, the same call accepts it. That
+holds for an invitation the seller sent from the dashboard and for a request
+that an earlier payment opened without the header.
 
 The connection is recorded before the charge is submitted. If the charge then
 fails, for example with `PROVIDER_TEMPORARILY_UNAVAILABLE`, the seller stays
@@ -109,10 +113,32 @@ these:
 | The split is above the fee cap. | `400 SPLIT_FEE_CAP_EXCEEDED` |
 | The seller already has the maximum number of active partners. | `400 SPLIT_PARTNER_LIMIT_EXCEEDED` |
 
-A request without the header, or with two or more recipients that have no
-accepted relationship, gets `400 SPLIT_RELATIONSHIP_PENDING` and connects
-nobody. A pair that was revoked or declined before is never connected by a
-payment: see [What the seller sees](#what-the-seller-sees).
+`SPLIT_PLATFORM_KEY_INVALID`, `SPLIT_FEE_CAP_EXCEEDED` and
+`SPLIT_PARTNER_LIMIT_EXCEEDED` record nothing: no connection and no request.
+The second row follows the regular flow described below.
+
+A pair that was revoked or declined before is never connected by a payment: see
+[What the seller sees](#what-the-seller-sees).
+
+## Calls that do not connect
+
+A call that does not connect the seller follows the regular flow, the same in
+production and in sandbox. It fails with `400 SPLIT_RELATIONSHIP_PENDING` and
+opens a pending request to each recipient that has no relationship with the
+seller yet. That is the case when the call:
+
+- Carries no `X-Split-Platform-Key`.
+- Carries a valid key whose company is not the recipient in `splits[]`, or is
+  not an approved platform.
+- Names two or more recipients that have no accepted relationship.
+
+You accept the request in your dashboard, as any other recipient does. A later
+call with the header accepts it too, under the rules above. Until then, every
+payment that names your company fails with `SPLIT_RELATIONSHIP_PENDING`.
+
+The seller can hold a limited number of pending requests. A call that would
+open one past that limit fails with `400 SPLIT_RELATIONSHIP_REQUEST_LIMIT`. See
+[Split partners](/guides/payments#split-partners).
 
 ## The fee cap
 
@@ -128,6 +154,10 @@ The cap applied to a payment is the lowest of three values:
 
 A cap that is lowered applies at once to every connected seller. A cap that is
 raised does not reach sellers who connected under the lower one.
+
+A request you accept by hand in your dashboard, as an approved platform, is
+capped too. The relationship records your cap at the time you accept, and each
+split is limited by the same three values.
 
 | `type` | Rule |
 |--------|------|
@@ -158,8 +188,10 @@ The cap is checked before anything is recorded. A first payment above the cap
 connects nobody and the seller is not notified.
 
 [`GET /v1/splits/partners`](/api-reference/splits/partners) returns the cap
-recorded on each relationship as `feeCap`. Call it with `direction=INCOMING` to
-list the sellers connected to you. You are not notified seller by seller.
+recorded on each relationship as `feeCap`, whether the seller connected through
+the header or you accepted its request by hand. Call it with
+`direction=INCOMING` to list the sellers connected to you. You are not notified
+seller by seller.
 
 ## Error codes
 
@@ -169,7 +201,8 @@ list the sellers connected to you. You are not notified seller by seller.
 | `SPLIT_PLATFORM_SUSPENDED` | 400 | The seller is connected with a fee cap, and the platform is no longer approved. `details.recipientCompanyId` names the platform. See [If the approval is withdrawn](#if-the-approval-is-withdrawn). |
 | `SPLIT_PLATFORM_KEY_INVALID` | 403 | The key in `X-Split-Platform-Key` was refused. Every reason gets this same answer, with no `details`. |
 | `SPLIT_PARTNER_LIMIT_EXCEEDED` | 400 | The seller already has the maximum number of active partners, so the platform cannot be connected. `details.limit` carries the limit. |
-| `SPLIT_RELATIONSHIP_PENDING` | 400 | The seller is not connected and the request cannot connect it. |
+| `SPLIT_RELATIONSHIP_PENDING` | 400 | The seller is not connected and the call did not connect it. See [Calls that do not connect](#calls-that-do-not-connect). |
+| `SPLIT_RELATIONSHIP_REQUEST_LIMIT` | 400 | The call did not connect the seller, and the seller already has the maximum number of pending requests. |
 | `SPLIT_RELATIONSHIP_REVOKED` | 400 | The pair was revoked before. A payment does not reconnect it. |
 | `SPLIT_RELATIONSHIP_DECLINED` | 400 | The platform declined this seller before. A payment does not reconnect it. |
 
@@ -180,6 +213,9 @@ The full list is in [Payment errors](/guides/errors#payment-errors).
 When a platform connects, the seller gets a dashboard notification and an
 e-mail. Both name the platform and the cap, and point to
 **Configurações &gt; Parceiros de divisão**.
+
+When you accept a request by hand, the seller gets the notice that any accepted
+invitation sends. It does not name the cap.
 
 The platform is listed there as an active partner, with a **Revogar** button.
 Either side can revoke. Revocation is forward-only: payments already created
@@ -218,7 +254,8 @@ YuvexPay can withdraw the approval of a platform. From that moment:
 - Every new payment with a split to the platform fails with
   `400 SPLIT_PLATFORM_SUSPENDED`, for every seller connected with a fee cap.
   The relationship does not turn into an ordinary partnership without a cap.
-- The header connects no new seller. The answer is
+- The header connects no new seller. The call follows the
+  [regular flow](#calls-that-do-not-connect) and answers
   `400 SPLIT_RELATIONSHIP_PENDING`.
 - Payments already created are not changed: a split is fixed at creation.
 
@@ -229,7 +266,8 @@ recorded on their relationship.
 
 A payment link does not connect a platform. Links are created in the dashboard,
 where there is no platform key to send. A link with a split to a platform the
-seller is not connected to is refused with `SPLIT_RELATIONSHIP_PENDING`.
+seller is not connected to is refused with `SPLIT_RELATIONSHIP_PENDING` and
+follows the [regular flow](#calls-that-do-not-connect).
 
 Once the seller is connected, links with a split to the platform work and
 follow the same cap. The cap is checked when the link is created, when its

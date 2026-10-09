@@ -354,17 +354,6 @@ anything you did not already know, and a company you never invited reads the
 same as a company ID that belongs to no company at all — so the error cannot be
 used to discover which company IDs exist.
 
-In production, `POST /v1/payments` never opens a split request. Naming a
-recipient your company has no relationship with returns
-`SPLIT_RELATIONSHIP_PENDING` and creates nothing: no request and no e-mail to
-the recipient. Send the invitation from the dashboard. In sandbox the call
-returns the same error and also opens the pending request, which the recipient
-accepts in its dashboard.
-
-A production request that a payment opened in the past cannot be accepted any
-more: the recipient's dashboard answers `SPLIT_RELATIONSHIP_REINVITE_REQUIRED`.
-Cancel it and send a new invitation from the dashboard.
-
 <Note>
   Revocation is forward-only, and either side can revoke. Payments that were
   already created still settle, refund and freeze normally, and the recipient
@@ -372,12 +361,9 @@ Cancel it and send a new invitation from the dashboard.
 </Note>
 
 Your company can hold a limited number of split requests awaiting an answer, 20
-by default and counted per environment. Beyond that, a new invitation is
-refused until some of the outstanding requests are answered. On
-`POST /v1/payments` the limit is reachable in sandbox only, where naming a new
-recipient opens a request: the call fails with
-`SPLIT_RELATIONSHIP_REQUEST_LIMIT`. A production payment never opens a request,
-so it never returns this code.
+by default and counted per environment. Beyond that, naming a new recipient on
+a payment fails with `SPLIT_RELATIONSHIP_REQUEST_LIMIT` until some of the
+outstanding requests are answered.
 
 The number of *active* partners is capped too: three by default, the same
 recipient limit that bounds `splits[]`. The dashboard enforces that ceiling
