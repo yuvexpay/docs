@@ -115,6 +115,10 @@ All errors follow a consistent structure:
 | `SPLIT_RECIPIENT_INACTIVE` | 400 | A recipient that had accepted the relationship is no longer active. |
 | `SPLIT_RECIPIENT_NOT_APPROVED` | 400 | A recipient that had accepted the relationship no longer meets KYC (and KYB, for a business). Approval is checked when the payment is created. |
 | `SPLIT_ENVIRONMENT_MISMATCH` | 400 | A recipient that had accepted the relationship is in the other environment. |
+| `SPLIT_FEE_CAP_EXCEEDED` | 400 | A split to an approved [split platform](/guides/split-platforms) is above its fee cap. `details.recipientCompanyId` names the platform and `details.feeCap` the cap applied, in percent of `amount`. A `PERCENTAGE` split must be at most the cap, and a `FIXED` one at most `amount × cap / 100`. |
+| `SPLIT_PLATFORM_SUSPENDED` | 400 | The recipient is a split platform your company is connected to with a fee cap, and its approval was withdrawn. `details.recipientCompanyId` names it. New payments cannot split to it while it is not approved. |
+| `SPLIT_PLATFORM_KEY_INVALID` | 403 | The key sent in `X-Split-Platform-Key` was refused: unknown, revoked or expired, a sandbox key, without `payments:write`, used from outside its IP allowlist, or from the same company as the request. Every reason gets this same answer, with no `details`. |
+| `SPLIT_PARTNER_LIMIT_EXCEEDED` | 400 | Connecting a split platform would take your company past its limit of active partners (three by default). `details.limit` carries the limit. The API returns it only on a platform connection: for dashboard invites the limit is enforced in the dashboard. |
 | `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check their details or use another payment method. |
 | `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a boleto payment, a `502` means the outcome is not known yet and is replayed for the same `X-Idempotency-Key`: see [Boleto errors](/guides/payments#boleto-errors) before retrying. On a PIX payment, the payment is recorded as `CANCELLED`: retry with a new `externalId`. |
 

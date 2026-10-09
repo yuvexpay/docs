@@ -1,0 +1,310 @@
+---
+title: "Split platforms"
+description: "Connect a seller to your platform on the first payment and take a capped share of each sale."
+---
+
+A split platform is a marketplace or a checkout that creates payments with the
+seller's API key and takes a share of each sale through
+[`splits`](/guides/payments#splits). A platform approved by YuvexPay skips the
+dashboard invitation: the first payment it creates for a seller connects the two
+companies, and the payment goes through on the same call.
+
+This guide is written for the platform. If you are a seller, read
+[What the seller sees](#what-the-seller-sees).
+
+## Before you start
+
+Approval is granted by YuvexPay, company by company, with a fee cap agreed at
+approval. Contact support to ask for it. Until your company is approved, the
+header described below connects nobody and the regular
+[invite flow](/guides/payments#split-partners) applies.
+
+You need:
+
+- Your **company ID**, shown under **Configurações &gt; Empresa**. The seller's
+  payments name it as `recipientCompanyId`.
+- A production API key of your own company with the `payments:write` scope.
+- A production API key of the seller. See
+  [Seller API key](#seller-api-key).
+
+The connection exists in production only. See [Sandbox](#sandbox).
+
+## The first payment
+
+Send the seller's key in `Authorization`, your company in `splits[]` and your
+own key in `X-Split-Platform-Key`:
+
+```bash
+curl -X POST https://api.yuvexpay.com/v1/payments \
+  -H "Authorization: Bearer $SELLER_API_KEY" \
+  -H "X-Split-Platform-Key: $PLATFORM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: order-1234" \
+  -d '{
+    "amount": 49.90,
+    "methods": ["PIX"],
+    "currency": "BRL",
+    "mode": "headless",
+    "description": "Order #1234",
+    "externalId": "order-1234",
+    "splits": [
+      {
+        "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+        "type": "PERCENTAGE",
+        "value": 3
+      }
+    ]
+  }'
+```
+
+The header value is the key itself (`ypk_live_...`), without `Bearer`. The body
+is the same as for any payment, and the `3` is an example value.
+
+On that call YuvexPay:
+
+1. Verifies your key: active, production, with `payments:write`, used from an
+   address inside its IP allowlist when it has one, and from a company other
+   than the seller's.
+2. Confirms that your company is the recipient in `splits[]` and is an approved
+   platform: active, in production, with verification approved.
+3. Checks the split against [the fee cap](#the-fee-cap).
+4. Records the relationship as `ACCEPTED`, with the cap, and notifies the
+   seller.
+5. Creates the payment and answers `201`, as for any other payment.
+
+Nobody opens the dashboard: no invitation and no manual accept. A connection
+opens no split request and does not count toward the seller's limit of pending
+requests.
+
+If a request from the seller is already pending, the same call accepts it. That
+holds for an invitation the seller sent from the dashboard and for a request
+that an earlier payment opened without the header.
+
+The connection is recorded before the charge is submitted. If the charge then
+fails, for example with `PROVIDER_TEMPORARILY_UNAVAILABLE`, the seller stays
+connected and is still notified.
+
+<Warning>
+  Send `X-Split-Platform-Key` from your server only. The API does not allow the
+  header on cross-origin browser requests, and your key must never reach a
+  browser.
+</Warning>
+
+## When the header is read
+
+`X-Split-Platform-Key` is read only when both of these are true:
+
+- The request uses a production key.
+- Exactly one recipient in `splits[]` has no accepted relationship with the
+  seller. Any other recipient in the array is already accepted.
+
+In every other case the header is ignored and not validated. A connected seller
+does not depend on your key: its payments keep passing if you stop sending the
+header, or if you rotate or revoke the key. You can send the header on every
+call.
+
+When the header is read and the seller is not connected, the answer is one of
+these:
+
+| Situation | Response |
+|-----------|----------|
+| The key is unknown, revoked or expired, is a sandbox key, lacks `payments:write`, is used from outside its IP allowlist, or belongs to the seller's own company. | `403 SPLIT_PLATFORM_KEY_INVALID` |
+| The key is valid, but its company is not the recipient in `splits[]` or is not an approved platform. | `400 SPLIT_RELATIONSHIP_PENDING` |
+| The split is above the fee cap. | `400 SPLIT_FEE_CAP_EXCEEDED` |
+| The seller already has the maximum number of active partners. | `400 SPLIT_PARTNER_LIMIT_EXCEEDED` |
+
+`SPLIT_PLATFORM_KEY_INVALID`, `SPLIT_FEE_CAP_EXCEEDED` and
+`SPLIT_PARTNER_LIMIT_EXCEEDED` record nothing: no connection and no request.
+The second row follows the regular flow described below.
+
+A pair that was revoked or declined before is never connected by a payment: see
+[What the seller sees](#what-the-seller-sees).
+
+## Calls that do not connect
+
+A call that does not connect the seller follows the regular flow, the same in
+production and in sandbox. That is the case when the call:
+
+- Carries no `X-Split-Platform-Key`.
+- Carries a valid key whose company is not the recipient in `splits[]`, or is
+  not an approved platform.
+- Names two or more recipients that have no accepted relationship.
+
+The call fails with `400 SPLIT_RELATIONSHIP_PENDING` and opens a pending
+request to each recipient that has no relationship with the seller yet and can
+receive splits in that environment: an active company, in the same environment
+as the request and, in production, with verification approved. For any other
+company ID the answer is the same and no request is opened.
+
+You accept the request in your dashboard, as any other recipient does. A later
+call with the header accepts it too, under the rules above. Until then, every
+payment that names your company fails with `SPLIT_RELATIONSHIP_PENDING`.
+
+The seller can hold a limited number of pending requests. A call that would
+open one past that limit fails with `400 SPLIT_RELATIONSHIP_REQUEST_LIMIT`. See
+[Split partners](/guides/payments#split-partners).
+
+## The fee cap
+
+Every split to an approved platform is capped. The cap is a percentage of the
+payment `amount`, the gross. It limits your split alone: other recipients in
+the same payment are not affected.
+
+The cap applied to a payment is the lowest of three values:
+
+- The cap recorded on the relationship when the seller connected.
+- Your platform's current cap.
+- The maximum YuvexPay allows for any platform.
+
+A cap that is lowered applies at once to every connected seller. A cap that is
+raised does not reach sellers who connected under the lower one.
+
+A request you accept by hand in your dashboard, as an approved platform, is
+capped too. The relationship records your cap at the time you accept, and each
+split is limited by the same three values.
+
+| `type` | Rule |
+|--------|------|
+| `PERCENTAGE` | `value` must be at most the cap. |
+| `FIXED` | `value` must be at most `amount × cap / 100`. The bound is not rounded up. |
+
+With an example cap of `4.00` and an `amount` of `49.90`, the bound for a fixed
+split is `1.996`: `1.99` passes and `2.00` is refused. A request above the cap
+fails with `400 SPLIT_FEE_CAP_EXCEEDED`:
+
+```json
+{
+  "error": {
+    "code": "SPLIT_FEE_CAP_EXCEEDED",
+    "message": "A divisão para a plataforma excede o teto de 4.00% do valor do pagamento.",
+    "details": {
+      "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
+      "feeCap": "4.00"
+    }
+  }
+}
+```
+
+`details.feeCap` is the cap that was applied, a string with two decimal places.
+The `4.00` here is an example: your cap is the one agreed at approval.
+
+The cap is checked before anything is recorded. A first payment above the cap
+connects nobody and the seller is not notified.
+
+[`GET /v1/splits/partners`](/api-reference/splits/partners) returns the cap
+recorded on each relationship as `feeCap`, whether the seller connected through
+the header or you accepted its request by hand. Call it with
+`direction=INCOMING&status=ACCEPTED` to list the sellers connected to you.
+Without `status`, the list also carries pending, declined, revoked and
+cancelled pairs. Every partner comes back in one response unless you send
+`limit`: then pass `nextCursor` back as `cursor` until it is `null`. You are
+not notified seller by seller.
+
+## Error codes
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `SPLIT_FEE_CAP_EXCEEDED` | 400 | The split to the platform is above the fee cap. `details.recipientCompanyId` names the platform and `details.feeCap` the cap applied. |
+| `SPLIT_PLATFORM_SUSPENDED` | 400 | The seller is connected with a fee cap, and the platform is no longer approved. `details.recipientCompanyId` names the platform. See [If the approval is withdrawn](#if-the-approval-is-withdrawn). |
+| `SPLIT_PLATFORM_KEY_INVALID` | 403 | The key in `X-Split-Platform-Key` was refused. Every reason gets this same answer, with no `details`. |
+| `SPLIT_PARTNER_LIMIT_EXCEEDED` | 400 | The seller already has the maximum number of active partners, so the platform cannot be connected. `details.limit` carries the limit. |
+| `SPLIT_RELATIONSHIP_PENDING` | 400 | The seller is not connected and the call did not connect it. See [Calls that do not connect](#calls-that-do-not-connect). |
+| `SPLIT_RELATIONSHIP_REQUEST_LIMIT` | 400 | The call did not connect the seller, and the seller already has the maximum number of pending requests. |
+| `SPLIT_RELATIONSHIP_REVOKED` | 400 | The pair was revoked before. A payment does not reconnect it. |
+| `SPLIT_RELATIONSHIP_DECLINED` | 400 | The platform declined this seller before. A payment does not reconnect it. |
+
+The full list is in [Payment errors](/guides/errors#payment-errors).
+
+## What the seller sees
+
+When a platform connects, the seller gets a dashboard notification and an
+e-mail. Both name the platform and the cap, and point to
+**Configurações &gt; Parceiros de divisão**.
+
+When you accept a request by hand, the seller gets the notice that any accepted
+invitation sends. It does not name the cap.
+
+The platform is listed there as an active partner, with a **Revogar** button.
+Either side can revoke. Revocation is forward-only: payments already created
+still settle, and the platform still receives those shares.
+
+After a revocation, a payment that names the platform fails with
+`SPLIT_RELATIONSHIP_REVOKED`, with or without the header, and a pair the
+platform declined fails with `SPLIT_RELATIONSHIP_DECLINED`. The header never
+reconnects such a pair, even after a later invitation was cancelled.
+
+To connect again, the seller sends a new invitation from the dashboard and the
+platform accepts it in its own dashboard. While that invitation is pending,
+payments answer `SPLIT_RELATIONSHIP_PENDING`. If the seller cancels it, a
+payment with the header answers `SPLIT_RELATIONSHIP_REVOKED` or
+`SPLIT_RELATIONSHIP_DECLINED` again, and a payment without the header opens a
+new pending request and answers `SPLIT_RELATIONSHIP_PENDING`.
+
+If you are a seller and do not recognise the platform, revoke the connection
+and replace your API key.
+
+## Seller API key
+
+The platform acts with whatever the seller's key allows. Ask the seller for a
+key created for your platform, not a full-access one:
+
+- Scopes limited to payments: `payments:write`, plus `payments:read` to read
+  payments and list partners. Add another scope only when your integration
+  needs it.
+- An [IP allowlist](/guides/authentication#ip-allowlist-and-rotation) with the
+  addresses of your servers.
+
+<Warning>
+  A key with the `*` scope reaches every endpoint, withdrawals included. Do not
+  ask a seller for one.
+</Warning>
+
+## If the approval is withdrawn
+
+YuvexPay can withdraw the approval of a platform. From that moment:
+
+- Every new payment with a split to the platform fails with
+  `400 SPLIT_PLATFORM_SUSPENDED`, for every seller connected with a fee cap.
+  The relationship does not turn into an ordinary partnership without a cap.
+- The header connects no new seller. The call follows the
+  [regular flow](#calls-that-do-not-connect) and answers
+  `400 SPLIT_RELATIONSHIP_PENDING`.
+- Payments already created are not changed: a split is fixed at creation.
+
+If the approval is given back, connected sellers work again under
+[the same rule](#the-fee-cap): the lowest of the cap recorded on their
+relationship, the platform's new cap and the YuvexPay maximum.
+
+## Payment links
+
+A payment link does not connect a platform. Links are created in the dashboard,
+where there is no platform key to send. A link with a split to a platform the
+seller is not connected to is refused with `SPLIT_RELATIONSHIP_PENDING` and
+follows the [regular flow](#calls-that-do-not-connect).
+
+Once the seller is connected, links with a split to the platform work and
+follow the same cap. The cap is checked when the link is created, when its
+amount is edited and on each payment made through it. A split above the cap
+fails with `SPLIT_FEE_CAP_EXCEEDED`.
+
+## Sandbox
+
+The platform connection does not exist in sandbox. On a request made with a
+`ypk_test_` key the header is ignored.
+
+Your approved company is a production company, and a sandbox payment can only
+split to a company in sandbox mode. A `ypk_test_` payment that names your
+approved company ID returns `SPLIT_RELATIONSHIP_PENDING`, opens no request and
+leaves nothing for you to accept.
+
+To test the split itself, use a separate company in sandbox mode as the
+recipient and follow the
+[sandbox invite flow](/guides/sandbox#limits-and-isolation). No company in
+sandbox mode is an approved platform, so no fee cap applies there.
+
+## Refunds, MED and chargebacks
+
+Your share follows the rules of any split recipient. See
+[Refunds, MED and reserve](/guides/payments#refunds-med-and-reserve),
+[Refunds on split payments](/guides/refunds#refunds-on-split-payments) and
+[What a recipient sees](/guides/payments#what-a-recipient-sees).
