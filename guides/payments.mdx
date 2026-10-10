@@ -317,11 +317,12 @@ dashboard-only: accepting is a human act.
 
 There is one exception. A platform approved by YuvexPay connects a seller on
 the seller's first payment, with no invitation, by sending its own API key in
-the `X-Split-Platform-Key` header of `POST /v1/payments`. That connection
-exists in production only and carries a fee cap: a split to an approved
-platform above the cap fails with `SPLIT_FEE_CAP_EXCEEDED`, and one to a
-platform whose approval was withdrawn fails with `SPLIT_PLATFORM_SUSPENDED`.
-See [Split platforms](/guides/split-platforms).
+the `X-Split-Platform-Key` header of `POST /v1/payments`. The connection works
+in production and in sandbox, with a key of the same environment as the
+seller's, and carries a fee cap: a split to an approved platform above the cap
+fails with `SPLIT_FEE_CAP_EXCEEDED`, and one to a platform whose approval was
+withdrawn fails with `SPLIT_PLATFORM_SUSPENDED`. See
+[Split platforms](/guides/split-platforms).
 
 A relationship is in one of five states.
 
@@ -428,10 +429,12 @@ that has not accepted in this environment, and `400 SPLIT_ENVIRONMENT_MISMATCH`
 for one that had. Sandbox splits never touch a production balance, statement or
 report.
 
-The invite, accept and split cycle works in sandbox. The
-[platform connection](/guides/split-platforms) does not: `X-Split-Platform-Key`
-is ignored on a request made with a `ypk_test_` key, and the recipient accepts
-in its dashboard as any other partner does.
+The invite, accept and split cycle works in sandbox, and so does the
+[platform connection](/guides/split-platforms#sandbox): the platform sends a
+`ypk_test_` key of its approved company in `X-Split-Platform-Key`, the same fee
+cap applies and the seller is not notified. Once connected in sandbox, the
+approved platform, a production company, can be named in the seller's sandbox
+payments: it is the one exception to the sandbox-mode rule above.
 
 ## Pagination and filtering
 

@@ -185,12 +185,13 @@ match on retries.
   environment and `400 SPLIT_ENVIRONMENT_MISMATCH` when it had. Consent is per
   environment, so a recipient that accepted in production still has to accept in
   sandbox. The invite flow is identical in sandbox but the KYC gate does not
-  apply, so two unverified sandbox companies can exercise the whole cycle. The
-  platform connection does not exist in sandbox: `X-Split-Platform-Key` is
-  ignored with a `ypk_test_` key, so a [split platform](/guides/split-platforms)
-  cannot connect a seller there and the recipient accepts in its dashboard as
-  any other partner does. A sandbox split never touches a production balance,
-  statement or report.
+  apply, so two unverified sandbox companies can exercise the whole cycle. An
+  approved [split platform](/guides/split-platforms#sandbox) is the one
+  exception to the sandbox-mode rule: it connects a seller in sandbox by sending
+  a `ypk_test_` key of its approved company in `X-Split-Platform-Key`, under the
+  same fee cap as in production and with no notification to the seller, and its
+  production company can then be named in that seller's sandbox payments. A
+  sandbox split never touches a production balance, statement or report.
 - Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.

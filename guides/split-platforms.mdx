@@ -23,11 +23,11 @@ You need:
 
 - Your **company ID**, shown under **Configurações &gt; Empresa**. The seller's
   payments name it as `recipientCompanyId`.
-- A production API key of your own company with the `payments:write` scope.
-- A production API key of the seller. See
+- An API key of your own company with the `payments:write` scope.
+- An API key of the seller, in the same environment as yours. See
   [Seller API key](#seller-api-key).
 
-The connection exists in production only. See [Sandbox](#sandbox).
+The connection works in production and in sandbox. See [Sandbox](#sandbox).
 
 ## The first payment
 
@@ -57,19 +57,20 @@ curl -X POST https://api.yuvexpay.com/v1/payments \
   }'
 ```
 
-The header value is the key itself (`ypk_live_...`), without `Bearer`. The body
-is the same as for any payment, and the `3` is an example value.
+The header value is the key itself (`ypk_live_...` in production, `ypk_test_...`
+in sandbox), without `Bearer`. The body is the same as for any payment, and the
+`3` is an example value.
 
 On that call YuvexPay:
 
-1. Verifies your key: active, production, with `payments:write`, used from an
-   address inside its IP allowlist when it has one, and from a company other
-   than the seller's.
+1. Verifies your key: active, in the environment of the seller's key, with
+   `payments:write`, used from an address inside its IP allowlist when it has
+   one, and from a company other than the seller's.
 2. Confirms that your company is the recipient in `splits[]` and is an approved
    platform: active, in production, with verification approved.
 3. Checks the split against [the fee cap](#the-fee-cap).
-4. Records the relationship as `ACCEPTED`, with the cap, and notifies the
-   seller.
+4. Records the relationship as `ACCEPTED`, with the cap, and, in production,
+   notifies the seller.
 5. Creates the payment and answers `201`, as for any other payment.
 
 Nobody opens the dashboard: no invitation and no manual accept. A connection
@@ -82,7 +83,7 @@ that an earlier payment opened without the header.
 
 The connection is recorded before the charge is submitted. If the charge then
 fails, for example with `PROVIDER_TEMPORARILY_UNAVAILABLE`, the seller stays
-connected and is still notified.
+connected and, in production, is still notified.
 
 <Warning>
   Send `X-Split-Platform-Key` from your server only. The API does not allow the
@@ -92,11 +93,9 @@ connected and is still notified.
 
 ## When the header is read
 
-`X-Split-Platform-Key` is read only when both of these are true:
-
-- The request uses a production key.
-- Exactly one recipient in `splits[]` has no accepted relationship with the
-  seller. Any other recipient in the array is already accepted.
+`X-Split-Platform-Key` is read only when exactly one recipient in `splits[]`
+has no accepted relationship with the seller. Any other recipient in the array
+is already accepted.
 
 In every other case the header is ignored and not validated. A connected seller
 does not depend on your key: its payments keep passing if you stop sending the
@@ -108,7 +107,7 @@ these:
 
 | Situation | Response |
 |-----------|----------|
-| The key is unknown, revoked or expired, is a sandbox key, lacks `payments:write`, is used from outside its IP allowlist, or belongs to the seller's own company. | `403 SPLIT_PLATFORM_KEY_INVALID` |
+| The key is unknown, revoked or expired, is from the other environment, lacks `payments:write`, is used from outside its IP allowlist, or belongs to the seller's own company. | `403 SPLIT_PLATFORM_KEY_INVALID` |
 | The key is valid, but its company is not the recipient in `splits[]` or is not an approved platform. | `400 SPLIT_RELATIONSHIP_PENDING` |
 | The split is above the fee cap. | `400 SPLIT_FEE_CAP_EXCEEDED` |
 | The seller already has the maximum number of active partners. | `400 SPLIT_PARTNER_LIMIT_EXCEEDED` |
@@ -217,9 +216,10 @@ The full list is in [Payment errors](/guides/errors#payment-errors).
 
 ## What the seller sees
 
-When a platform connects, the seller gets a dashboard notification and an
-e-mail. Both name the platform and the cap, and point to
-**Configurações &gt; Parceiros de divisão**.
+When a platform connects in production, the seller gets a dashboard
+notification and an e-mail. Both name the platform and the cap, and point to
+**Configurações &gt; Parceiros de divisão**. A connection in sandbox sends
+neither.
 
 When you accept a request by hand, the seller gets the notice that any accepted
 invitation sends. It does not name the cap.
@@ -289,18 +289,26 @@ fails with `SPLIT_FEE_CAP_EXCEEDED`.
 
 ## Sandbox
 
-The platform connection does not exist in sandbox. On a request made with a
-`ypk_test_` key the header is ignored.
+The connection works in sandbox under the same rules as in production. Send
+the seller's `ypk_test_` key in `Authorization` and a `ypk_test_` key of your
+approved company in `X-Split-Platform-Key`. Approval is granted in production
+only: the sandbox connection relies on it and applies the same fee cap.
 
-Your approved company is a production company, and a sandbox payment can only
-split to a company in sandbox mode. A `ypk_test_` payment that names your
-approved company ID returns `SPLIT_RELATIONSHIP_PENDING`, opens no request and
-leaves nothing for you to accept.
+The two environments are kept apart. A seller connected in production is not
+connected in sandbox, and the reverse. A revocation or a decline in one
+environment does not reach the other, and
+[`GET /v1/splits/partners`](/api-reference/splits/partners) lists the
+relationships of the environment of the key.
 
-To test the split itself, use a separate company in sandbox mode as the
-recipient and follow the
-[sandbox invite flow](/guides/sandbox#limits-and-isolation). No company in
-sandbox mode is an approved platform, so no fee cap applies there.
+In sandbox the seller gets no notification and no e-mail, and the split never
+touches a production balance, statement or report.
+
+A sandbox payment can only split to a company in sandbox mode, and your
+approved company is a production company. The sandbox connection is the
+exception: once it is made, the seller's sandbox payments can name your
+company. Before it, a `ypk_test_` payment that names your company without the
+header returns `SPLIT_RELATIONSHIP_PENDING`, opens no request and leaves
+nothing for you to accept.
 
 ## Refunds, MED and chargebacks
 
