@@ -35,6 +35,7 @@
             "group": "Products",
             "pages": [
               "guides/payments",
+              "guides/split-platforms",
               "guides/refunds",
               "guides/withdrawals",
               "guides/webhooks"
