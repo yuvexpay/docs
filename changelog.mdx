@@ -5,6 +5,64 @@ rss: true
 ---
 
 <Update
+  label="2026-10-11"
+  tags={["Webhooks"]}
+  rss={{
+    title: "2026-10-11: espera progressiva para reativar um endpoint de webhook",
+    description: "Um endpoint de webhook suspenso várias vezes passa a esperar mais tempo antes de poder ser reativado: nenhuma espera na 1ª suspensão, depois 15 minutos, 1 hora, 6 horas e 24 horas, recomeçando após 7 dias ativo. Uma reativação antes da hora recebe 429 RATE_LIMIT_EXCEEDED com details.reactivationAvailableAt, e a lista de webhooks traz o novo campo reactivationAvailableAt. PATCH com isActive: true em um endpoint suspenso recebe 400 WEBHOOK_SUSPENDED."
+  }}
+>
+  ## Espera progressiva para reativar um endpoint de webhook
+
+  Um endpoint suspenso automaticamente continua voltando só pela reativação,
+  que envia um evento de teste antes. A partir de agora, cada nova suspensão do
+  mesmo endpoint aumenta a espera, contada a partir da suspensão, antes de ele
+  poder ser reativado:
+
+  - 1ª suspensão: sem espera.
+  - 2ª: 15 minutos. 3ª: 1 hora. 4ª: 6 horas. Da 5ª em diante: 24 horas.
+  - A contagem recomeça quando o endpoint fica 7 dias ativo depois da última
+    reativação, e vale por endpoint.
+  - Cada endpoint tem no máximo 5 eventos de teste de reativação a cada 10
+    minutos.
+
+  Uma chamada a `POST /app/companies/{companyId}/webhooks/{webhookId}/reactivate`
+  antes da hora não envia o evento de teste e recebe `429`, com o cabeçalho
+  `Retry-After`:
+
+  ```json
+  {
+    "error": {
+      "code": "RATE_LIMIT_EXCEEDED",
+      "message": "Este endpoint foi suspenso várias vezes em pouco tempo. Você poderá reativá-lo a partir de 11/10 às 07:15 (horário de Brasília).",
+      "details": {
+        "retryAfter": 900,
+        "reactivationAvailableAt": "2026-10-11T10:15:00.000Z",
+        "reason": "REACTIVATION_COOLDOWN"
+      }
+    }
+  }
+  ```
+
+  `details.reason` é `REACTIVATION_COOLDOWN` para a espera após a suspensão e
+  `REACTIVATION_ATTEMPTS` para o limite de eventos de teste. A lista de webhooks
+  (`GET /app/companies/{companyId}/webhooks`) traz o novo campo
+  `reactivationAvailableAt`, com o horário a partir do qual um endpoint suspenso
+  pode ser reativado, ou `null` quando ele não está suspenso.
+
+  Também mudou:
+
+  - `PATCH /app/companies/{companyId}/webhooks/{webhookId}` com
+    `isActive: true` em um endpoint suspenso recebe `400 WEBHOOK_SUSPENDED`.
+    Use a reativação.
+  - Uma reativação que encontra o endpoint com outro estado no meio do caminho
+    recebe `409 REACTIVATION_CONFLICT`. Recarregue e tente de novo.
+
+  Detalhes no
+  [guia de webhooks](/guides/webhooks#reactivating-a-suspended-endpoint).
+</Update>
+
+<Update
   label="2026-10-07"
   tags={["Pagamentos"]}
   rss={{
