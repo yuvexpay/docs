@@ -9,7 +9,7 @@ rss: true
   tags={["Produtos", "Clientes", "Estornos"]}
   rss={{
     title: "2026-10-11: filtro isActive de produtos, totais aprovados de clientes e taxa em estornos após marco de premiação",
-    description: "GET /v1/products aceita isActive só como true ou false; outro valor recebe 400. GET /v1/customers traz approvedCount, approvedAmount e lastApprovedAt em cada cliente. Um estorno que leva o volume contado do seu CPF ou CNPJ abaixo de um marco de premiação já aprovado segue, mas a taxa de processamento não é devolvida."
+    description: "GET /v1/products aceita isActive só como true ou false; outro valor recebe 400. GET /v1/customers traz approvedCount, approvedAmount e lastApprovedAt em cada cliente, e o filtro isActive passa a funcionar. Um estorno que leva o volume contado do seu CPF ou CNPJ abaixo de um marco de premiação já aprovado segue, mas a taxa de processamento não é devolvida."
   }}
 >
   ## Filtro `isActive` de produtos
@@ -25,6 +25,10 @@ rss: true
   - `approvedCount`: quantidade desses pagamentos.
   - `approvedAmount`: soma dos valores, em reais, com 2 casas decimais.
   - `lastApprovedAt`: quando o mais recente foi pago, ou `null`.
+
+  O filtro `isActive=true` ou `isActive=false` de `GET /v1/customers` passa a
+  funcionar como documentado; antes ele recebia `400`. Clientes criados no mesmo
+  instante agora vêm sempre na mesma ordem entre páginas.
 
   ## Taxa em estornos após um marco de premiação
 
