@@ -85,10 +85,11 @@ A PIX MED freezes each party's proportional share the same way.
 ## Fees on refunds, MED and chargebacks
 
 A refund you issue debits your balance net of the processing fee: the fee is
-returned in proportion to the refunded amount. A PIX MED that returns funds and
-a chargeback debit the full amount returned to the payer, and the processing fee
-is not returned. On a split payment that debit is apportioned across the
-parties the same way.
+returned in proportion to the refunded amount, except in the case described in
+[refunds below a redeemed rewards prize](#refunds-below-a-redeemed-rewards-prize).
+A PIX MED that returns funds and a chargeback debit the full amount returned to
+the payer, and the processing fee is not returned. On a split payment that debit
+is apportioned across the parties the same way.
 
 If the card dispute is won, the amount debited for the chargeback is credited back to your balance, the processing fee stays with YuvexPay, and the payment returns to the status it had before the chargeback: `PAID`, `CONFIRMED`, `REFUNDED` or `PARTIAL_REFUND`. On a split payment each party is credited back the
 share it was debited. You are notified in the dashboard, and the payment's
@@ -99,6 +100,26 @@ A cardholder can still open a chargeback on a card payment you already
 refunded. The chargeback is debited from your balance, even if it goes
 negative, and YuvexPay contests it with the refund receipt. If the dispute is
 won, the refunded part is credited back to your balance.
+
+### Refunds below a redeemed rewards prize
+
+A refund you issue keeps the processing fee when your verified CPF or CNPJ has
+redeemed a rewards prize that YuvexPay approved, and the refund takes that
+document's counted volume below the threshold of the highest such prize. The
+counted volume is the sum, across every company with that document, of the
+production payments that are `PAID`, `CONFIRMED`, `PARTIAL_REFUND` or
+`MED_FROZEN`, net of what was refunded, once they are 30 days old for PIX and
+boleto and 90 days old for card. In that case:
+
+- Your balance is debited the full amount returned to the payer, and YuvexPay
+  keeps the processing fee in proportion to the refunded amount.
+- `INSUFFICIENT_BALANCE_FOR_REFUND` is still evaluated against the debit of a
+  normal refund. The kept fee is debited on top of it and can take your
+  available balance negative.
+- On a split payment, the kept fee is debited from the originating company
+  only. The recipients are debited as in any other refund.
+- If the refund fails at the underlying network, the whole amount, fee
+  included, is returned to your balance.
 
 ## Refund lifecycle
 

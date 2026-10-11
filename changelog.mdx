@@ -90,6 +90,29 @@ rss: true
 </Update>
 
 <Update
+  label="2026-10-11"
+  tags={["Reembolsos"]}
+  rss={{
+    title: "2026-10-11: taxa mantida em reembolso abaixo de uma premiação",
+    description: "Um reembolso que leva o volume contado do CPF ou CNPJ verificado abaixo de uma premiação aprovada pela YuvexPay não devolve a taxa de processamento: o saldo é debitado do valor integral devolvido ao pagador, e a taxa mantida pode deixar o saldo disponível negativo."
+  }}
+>
+  ## Taxa mantida em reembolso abaixo de uma premiação
+
+  Quando o seu CPF ou CNPJ verificado resgatou uma premiação aprovada pela
+  YuvexPay, um reembolso que leva o volume contado desse documento abaixo da
+  premiação mais alta não devolve a taxa de processamento. O saldo é debitado do
+  valor integral devolvido ao pagador, e a YuvexPay mantém a taxa proporcional
+  ao valor reembolsado.
+
+  `INSUFFICIENT_BALANCE_FOR_REFUND` continua avaliado sobre o débito de um
+  reembolso normal: a taxa mantida é debitada além dele e pode deixar o saldo
+  disponível negativo. Em um pagamento com divisão, a taxa mantida é debitada só
+  da empresa de origem. Detalhes no
+  [guia de reembolsos](/guides/refunds#refunds-below-a-redeemed-rewards-prize).
+</Update>
+
+<Update
   label="2026-10-07"
   tags={["Pagamentos"]}
   rss={{
