@@ -1392,7 +1392,7 @@
                 "false"
               ]
             },
-            "description": "Filter by active status."
+            "description": "Filter by active status. Only `true` or `false`; any other value returns `400`."
           },
           {
             "$ref": "#/components/parameters/Page"
@@ -1839,7 +1839,30 @@
                     "customers": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Customer"
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/Customer"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "approvedCount": {
+                                "type": "integer",
+                                "description": "Number of the customer's payments with status `PAID` or `CONFIRMED`."
+                              },
+                              "approvedAmount": {
+                                "type": "number",
+                                "description": "Sum of those payments' amounts, in BRL, with 2 decimal places."
+                              },
+                              "lastApprovedAt": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true,
+                                "description": "When the latest of those payments was paid, or `null` when there is none."
+                              }
+                            }
+                          }
+                        ]
                       }
                     },
                     "pagination": {
