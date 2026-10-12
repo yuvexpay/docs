@@ -425,6 +425,48 @@ POST /app/companies/{companyId}/webhooks/{webhookId}/reactivate
 
 Reactivation is gated on a live test delivery. We send a `webhook.test` event to the endpoint and only re-enable it if your server answers `2xx`. If it does not, the call returns `400` with code `REACTIVATION_PROBE_FAILED` and the status we observed, and the endpoint stays suspended.
 
+A suspended endpoint comes back only through this check. `PATCH /app/companies/{companyId}/webhooks/{webhookId}` with `isActive: true` on a suspended endpoint returns `400` with code `WEBHOOK_SUSPENDED`. You can still change its other settings, such as the URL, while it is suspended.
+
+If the endpoint changes state while the reactivation runs, for example because another reactivation of it finished first, the call returns `409` with code `REACTIVATION_CONFLICT`. Reload the endpoint and try again.
+
+#### Waiting time after repeated suspensions
+
+The first time an endpoint is suspended, you can reactivate it right away. Each time the same endpoint is suspended again, you wait longer after the suspension before you can reactivate it. The current waits are:
+
+| Suspension | Wait after the suspension |
+| --- | --- |
+| 1st | none |
+| 2nd | 15 minutes |
+| 3rd | 1 hour |
+| 4th | 6 hours |
+| 5th and later | 24 hours |
+
+The count starts over when the endpoint stays active for 7 days after its last reactivation. It is kept per endpoint, so a suspension of one endpoint never delays another. The waits can change, so rely on the time the API returns rather than on this table.
+
+Each endpoint also gets at most 5 reactivation test deliveries every 10 minutes.
+
+A reactivation requested too early returns `429` and sends no test delivery:
+
+```json
+{
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Este endpoint foi suspenso várias vezes em pouco tempo. Você poderá reativá-lo a partir de 11/10 às 07:15 (horário de Brasília).",
+    "details": {
+      "retryAfter": 900,
+      "reactivationAvailableAt": "2026-10-11T10:15:00.000Z",
+      "reason": "REACTIVATION_COOLDOWN"
+    }
+  }
+}
+```
+
+- `details.reactivationAvailableAt` is the earliest time you can try again, in ISO 8601 UTC.
+- `details.retryAfter` is the same wait in seconds. It is also sent in the `Retry-After` header.
+- `details.reason` is `REACTIVATION_COOLDOWN` for the wait after a suspension, and `REACTIVATION_ATTEMPTS` for the test-delivery limit.
+
+The webhook list, `GET /app/companies/{companyId}/webhooks`, returns `reactivationAvailableAt` on each endpoint: the earliest time a suspended endpoint can be reactivated, covering both limits, or `null` when the endpoint is not suspended.
+
 Deliveries that failed while the endpoint was down are not resent automatically — replay the ones you need from the dashboard once the endpoint is back.
 
 ## Best practices
