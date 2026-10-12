@@ -223,9 +223,7 @@ Fees are computed at creation time using the merchant's configured rate.
 `passFeeToPayer: true` shifts the fee onto the payer (the payer is charged
 `amount + feeAmount`); when `false`, the fee is deducted from `amount`.
 
-A refund you issue returns the fee in proportion to the refunded amount,
-except a refund that takes your document below an approved reward milestone
-(see [Refunds](/guides/refunds#fees-on-refunds-med-and-chargebacks)). A PIX
+A refund you issue returns the fee in proportion to the refunded amount. A PIX
 MED that returns funds and a chargeback do not: your balance is debited the
 full amount returned to the payer, and YuvexPay keeps `feeAmount`.
 

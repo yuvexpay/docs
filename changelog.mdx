@@ -6,10 +6,10 @@ rss: true
 
 <Update
   label="2026-10-11"
-  tags={["Produtos", "Clientes", "Estornos"]}
+  tags={["Produtos", "Clientes"]}
   rss={{
-    title: "2026-10-11: filtro isActive de produtos, totais aprovados de clientes e taxa em estornos após marco de premiação",
-    description: "GET /v1/products aceita isActive só como true ou false; outro valor recebe 400. GET /v1/customers traz approvedCount, approvedAmount e lastApprovedAt em cada cliente, e o filtro isActive passa a funcionar. Um estorno que leva o volume contado do seu CPF ou CNPJ abaixo de um marco de premiação já aprovado segue, mas a taxa de processamento não é devolvida."
+    title: "2026-10-11: filtro isActive de produtos e totais aprovados de clientes",
+    description: "GET /v1/products aceita isActive só como true ou false; outro valor recebe 400. GET /v1/customers traz approvedCount, approvedAmount e lastApprovedAt em cada cliente, e o filtro isActive passa a funcionar."
   }}
 >
   ## Filtro `isActive` de produtos
@@ -29,16 +29,6 @@ rss: true
   O filtro `isActive=true` ou `isActive=false` de `GET /v1/customers` passa a
   funcionar como documentado; antes ele recebia `400`. Clientes criados no mesmo
   instante agora vêm sempre na mesma ordem entre páginas.
-
-  ## Taxa em estornos após um marco de premiação
-
-  Depois que um marco de premiação do seu CPF ou CNPJ é aprovado, um estorno de
-  uma venda que conta para ele e que leva o volume contado desse documento
-  abaixo do marco continua sendo feito, mas a taxa de processamento não é
-  devolvida: o saldo é debitado do valor total devolvido ao pagador. A
-  verificação de saldo é a mesma de qualquer estorno (o valor líquido), então
-  esse débito pode deixar o saldo negativo. Detalhes em
-  [Estornos](/guides/refunds#fees-on-refunds-med-and-chargebacks).
 </Update>
 
 <Update

@@ -85,13 +85,7 @@ A PIX MED freezes each party's proportional share the same way.
 ## Fees on refunds, MED and chargebacks
 
 A refund you issue debits your balance net of the processing fee: the fee is
-returned in proportion to the refunded amount. Exception: once a reward milestone of your CPF or
-CNPJ has been approved, a refund of a sale that counts toward it and that takes
-the counted volume of that document below the milestone still goes through, but
-the processing fee is not returned. Your balance is debited the full amount
-returned to the payer, including the fee the payer paid when `passFeeToPayer`
-was used. The balance check is the same as for any other refund (the net
-amount), so this extra debit can take your balance negative. A PIX MED that returns funds and
+returned in proportion to the refunded amount. A PIX MED that returns funds and
 a chargeback debit the full amount returned to the payer, and the processing fee
 is not returned. On a split payment that debit is apportioned across the
 parties the same way.
