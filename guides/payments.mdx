@@ -177,14 +177,16 @@ To charge a card:
 2. Redirect the payer to the returned `checkoutUrl`. The checkout collects the
    card and runs 3D Secure itself. It accepts credit cards, charged in a
    single installment, and debit cards.
-3. Read the result from the `PAYMENT_CONFIRMED`, `PAYMENT_PAID` and
-   `PAYMENT_CANCELLED` webhooks, or poll `GET /v1/payments/{paymentId}`.
+3. Read the result from the `PAYMENT_CONFIRMED`, `PAYMENT_PAID`,
+   `PAYMENT_EXPIRED` and `PAYMENT_CANCELLED` webhooks, or poll
+   `GET /v1/payments/{paymentId}`.
 
 `returnUrl` and `completionUrl` work as for any hosted payment. A hosted card
-payment that fails the 3D Secure challenge, or is refused after it, ends
-`CANCELLED` and you receive `PAYMENT_CANCELLED` with
-`reason: "payment_failed"`. The payer cannot pick another method for that
-payment: create a new one.
+payment whose 3D Secure challenge fails, or gets no answer for about 7
+minutes, ends `EXPIRED` and you receive `PAYMENT_EXPIRED`. A card refused after
+the challenge ends `CANCELLED` and you receive `PAYMENT_CANCELLED` with
+`reason: "payment_failed"`. In both cases the payer cannot pick another method
+for that payment: create a new one.
 
 Payment links created in the dashboard open the same hosted checkout.
 

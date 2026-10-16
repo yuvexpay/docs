@@ -5,6 +5,27 @@ rss: true
 ---
 
 <Update
+  label="2026-10-16"
+  tags={["Pagamentos", "Webhooks"]}
+  rss={{
+    title: "2026-10-16: desafio 3D Secure sem sucesso termina em EXPIRED",
+    description: "Um pagamento com cartão cujo desafio 3D Secure falha, ou fica sem resposta por cerca de 7 minutos, passa a terminar EXPIRED com o webhook PAYMENT_EXPIRED, em vez de CANCELLED com PAYMENT_CANCELLED. Um cartão recusado depois do desafio continua CANCELLED com reason payment_failed."
+  }}
+>
+  ## Desafio 3D Secure sem sucesso termina em `EXPIRED`
+
+  Um pagamento hospedado com cartão cujo desafio 3D Secure falha, ou fica sem
+  resposta por cerca de 7 minutos, termina `EXPIRED` e você recebe
+  `PAYMENT_EXPIRED`, com o corpo `id`, `txId`, `status` e `amount`. Antes ele
+  terminava `CANCELLED`, com `PAYMENT_CANCELLED` e `reason: "payment_failed"`.
+
+  Um cartão recusado depois do desafio continua terminando `CANCELLED`, com
+  `PAYMENT_CANCELLED` e `reason: "payment_failed"`. Se a resposta do banco
+  emissor chegar depois da expiração, você recebe `PAYMENT_CONFIRMED` para o
+  mesmo pagamento.
+</Update>
+
+<Update
   label="2026-10-11"
   tags={["Produtos", "Clientes"]}
   rss={{
