@@ -205,6 +205,18 @@ withdrawal is created. See [What `amount` means](#what-amount-means).
 Listen for `WITHDRAWAL_SENT` and `WITHDRAWAL_FAILED` webhook events to react
 to status changes.
 
+### Returned withdrawals
+
+The destination institution can return a `COMPLETED` withdrawal, in full or in
+part. Only the amount the provider confirms as returned is credited back to
+your balance; the withdrawal fee is not refunded.
+
+- A partial return keeps the withdrawal `COMPLETED`. The credit shows in your
+  statement as `Withdrawal returned - <txId>`.
+- Once the whole amount has come back, the withdrawal moves to `FAILED` and
+  `WITHDRAWAL_FAILED` fires with `failureReason`
+  `Saque devolvido pela instituição de destino.`
+
 <Warning>
   **Never retry a withdrawal that is sitting in `PROCESSING`.** Retrying risks
   sending the same money twice. `PROCESSING` means the transfer was handed to

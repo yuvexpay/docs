@@ -5,6 +5,27 @@ rss: true
 ---
 
 <Update
+  label="2026-10-22"
+  tags={["Saques", "Webhooks"]}
+  rss={{
+    title: "2026-10-22: saque devolvido pelo destino credita só o valor devolvido",
+    description: "Quando a instituição de destino devolve um saque concluído, creditamos apenas o valor que o provedor confirmou como devolvido, sem a taxa de saque. Uma devolução parcial mantém o saque COMPLETED; a devolução total o leva a FAILED com WITHDRAWAL_FAILED e failureReason Saque devolvido pela instituição de destino."
+  }}
+>
+  ## Saque devolvido pelo destino credita só o valor devolvido
+
+  Quando a instituição de destino devolve um saque `COMPLETED`, creditamos no
+  seu saldo apenas o valor que o provedor confirmou como devolvido. A taxa de
+  saque não é devolvida. Antes, a devolução creditava o valor bruto, com a
+  taxa.
+
+  Uma devolução parcial mantém o saque `COMPLETED` e aparece no extrato como
+  `Withdrawal returned - <txId>`. Quando o valor inteiro volta, o saque passa a
+  `FAILED` e você recebe `WITHDRAWAL_FAILED` com `failureReason`
+  `Saque devolvido pela instituição de destino.`
+</Update>
+
+<Update
   label="2026-10-21"
   tags={["Saques"]}
   rss={{
