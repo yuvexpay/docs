@@ -4058,7 +4058,7 @@
           },
           "remaining": {
             "type": "number",
-            "description": "Remaining capacity for the current window, in BRL. Because the fee counts towards the limit, the largest `amount` you can request is `remaining - fee`."
+            "description": "Remaining capacity for the current window, in BRL. Because the fee counts towards the limit, the largest `amount` you can request is `remaining - fee`. When a withdrawal ceiling applies to your account, `remaining` never exceeds what that ceiling still allows, and a request above it fails with `400 INSUFFICIENT_BALANCE`, like one above your available balance."
           },
           "isNightTime": {
             "type": "boolean",

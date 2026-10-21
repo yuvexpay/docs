@@ -75,6 +75,9 @@ from there rather than hardcoding `2.49`.
 - **`used` and `remaining` count the fee**: a withdrawal consumes
   `amount + feeAmount` of your limit. The largest `amount` you can request is
   therefore `remaining - fee`, not `remaining`.
+- **`remaining` can be lower than `currentLimit - used`** when a withdrawal
+  ceiling applies to your account. A request above that ceiling fails with
+  `400 INSUFFICIENT_BALANCE`, not `WITHDRAWAL_LIMIT_EXCEEDED`.
 - **PIX key type**: detected automatically from `destination.pixKey`. CPF,
   CNPJ, e-mail, Brazilian phone (`+55XXXXXXXXXXX`), and random EVP/UUID keys
   are all accepted. You do not need to send a `pixKeyType` field.
@@ -271,7 +274,7 @@ even for a withdrawal id that belongs to your own account.
 | `IDEMPOTENCY_KEY_REQUIRED` | 400 | `X-Idempotency-Key` is mandatory on this endpoint. This one is emitted before the API error envelope is applied, so its body is flat: `{ statusCode, error, message, code }`. |
 | `PROVIDER_ERROR` | 400 | The PIX network rejected the payout deterministically during the create call — most often a key that does not exist or an account that cannot receive. No money moved. |
 | `WITHDRAWAL_BELOW_MINIMUM` | 400 | `amount` is below the minimum that applies to your account — `R$ 10.00` unless it has been raised. Read `minAmount` from [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). |
-| `INSUFFICIENT_BALANCE` | 400 | The available balance is too low. |
+| `INSUFFICIENT_BALANCE` | 400 | The available balance is too low, or the amount is above a withdrawal ceiling that applies to your account. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for this account. |

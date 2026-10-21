@@ -5,6 +5,22 @@ rss: true
 ---
 
 <Update
+  label="2026-10-21"
+  tags={["Saques"]}
+  rss={{
+    title: "2026-10-21: remaining pode refletir um teto de saque da conta",
+    description: "Em GET /v1/withdrawals/limits, remaining pode ficar abaixo de currentLimit - used quando um teto de saque se aplica à conta. Um saque acima desse teto recebe 400 INSUFFICIENT_BALANCE."
+  }}
+>
+  ## `remaining` pode refletir um teto de saque
+
+  Em `GET /v1/withdrawals/limits`, `remaining` pode ficar abaixo de
+  `currentLimit - used` quando um teto de saque se aplica à sua conta. Um saque
+  acima desse teto recebe `400 INSUFFICIENT_BALANCE`, como um saque acima do
+  saldo disponível.
+</Update>
+
+<Update
   label="2026-10-16"
   tags={["Pagamentos", "Webhooks"]}
   rss={{
