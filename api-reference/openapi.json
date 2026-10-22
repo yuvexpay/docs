@@ -1209,7 +1209,7 @@
       "get": {
         "operationId": "getBalance",
         "summary": "Get account balance",
-        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The four balance buckets are independent and additive: `available` (withdrawable now), `frozen` (set aside for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), `held` (confirmed but pending settlement), and `reserved` (a rolling reserve withheld from settled funds and released on a schedule — not currently withdrawable). The total account balance is `available + frozen + held + reserved`. A split credit received from another YuvexPay company follows your own rolling reserve policy, not the originating company's. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
+        "description": "Return the current BRL balance for the company associated with the API key. The endpoint takes no parameters — the company is always derived from the API key. The four balance buckets are independent and additive: `available` (settled funds free to use; a withdrawal is also bounded by `GET /v1/withdrawals/limits`), `frozen` (set aside for in-flight withdrawals, refunds, or operational holds — not currently withdrawable), `held` (confirmed but pending settlement), and `reserved` (a rolling reserve withheld from settled funds and released on a schedule — not currently withdrawable). The total account balance is `available + frozen + held + reserved`. A split credit received from another YuvexPay company follows your own rolling reserve policy, not the originating company's. A sandbox API key always returns zeros, since sandbox transactions do not accumulate to a real balance.",
         "tags": [
           "Balance"
         ],
@@ -4237,7 +4237,7 @@
         "properties": {
           "available": {
             "type": "number",
-            "description": "Amount available for immediate PIX withdrawal, in BRL. This can be negative: when a refund or a PIX MED is apportioned across a split, each recipient is debited its share even if it has already withdrawn the money. A negative balance blocks withdrawals until it is covered by new settlements."
+            "description": "Settled funds free to use, in BRL. The largest withdrawal you can request right now is also bounded by `remaining` and `perTransactionLimit` from `GET /v1/withdrawals/limits`. This can be negative: when a refund or a PIX MED is apportioned across a split, each recipient is debited its share even if it has already withdrawn the money. A negative balance blocks withdrawals until it is covered by new settlements."
           },
           "frozen": {
             "type": "number",
