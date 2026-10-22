@@ -6,6 +6,26 @@ rss: true
 
 <Update
   label="2026-10-22"
+  tags={["Saques", "Saldo"]}
+  rss={{
+    title: "2026-10-22: saque que não chega à rede PIX é recusado na hora",
+    description: "Quando nenhuma rota PIX consegue receber o saque, POST /v1/withdrawals responde 503 WITHDRAWAL_PROVIDER_UNAVAILABLE na hora e o valor volta ao saldo, em vez de ficar em PROCESSING. Em GET /v1/balance, available é o saldo livre; o maior saque também respeita remaining e perTransactionLimit de GET /v1/withdrawals/limits."
+  }}
+>
+  ## Saque que não chega à rede PIX é recusado na hora
+
+  Quando nenhuma rota PIX consegue receber o saque, `POST /v1/withdrawals`
+  responde `503 WITHDRAWAL_PROVIDER_UNAVAILABLE` na hora e o valor volta ao seu
+  saldo. Antes, parte desses saques ficava em `PROCESSING` até a conciliação.
+  Para tentar de novo, crie um novo saque com uma nova chave de idempotência.
+
+  Em `GET /v1/balance`, `available` é o saldo livre. O maior saque que você pode
+  pedir também respeita `remaining` e `perTransactionLimit` de
+  `GET /v1/withdrawals/limits`.
+</Update>
+
+<Update
+  label="2026-10-22"
   tags={["Saques", "Webhooks"]}
   rss={{
     title: "2026-10-22: saque devolvido pelo destino credita só o valor devolvido",
