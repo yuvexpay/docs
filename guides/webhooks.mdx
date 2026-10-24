@@ -7,8 +7,8 @@ Webhooks let your application receive HTTP POST notifications when events happen
 
 ## Setting up webhooks
 
-1. Go to **Settings > Webhooks** in the [dashboard](https://app.yuvexpay.com).
-2. Click **Add webhook** and enter your endpoint URL. The URL must use HTTPS.
+1. Go to **Desenvolvedores > Webhooks** (Developers > Webhooks) in the [dashboard](https://app.yuvexpay.com).
+2. Click **Novo endpoint** (New endpoint) and enter your endpoint URL. The URL must use HTTPS.
 3. Select the events you want to receive.
 4. Save the generated secret somewhere safe — it is shown only once and is required to verify incoming requests.
 
@@ -25,7 +25,7 @@ You can register up to **two active webhook endpoints per event type per company
   [`GET /v1/payments/{paymentId}`](/api-reference/payments/get) and by forcing
   terminal outcomes with
   [`POST /v1/payments/{paymentId}/simulate`](/guides/sandbox#forcing-a-terminal-status).
-  To exercise your verifier itself, use the dashboard **Send test** button,
+  To exercise your verifier itself, use the dashboard **Enviar teste** (Send test) button,
   which delivers a signed `TEST` event. See
   [Sandbox testing](/guides/sandbox#webhooks-in-sandbox).
 </Warning>

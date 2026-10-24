@@ -53,9 +53,89 @@
     {
       "name": "Splits",
       "description": "Inspect the split partners of the account"
+    },
+    {
+      "name": "Public",
+      "description": "Public information that needs no API key"
     }
   ],
   "paths": {
+    "/public/pricing": {
+      "get": {
+        "operationId": "getPublicPricing",
+        "summary": "Get standard pricing",
+        "description": "Standard prices for the payment methods currently offered, the withdrawal fee, plan facts and sign-up availability. No authentication. Money values are decimal strings with two places. Responses are cacheable for 5 minutes.",
+        "tags": [
+          "Public"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Pricing retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPricing"
+                },
+                "example": {
+                  "currency": "BRL",
+                  "methods": [
+                    {
+                      "method": "PIX",
+                      "percent": "4.99",
+                      "fixed": "0.20",
+                      "minimumFee": null,
+                      "minAmount": "0.01",
+                      "maxAmount": "1000000.00",
+                      "settlementDays": 0
+                    },
+                    {
+                      "method": "CARD",
+                      "percent": "4.99",
+                      "fixed": "0.60",
+                      "minimumFee": null,
+                      "minAmount": "5.00",
+                      "maxAmount": "1000000.00",
+                      "settlementDays": 32
+                    },
+                    {
+                      "method": "BOLETO",
+                      "percent": null,
+                      "fixed": "2.99",
+                      "minimumFee": null,
+                      "minAmount": "5.00",
+                      "maxAmount": "1000000.00",
+                      "settlementDays": 3
+                    }
+                  ],
+                  "withdrawal": {
+                    "fee": "2.49",
+                    "minAmount": "10.00",
+                    "settlementDays": 0
+                  },
+                  "plan": {
+                    "monthlyFee": "0.00",
+                    "setupFee": "0.00",
+                    "volumeMinimum": null,
+                    "customPricing": true
+                  },
+                  "signup": {
+                    "open": true,
+                    "url": "https://app.yuvexpay.com/sign-up",
+                    "accountTypes": [
+                      "INDIVIDUAL",
+                      "BUSINESS"
+                    ],
+                    "sandbox": true
+                  },
+                  "updatedAt": "2026-10-01T12:00:00.000Z"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/self": {
       "get": {
         "operationId": "getApiKeySelf",
@@ -3146,6 +3226,194 @@
       }
     },
     "schemas": {
+      "PublicPricing": {
+        "type": "object",
+        "required": [
+          "currency",
+          "methods",
+          "withdrawal",
+          "plan",
+          "signup",
+          "updatedAt"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          },
+          "methods": {
+            "type": "array",
+            "description": "Payment methods currently offered, with their standard price. PIX is always listed.",
+            "items": {
+              "type": "object",
+              "required": [
+                "method",
+                "percent",
+                "fixed",
+                "minimumFee",
+                "minAmount",
+                "maxAmount",
+                "settlementDays"
+              ],
+              "properties": {
+                "method": {
+                  "type": "string",
+                  "enum": [
+                    "PIX",
+                    "CARD",
+                    "BOLETO"
+                  ]
+                },
+                "percent": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+\\.\\d{2}$",
+                  "description": "Percentage fee; `\"4.99\"` means 4.99 %. `null` when there is none."
+                },
+                "fixed": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+\\.\\d{2}$",
+                  "description": "Fixed fee per payment in BRL. `null` when there is none."
+                },
+                "minimumFee": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^\\d+\\.\\d{2}$",
+                  "description": "Minimum fee per payment in BRL. `null` when there is none."
+                },
+                "minAmount": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d{2}$",
+                  "description": "Smallest payment amount in BRL."
+                },
+                "maxAmount": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d{2}$",
+                  "description": "Largest payment amount in BRL."
+                },
+                "settlementDays": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Days until a paid amount becomes available."
+                }
+              }
+            }
+          },
+          "withdrawal": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "`null` while withdrawals are not offered.",
+            "required": [
+              "fee",
+              "minAmount",
+              "settlementDays"
+            ],
+            "properties": {
+              "fee": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d{2}$",
+                "description": "Fee per PIX withdrawal in BRL."
+              },
+              "minAmount": {
+                "type": "string",
+                "pattern": "^\\d+\\.\\d{2}$",
+                "description": "Smallest withdrawal amount in BRL."
+              },
+              "settlementDays": {
+                "type": "integer",
+                "enum": [
+                  0
+                ]
+              }
+            }
+          },
+          "plan": {
+            "type": "object",
+            "required": [
+              "monthlyFee",
+              "setupFee",
+              "volumeMinimum",
+              "customPricing"
+            ],
+            "properties": {
+              "monthlyFee": {
+                "type": "string",
+                "enum": [
+                  "0.00"
+                ]
+              },
+              "setupFee": {
+                "type": "string",
+                "enum": [
+                  "0.00"
+                ]
+              },
+              "volumeMinimum": {
+                "type": "null"
+              },
+              "customPricing": {
+                "type": "boolean",
+                "enum": [
+                  true
+                ],
+                "description": "Custom prices can be negotiated."
+              }
+            }
+          },
+          "signup": {
+            "type": "object",
+            "required": [
+              "open",
+              "url",
+              "accountTypes",
+              "sandbox"
+            ],
+            "properties": {
+              "open": {
+                "type": "boolean",
+                "description": "Whether new accounts can be created right now."
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "accountTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "INDIVIDUAL",
+                    "BUSINESS"
+                  ]
+                }
+              },
+              "sandbox": {
+                "type": "boolean",
+                "description": "Whether new accounts start with a sandbox."
+              }
+            }
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the listed prices last changed."
+          }
+        }
+      },
       "PaymentMethod": {
         "type": "string",
         "enum": [

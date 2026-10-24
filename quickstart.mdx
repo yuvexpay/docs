@@ -5,7 +5,7 @@ description: "Create your first payment with the YuvexPay API in under 5 minutes
 
 ## 1. Get your API key
 
-Log in to the [YuvexPay dashboard](https://app.yuvexpay.com) and navigate to **Settings > API Keys**. Create a new key, choose **Sandbox** for testing, and copy the full secret — the secret is shown only once.
+Log in to the [YuvexPay dashboard](https://app.yuvexpay.com) and navigate to **Desenvolvedores > Chaves de API** (Developers > API keys). Create a new key, choose **Sandbox** for testing, and copy the full secret — the secret is shown only once.
 
 <Warning>
   Treat API keys like database credentials. Store them in a secrets manager or
@@ -145,7 +145,7 @@ To accept a card, create the payment with `mode: "hosted"` and `CARD` in
 ## 3. Listen for webhooks
 
 Set up a webhook endpoint to receive payment notifications. Configure it in
-the dashboard under **Settings > Webhooks**.
+the dashboard under **Desenvolvedores > Webhooks** (Developers > Webhooks).
 
 When the customer pays, your endpoint receives a `POST` whose
 `X-Webhook-Event` header is `PAYMENT_PAID`. The body is the event itself —
