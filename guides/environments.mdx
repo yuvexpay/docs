@@ -19,14 +19,14 @@ chosen by the API key you send — no separate hostname, no code fork.
 
 ## Using sandbox
 
-Create a sandbox API key in the dashboard under **Settings > API Keys** and
+Create a sandbox API key in the dashboard under **Desenvolvedores > Chaves de API** (Developers > API keys) and
 choose the **Sandbox** environment. The key will be prefixed with `ypk_test_`.
 
 Sandbox simulates the full payment lifecycle:
 
 - Payments are created with real-looking responses for every method: QR codes for PIX and a test digitable line, barcode and PDF for boleto; the hosted checkout accepts test card numbers.
 - Status transitions (`PROCESSING`, `PAID`, `EXPIRED`) are simulated.
-- Webhooks are **not** delivered for sandbox payments and withdrawals — poll `GET /v1/payments/{paymentId}` or `GET /v1/withdrawals/{withdrawalId}` instead. Use the dashboard **Send test** button to exercise your signature verifier.
+- Webhooks are **not** delivered for sandbox payments and withdrawals — poll `GET /v1/payments/{paymentId}` or `GET /v1/withdrawals/{withdrawalId}` instead. Use the dashboard **Enviar teste** (Send test) button to exercise your signature verifier.
 - No real money is moved: no card is debited and no real boleto is registered.
 
 See the [Sandbox guide](/guides/sandbox) for the deterministic test recipes (specific amounts that trigger specific outcomes).
@@ -41,11 +41,14 @@ See the [Sandbox guide](/guides/sandbox) for the deterministic test recipes (spe
 
 When you're ready to accept real payments:
 
-1. Create a **production** API key in the dashboard (requires completed KYB).
-2. Replace your sandbox `ypk_test_...` key with the `ypk_live_...` key in your
+1. Take the company out of sandbox with **Sair do sandbox** (Leave sandbox) in the
+   dashboard. Only the company owner or an admin can do it. Production keys
+   cannot be created while the company is in sandbox.
+2. Create a **production** API key under **Desenvolvedores > Chaves de API** (Developers > API keys).
+3. Replace your sandbox `ypk_test_...` key with the `ypk_live_...` key in your
    environment variables.
-3. Verify your webhook endpoint is configured and that your verifier accepts its signatures — use the dashboard **Send test** button. Live traffic is the first traffic that will actually deliver events.
-4. Start processing real transactions.
+4. Verify your webhook endpoint is configured and that your verifier accepts its signatures — use the dashboard **Enviar teste** (Send test) button. Live traffic is the first traffic that will actually deliver events.
+5. Start processing real transactions.
 
 <Warning>
   Production transactions involve real money. Ensure your error handling and

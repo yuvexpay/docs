@@ -152,7 +152,7 @@ seconds after creation, or immediately if you call
 charge into the state your handler is waiting for.
 
 To exercise your **verifier** — signature, timestamp skew, header parsing — use
-the **Send test** button on the endpoint in the dashboard. It delivers a real,
+the **Enviar teste** (Send test) button on the endpoint in the dashboard. It delivers a real,
 correctly signed `TEST` event to your endpoint with `X-Webhook-Event: TEST` and
 a body of `{"event":"webhook.test","createdAt":"…","data":{"message":"…","livemode":false}}`.
 That is the one delivery a sandbox-only account receives.
@@ -200,9 +200,11 @@ match on retries.
 
 When your integration is stable:
 
-1. Create a `ypk_live_` key in the dashboard (requires completed KYB).
+1. Take the company out of sandbox with **Sair do sandbox** (Leave sandbox) in the
+   dashboard (owner or admin only), then create a `ypk_live_` key under
+   **Desenvolvedores > Chaves de API** (Developers > API keys).
 2. Configure your webhook endpoint and store its secret. This is the point at
    which webhooks start being delivered at all — verify the endpoint with the
-   dashboard's **Send test** button before opening real traffic.
+   dashboard's **Enviar teste** (Send test) button before opening real traffic.
 3. Swap the API key in your environment variables.
 4. Run a small live transaction end-to-end before opening real traffic.

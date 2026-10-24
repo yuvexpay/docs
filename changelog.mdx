@@ -5,6 +5,23 @@ rss: true
 ---
 
 <Update
+  label="2026-10-24"
+  tags={["Preços"]}
+  rss={{
+    title: "2026-10-24: preços padrão em GET /public/pricing",
+    description: "GET /public/pricing devolve, sem chave de API, os preços padrão das formas de pagamento oferecidas, a taxa de saque, os fatos do plano (sem mensalidade nem taxa de adesão) e se o cadastro está aberto. Valores em BRL como texto com duas casas decimais."
+  }}
+>
+  ## Preços padrão em `GET /public/pricing`
+
+  `GET /public/pricing` devolve, sem chave de API, os preços padrão das formas
+  de pagamento oferecidas no momento, a taxa de saque, os fatos do plano (sem
+  mensalidade nem taxa de adesão) e se o cadastro de novas contas está aberto.
+  Valores em BRL vêm como texto com duas casas decimais. A resposta pode ser
+  guardada em cache por 5 minutos.
+</Update>
+
+<Update
   label="2026-10-22"
   tags={["Saques", "Saldo"]}
   rss={{

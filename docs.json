@@ -122,6 +122,12 @@
               "api-reference/documents/withdrawal-receipt",
               "api-reference/documents/statement"
             ]
+          },
+          {
+            "group": "Public",
+            "pages": [
+              "api-reference/public/pricing"
+            ]
           }
         ]
       },
