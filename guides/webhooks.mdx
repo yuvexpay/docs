@@ -188,13 +188,10 @@ Four things to design around:
   `failureReason` on `WITHDRAWAL_SENT`, and `source`, `providerMedId`,
   `refundId` and `amount` on the MED and refund paths that do not set them.
   Read the value with a null-safe accessor rather than testing key presence.
-- **The dashboard "resend" button sends a thinner body.** A delivery you
-  trigger by hand from a transaction in the dashboard carries a generic
-  `{ id, txId, status, amount }` shape (plus `netAmount` for withdrawals) —
-  not the per-event body documented here — and gets a fresh
-  `X-Webhook-Delivery-Id`. Note it keys the resource as `id`, not as
-  `paymentId` / `withdrawalId`. Do not treat a resend as byte-identical to the
-  original delivery.
+- **A resend carries the current state.** A delivery you trigger by hand from
+  a payment or withdrawal in the dashboard, or that support sends for you,
+  carries the resource's current state, not a copy of the original delivery.
+  See [Resending a webhook](#resending-a-webhook).
 - **`txId` formats.** Payments are `PAY` + 32 uppercase hex characters.
   Withdrawals are `WIT` + a millisecond timestamp + 5 uppercase alphanumerics
   (e.g. `WIT1746280868443K3F9Q`). Refunds vary by origin. Treat `txId` as an
@@ -224,11 +221,15 @@ Each webhook delivery includes these headers:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `YuvexPay-Webhook/1.0` |
 | `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
-| `X-Webhook-Delivery-Id` | Identifier for this delivery, stable across retries and replays. Use it to deduplicate. Usually a UUID, but the endpoint-reactivation probe sends `probe-<webhookId>` instead — do not reject a delivery for failing a UUID check, or your endpoint can never be reactivated. |
-| `X-Webhook-Attempt` | Attempt number, starting at `1`. Increments on retries. |
-| `X-Webhook-Timestamp` | Unix timestamp (seconds) when the request was signed. |
+| `X-Webhook-Delivery-Id` | Identifier for this delivery. Every automatic retry of a delivery carries the same id. A resend from the dashboard or by support, and each test ping, is a new delivery with a new id. Usually a UUID, but the endpoint-reactivation probe sends `probe-<webhookId>` instead — do not reject a delivery for failing a UUID check, or your endpoint can never be reactivated. |
+| `X-Webhook-Attempt` | Attempt number of this delivery, starting at `1`. Increments on each automatic retry. A resend starts at `1`. |
+| `X-Webhook-Timestamp` | Unix timestamp (seconds) when this attempt was signed. Every attempt is signed again, so a retry carries a new timestamp and a new signature. |
 | `X-Webhook-Signature` | `v1=<hex-encoded HMAC-SHA256>`. See [Verifying signatures](#verifying-signatures). |
 | `X-Webhook-Signature-Legacy` | **Deprecated.** Body-only HMAC, a bare hex string with no `v1=` prefix. Kept for backwards compatibility; do not compare it against the `v1` value. Plan to remove it from your verifier. |
+
+There is no event id. No header or body field identifies an event across
+deliveries: see [Delivery semantics](#delivery-semantics) for how to
+deduplicate.
 
 ## Verifying signatures
 
@@ -276,10 +277,14 @@ app.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
   }
 
   const eventType = req.headers["x-webhook-event"];
-  const deliveryId = req.headers["x-webhook-delivery-id"];
   const body = JSON.parse(rawBody);
+  if (eventType === "TEST") return res.status(200).send("OK");
 
-  if (alreadyProcessed(deliveryId)) return res.status(200).send("OK");
+  const resourceId = body.medId ?? body.refundId ?? body.txId ?? body.paymentId;
+  const state = body.status ?? body.resolution ?? "";
+  if (alreadyApplied(eventType, resourceId, state)) {
+    return res.status(200).send("OK");
+  }
 
   switch (eventType) {
     case "PAYMENT_PAID":
@@ -328,10 +333,15 @@ def webhook():
         return "Invalid signature", 401
 
     event_type = request.headers.get("X-Webhook-Event")
-    delivery_id = request.headers.get("X-Webhook-Delivery-Id")
     body = request.get_json()
+    if event_type == "TEST":
+        return "OK", 200
 
-    if already_processed(delivery_id):
+    resource_id = (
+        body.get("medId") or body.get("refundId") or body.get("txId") or body.get("paymentId")
+    )
+    state = body.get("status") or body.get("resolution") or ""
+    if already_applied(event_type, resource_id, state):
         return "OK", 200
 
     if event_type == "PAYMENT_PAID":
@@ -353,7 +363,8 @@ def webhook():
 
 YuvexPay aims to deliver every event at least once. A few characteristics worth designing around:
 
-- **At-least-once delivery.** The same event may arrive more than once. Treat `X-Webhook-Delivery-Id` as the deduplication key. If you've processed a delivery id before, return `200` and skip the side effects.
+- **At-least-once delivery.** The same event may arrive more than once: as automatic retries of one delivery, which share an `X-Webhook-Delivery-Id`, or as a resend, which is a new delivery with a new id. Deduplicate on the event type, the resource id and its status, not on the delivery id alone. Use `refundId` for refund events and `medId` with `resolution` for MED events, whose bodies carry no `status`. If your stored state for that resource already reflects the event, return `200` and skip the side effects. Compare against your current state rather than a list of events seen: after a won chargeback, `PAYMENT_PAID` arrives again for a payment you already marked paid once.
+- **Every attempt is signed again.** A retry carries a new `X-Webhook-Timestamp` and `X-Webhook-Signature`, so a retry sent hours later still passes the timestamp check. The keys of its JSON body can come in a different order than in an earlier attempt: verify each attempt against its own raw body, and do not deduplicate on a hash of the body.
 - **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in the body's `status` field, not against the order of arrival.
 - **Synchronous timeout: 10 seconds.** Return `2xx` within 10 seconds. Process work asynchronously if you need longer.
 - **Redirects are not followed.** Your endpoint must respond directly.
@@ -390,14 +401,27 @@ A delivery stops being retried when any of the following is true:
 - the delivery is older than 72 hours;
 - the endpoint has been suspended.
 
-In every case the delivery lands in a terminal `FAILED` state and produces no further attempts. Failed deliveries can be inspected and manually replayed from the dashboard.
+In every case the delivery lands in a terminal `FAILED` state and produces no further attempts. You can inspect deliveries in the dashboard and resend the webhook of a payment or withdrawal: see [Resending a webhook](#resending-a-webhook).
 
-<Warning>
-  A manual replay reuses the same `X-Webhook-Delivery-Id` as the original
-  delivery. If you dedupe strictly on that header — which you should for retries
-  — a replay you asked for will be silently discarded as a duplicate. Clear the
-  delivery id from your dedupe store before requesting a replay.
-</Warning>
+### Resending a webhook
+
+A resend does not replay the failed delivery. When you resend the webhook of a
+payment or withdrawal from the dashboard, or support resends it for you,
+YuvexPay creates a new delivery to every active endpoint subscribed to the
+event:
+
+- it carries a new `X-Webhook-Delivery-Id` and starts again at
+  `X-Webhook-Attempt: 1`;
+- its event type follows the resource's current status, so a payment refunded
+  after it was paid is resent as `PAYMENT_REFUNDED`, not `PAYMENT_PAID`;
+- its body carries the resource's current state, so it does not have to match
+  the delivery that failed.
+
+A payment whose status has no event, such as `NEW`, cannot be resent. An
+endpoint that already received the original receives the resend too.
+Deduplicate on the resource state, as described in
+[Delivery semantics](#delivery-semantics): a resend is then processed when you
+missed the original and skipped when you already applied it.
 
 ## Automatic endpoint suspension
 
@@ -468,13 +492,13 @@ A reactivation requested too early returns `429` and sends no test delivery:
 
 The webhook list, `GET /app/companies/{companyId}/webhooks`, returns `reactivationAvailableAt` on each endpoint: the earliest time a suspended endpoint can be reactivated, covering both limits, or `null` when the endpoint is not suspended.
 
-Deliveries that failed while the endpoint was down are not resent automatically — replay the ones you need from the dashboard once the endpoint is back.
+Deliveries that failed while the endpoint was down are not resent automatically — resend the payments and withdrawals you need from the dashboard once the endpoint is back.
 
 ## Best practices
 
 - **Verify before trusting.** Always validate the `X-Webhook-Signature` and the `X-Webhook-Timestamp` skew.
 - **Return 200 quickly.** Acknowledge receipt synchronously and do business logic in a background job.
-- **Deduplicate by delivery id.** The same event can be delivered more than once — `X-Webhook-Delivery-Id` is stable across retries and replays.
+- **Deduplicate on the resource state.** The same event can be delivered more than once. `X-Webhook-Delivery-Id` stays the same across automatic retries but is new on a resend, so key on the event type, the resource id and its status.
 - **Don't rely on order.** Use the body's `status` field to decide what to do, not the sequence of arrivals.
 - **Switch on the header.** `X-Webhook-Event` is the only place the event name appears. The body has no `type` field.
 - **Use HTTPS.** Webhook endpoints must use HTTPS.
