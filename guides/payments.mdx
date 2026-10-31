@@ -509,9 +509,10 @@ https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234?skip
 - Once the checkout has saved details the payer filled in on a payment, the
   flag no longer skips the form on that payment.
 - A card payment still asks for the name on the card and a phone number.
-- A checkout opened with `skip_customer=1` never sends
-  [`CHECKOUT_ABANDONED`](/guides/webhooks#abandoned-checkouts), which needs the
-  payer to fill in the form.
+- When the payment has such a customer, the wait for
+  [`CHECKOUT_ABANDONED`](/guides/webhooks#abandoned-checkouts) and the
+  [recovery kit](#recovery-kit) starts the first time the checkout is opened
+  while the payment is waiting for a method, with or without `skip_customer=1`.
 - `skip_address=1` is accepted but has no effect today. `POST /v1/payments` has
   no address fields, so there is never an address to skip, and a card payment
   keeps asking for the CEP and the street number.
@@ -520,6 +521,83 @@ https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234?skip
   in `customer` when you create the payment.
 
 The flags are read on the `checkoutUrl` only, not on the URL of a payment link.
+
+### Recovery kit
+
+The recovery kit e-mails a payer who filled in the hosted checkout and did not
+pay, with a link back to the payment. Turn it on for a payment with
+`recoveryKit` on `POST /v1/payments`:
+
+```json
+{
+  "amount": 49.90,
+  "methods": ["PIX", "CARD"],
+  "mode": "hosted",
+  "expiresInMinutes": 2880,
+  "recoveryKit": true
+}
+```
+
+- `true` turns the kit on for the payment and `false` turns it off. Without
+  `recoveryKit`, the payment follows the account default: **Ativar por padrão**
+  (Turn on by default) on the **Kit de recuperação** (Recovery kit) card under
+  **Configurações &gt; Empresa**, which is off until you turn it on. A payment
+  link created in the dashboard has its own **Kit de recuperação** setting:
+  **Padrão da conta** (Account default), **Ativado** (On) or **Desativado**
+  (Off).
+- The kit starts when the hosted checkout saves the payer's name, e-mail and
+  CPF or CNPJ, or the first time the checkout is opened for a payment that
+  already has them (see [Skipping checkout steps](#skipping-checkout-steps)).
+  This is the same moment that starts the wait for
+  [`CHECKOUT_ABANDONED`](/guides/webhooks#abandoned-checkouts). A headless
+  payment never starts a kit, so `recoveryKit: true` does nothing on it.
+- The e-mails go to the e-mail the payer typed on the checkout, else the one
+  you sent in `customer`. Up to 5 are sent, at the delays set under **Envios**
+  (E-mails) on the same card, counted from the moment the kit started: 15
+  minutes, 1 hour and 24 hours unless you change them. Each delay is between 5
+  minutes and 7 days.
+- When the payer picked PIX, one more e-mail goes out about 10 minutes before
+  the PIX code expires.
+- The e-mails stop when the payment is paid, and when it expires or is
+  cancelled: an e-mail is sent only while the payment can still be paid, so
+  set `expiresInMinutes` to cover the delays you want.
+- On a payment from a payment link, the e-mails go on after the payment
+  expires, with a link to the payment link, for as long as the link is active.
+  They stop when the same payer, identified by e-mail, pays another payment of
+  that link. A payer who opens the same link again while an earlier kit for
+  their e-mail is still running gets no second kit, and the new payment shows
+  `recoveryKit.enabled: false`.
+- An e-mail is skipped when the payer unsubscribed from your store's e-mails or
+  reached YuvexPay's sending limits for their address.
+- Sandbox payments never get a kit: `recoveryKit.enabled` is `false` on them,
+  even when you send `true`.
+
+The kit has a fixed price per payment, shown in the dashboard on the
+**Kit de recuperação** card. It is charged once, when the first e-mail of the
+kit is sent, whether or not the payer pays afterwards, and it is debited from
+your balance even if the balance goes negative. The price charged is the one in
+effect when the kit started, and a kit that sends no e-mail is not charged. The
+debit appears in [`GET /v1/documents/statements`](/api-reference/documents/statement)
+as **Kit de recuperação**.
+
+`GET /v1/payments`, `GET /v1/payments/{paymentId}` and
+`GET /v1/payments/txid/{txId}` return the kit of each payment:
+
+```json
+"recoveryKit": {
+  "enabled": true,
+  "charged": true,
+  "emailsSent": 2
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `enabled` | The kit is on for this payment. `false` when it was created with the kit off, in sandbox, or before the kit existed. |
+| `charged` | The kit price was debited from your balance. |
+| `emailsSent` | Recovery e-mails sent for this payment, the one before a PIX code expires included. |
+
+The dashboard shows the results per day under **Vendas &gt; Recuperação**.
 
 ## Attribution tracking
 
@@ -598,8 +676,10 @@ Fees are computed at creation time using the merchant's configured rate.
 A refund you issue returns the fee in proportion to the refunded amount, unless
 it takes the counted volume of your verified CPF or CNPJ below a rewards prize
 YuvexPay approved for it (see [refunds below a redeemed rewards prize](/guides/refunds#refunds-below-a-redeemed-rewards-prize)).
-A PIX MED that returns funds and a chargeback do not: your balance is debited
-the full amount returned to the payer, and YuvexPay keeps `feeAmount`.
+A PIX MED that returns funds, a chargeback and a refund YuvexPay makes after a
+[refund request from the payer](/guides/refunds#refunds-requested-by-the-payer)
+do not: your balance is debited the full amount returned to the payer, and
+YuvexPay keeps `feeAmount`.
 
 ## Splits
 

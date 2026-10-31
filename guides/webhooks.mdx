@@ -41,10 +41,10 @@ exactly what arrives in the `X-Webhook-Event` header.
 | `PAYMENT_PAID` | The payment has cleared and net funds were credited to your balance. |
 | `PAYMENT_EXPIRED` | The payment expired before being completed. |
 | `PAYMENT_CANCELLED` | The payment was cancelled or definitively failed before completing. |
-| `PAYMENT_REFUNDED` | A refund completed for this payment. |
+| `PAYMENT_REFUNDED` | A refund completed for this payment, including one you did not start, such as a [refund requested by the payer](/guides/refunds#refunds-requested-by-the-payer). |
 | `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
 | `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. If the card dispute is won, the payment leaves `CHARGEBACK` and `PAYMENT_PAID` or `PAYMENT_CONFIRMED` is sent again for its restored status. |
-| `CHECKOUT_ABANDONED` | The payer filled in their details on the hosted checkout and the payment is still unpaid 30 minutes later. Sent at most once per payment, only to endpoints that selected it. See [Abandoned checkouts](#abandoned-checkouts). |
+| `CHECKOUT_ABANDONED` | The payer's details were saved on the hosted checkout, or the checkout was opened for a payment that already had them, and the payment is still unpaid 30 minutes later. Sent at most once per payment, only to endpoints that selected it. See [Abandoned checkouts](#abandoned-checkouts). |
 | `MED_RECEIVED` | A PIX MED (special refund) request was opened by the payer's bank. |
 | `MED_RESOLVED` | A PIX MED was resolved (approved or rejected). |
 | `WITHDRAWAL_REQUESTED` | A withdrawal was created and is being processed. |
@@ -72,29 +72,39 @@ not pay, so you can follow up with them.
   the payer's name, e-mail and CPF or CNPJ, including on the checkout of a
   payment link. The checkout saves them as soon as all three are filled in and
   valid, even if the payer does not continue, or right away when it opens with
-  details the browser remembered from an earlier payment. If the payment is
-  still unpaid 30 minutes later, the event is sent. YuvexPay sets this delay for the whole platform: it can change, and it
-  cannot be set per account.
+  details the browser remembered from an earlier payment. When the payment
+  already has a customer, from `customer` or `customerId`, with a name of 2 to
+  120 characters, a valid e-mail and a CPF or CNPJ with valid check digits, the
+  wait starts instead the first time the checkout is opened while the payment
+  is waiting for a method, with or without
+  `skip_customer=1` (see
+  [Skipping checkout steps](/guides/payments#skipping-checkout-steps)). If the
+  payment is still unpaid 30 minutes later, the event is sent. YuvexPay sets
+  this delay for the whole platform: it can change, and it cannot be set per
+  account.
 - **Once per payment.** Failed deliveries are retried as described in
   [Retry behavior](#retry-behavior). A resend from the dashboard or by support
   never sends `CHECKOUT_ABANDONED`: its event type follows the payment's
   current status (see [Resending a webhook](#resending-a-webhook)). An event
   that would go out more than 24 hours late is not sent.
-- **Only when the payer filled in the form.** Headless payments never send it.
-  Neither does a checkout opened with `skip_customer=1`, which does not show the
-  form (see [Skipping checkout steps](/guides/payments#skipping-checkout-steps)).
+- **Hosted checkout only.** Headless payments never send it.
 - **Production only.** Like every event on this page, it is not delivered for
   sandbox payments.
 
-The body has the same four fields as the `PAYMENT_EXPIRED` body that carries
-`id`, and all four are always present:
+The body has the four fields of the `PAYMENT_EXPIRED` body that carries `id`,
+plus `buyer`, and all five are always present:
 
 ```json
 {
   "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
   "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
   "status": "PENDING_METHOD_SELECTION",
-  "amount": 49.9
+  "amount": 49.9,
+  "buyer": {
+    "name": "Maria Souza",
+    "email": "maria@example.com",
+    "phone": null
+  }
 }
 ```
 
@@ -106,11 +116,14 @@ code that has not expired yet or with a boleto. Read the current status with
 [`GET /v1/payments/{paymentId}`](/api-reference/payments/get) before you contact
 the payer.
 
-To reach the payer, read `payer.name`, `payer.document` and
-`payer.documentType` from the same `GET /v1/payments/{paymentId}`. They carry
-what you sent in `customer` when you created the payment, completed with what
-the payer typed on the checkout. The e-mail and phone the payer typed are not
-returned by the API. They are shown on the payment in the dashboard.
+`buyer` is how you reach the payer. `name` is what you sent in `customer` when
+you created the payment, completed with what the payer typed on the checkout.
+`email` and `phone` are what the payer typed on the checkout, else what you
+sent in `customer`. A field the payment does not have comes from the customer
+record linked to the payment, and is `null` when it is not known there either.
+`buyer` itself is never `null`. `GET /v1/payments/{paymentId}` returns the same
+e-mail and phone in `payer.email` and `payer.phone`, next to `payer.name`,
+`payer.document` and `payer.documentType`.
 
 ## Webhook payload
 
@@ -219,7 +232,7 @@ recorded. It is never `null`. Its value is always one of these messages:
 | `PAYMENT_EXPIRED` | `txId`, `status` — or `id`, `txId`, `status`, `amount` depending on which subsystem expired the charge |
 | `PAYMENT_CANCELLED` | `txId`, `status`, `reason` — or `id`, `txId`, `status`, `amount`. `reason` is `payment_failed` when the payment was refused or could not be completed, for example a card that was refused, and `payment_cancelled` when the charge was cancelled before it was paid |
 | `PAYMENT_CHARGEBACK` | `txId`, `status`. That is the entire body — no amount, no id |
-| `CHECKOUT_ABANDONED` | `id`, `txId`, `status`, `amount`. `status` is the payment's unpaid status when the event is sent: `PENDING_METHOD_SELECTION`, `NEW`, `PROCESSING`, `EXPIRED` or `CANCELLED` |
+| `CHECKOUT_ABANDONED` | `id`, `txId`, `status`, `amount`, `buyer`. `status` is the payment's unpaid status when the event is sent: `PENDING_METHOD_SELECTION`, `NEW`, `PROCESSING`, `EXPIRED` or `CANCELLED`. `buyer` is `{ name, email, phone }`, each `null` when not known |
 | `PAYMENT_REFUNDED` | `paymentId`, `refundId`, `amount`; plus `source: null` on MED-driven refunds |
 | `PAYMENT_REFUND_FAILED` | `paymentId`, `refundId`, `reason`. `reason` is always `Reembolso não processado. O valor foi devolvido ao saldo.` |
 | `MED_RECEIVED` | `medId`, `paymentId`, `amount`, `frozenAmount`, `shortfall`; on some paths also `providerMedId`, always `null` |

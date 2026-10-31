@@ -2243,7 +2243,7 @@
       "get": {
         "operationId": "getStatement",
         "summary": "Get account statement",
-        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances. Split credits received from other YuvexPay companies, and the proportional debits taken back on a refund or MED, appear here. Besides `GET /v1/balance`, this is the only public record a recipient has of a split: the payment itself belongs to the originating company and is not readable by the recipient.",
+        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances. Split credits received from other YuvexPay companies, and the proportional debits taken back on a refund or MED, appear here. Besides `GET /v1/balance`, this is the only public record a recipient has of a split: the payment itself belongs to the originating company and is not readable by the recipient. The price of a recovery kit appears as a debit labelled `Kit de recuperação`.",
         "tags": [
           "Documents"
         ],
@@ -2708,7 +2708,7 @@
     "PAYMENT_REFUNDED": {
       "post": {
         "summary": "Payment refunded",
-        "description": "A refund completed for this payment. Note this body identifies the payment as `paymentId` and carries no `txId`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
+        "description": "A refund completed for this payment. Note this body identifies the payment as `paymentId` and carries no `txId`. It is also sent for refunds you did not start, such as a payer's refund request approved in the dashboard or automatically, or a refund YuvexPay made after such a request. The body carries no reason: read `reason` with `GET /v1/payments/{paymentId}/refunds`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. Most optional fields arrive as an explicit `null`; a few keys are dropped from the JSON entirely when unset, and those are marked as such below. Read values with a null-safe accessor rather than testing key presence.",
         "tags": [
           "Webhooks"
         ],
@@ -2843,7 +2843,7 @@
     "CHECKOUT_ABANDONED": {
       "post": {
         "summary": "Checkout abandoned",
-        "description": "The hosted checkout saved the payer's name, e-mail and CPF or CNPJ, and the payment was still unpaid 30 minutes later. The checkout saves them as soon as all three are filled in and valid, or when it opens with details the browser remembered. The delay is set by YuvexPay for the whole platform and can change.\n\nOpt-in: delivered only to endpoints that selected this event, never to the others. Sent at most once per payment, never for headless payments, for a checkout opened with `skip_customer=1` or for sandbox payments, and never by a manual resend. The payment can still be paid after this event: read its current status with `GET /v1/payments/{paymentId}` before contacting the payer. The same response carries the payer's name and document in `payer`; the e-mail and phone the payer typed are not returned by the API.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. All four fields are always present.",
+        "description": "The hosted checkout saved the payer's name, e-mail and CPF or CNPJ, and the payment was still unpaid 30 minutes later. The checkout saves them as soon as all three are filled in and valid, or when it opens with details the browser remembered. When the payment was created with a customer that has a name of 2 to 120 characters, a valid e-mail and a CPF or CNPJ with valid check digits, the wait starts instead the first time the checkout is opened while the payment is waiting for a method, with or without `skip_customer=1`. The delay is set by YuvexPay for the whole platform and can change.\n\nOpt-in: delivered only to endpoints that selected this event, never to the others. Sent at most once per payment, never for headless payments or for sandbox payments, and never by a manual resend. The payment can still be paid after this event: read its current status with `GET /v1/payments/{paymentId}` before contacting the payer. `buyer` carries the payer's contact, and the same response carries it in `payer`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header. All five fields are always present.",
         "tags": [
           "Webhooks"
         ],
@@ -2876,20 +2876,58 @@
                   "amount": {
                     "type": "number",
                     "description": "The payment `amount` in BRL, the same value `GET /v1/payments/{paymentId}` returns."
+                  },
+                  "buyer": {
+                    "type": "object",
+                    "description": "The payer's contact. A field the payment does not have comes from the customer record linked to the payment, and is `null` when it is not known there either. Never `null` itself.",
+                    "properties": {
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The name you sent in `customer`, completed with the one the payer typed on the checkout."
+                      },
+                      "email": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The e-mail the payer typed on the checkout, else the one you sent in `customer`."
+                      },
+                      "phone": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The phone the payer typed on the checkout, else the one you sent in `customer`."
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "email",
+                      "phone"
+                    ]
                   }
                 },
                 "required": [
                   "id",
                   "txId",
                   "status",
-                  "amount"
+                  "amount",
+                  "buyer"
                 ]
               },
               "example": {
                 "id": "5d0f8b6e-3a02-4f5b-9e1c-7c6a4a1b8c9d",
                 "txId": "PAY3F2A8B9C4E6D1F5A7B3C8D2E9F4A6B1C",
                 "status": "PENDING_METHOD_SELECTION",
-                "amount": 49.9
+                "amount": 49.9,
+                "buyer": {
+                  "name": "Maria Souza",
+                  "email": "maria@example.com",
+                  "phone": null
+                }
               }
             }
           }
@@ -3766,6 +3804,10 @@
           "tracking": {
             "$ref": "#/components/schemas/PaymentTrackingInput"
           },
+          "recoveryKit": {
+            "type": "boolean",
+            "description": "Turn the recovery kit on (`true`) or off (`false`) for this payment. When omitted, the account default applies (Ativar por padrão on the Kit de recuperação card in the dashboard, off until turned on). The kit e-mails a payer who filled in the hosted checkout and did not pay: up to 5 e-mails at the delays set for the account, 15 minutes, 1 hour and 24 hours unless changed, plus one about 10 minutes before a PIX code expires, sent only while the payment can still be paid. It starts when the hosted checkout saves the payer's details, or when the checkout is first opened for a payment whose customer already has them, so it does nothing on a headless payment. The kit price, shown in the dashboard, is debited once, when the first e-mail is sent, even if the balance goes negative. Sandbox payments never get a kit: `recoveryKit.enabled` is `false` on them. The result is returned as `recoveryKit` on the Payment object."
+          },
           "boleto": {
             "type": "object",
             "description": "Boleto-specific options, applied only when `BOLETO` is one of the `methods`. Fine, interest, and discount mirror the boleto configuration registered with the bank and are settled against the amount the payer actually pays.",
@@ -4227,7 +4269,7 @@
               "object",
               "null"
             ],
-            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Before that, `name` and `document` carry what you sent in `customer`, completed with what the payer typed on the hosted checkout. Null for historical records or open-payer charges where no payer data was captured.",
+            "description": "Payer (debtor) identity captured from the PIX network once the charge is paid. Before that, `name` and `document` carry what you sent in `customer`, completed with what the payer typed on the hosted checkout. `email` and `phone` carry the payer's contact. `null` when none of the seven fields is known, for example on historical records or open-payer charges. A `payer` that has only `email` or `phone` is possible, so a non-null `payer` does not mean the payment was paid. Webhook `payer` blocks are unchanged and carry no `email` or `phone`.",
             "properties": {
               "name": {
                 "type": [
@@ -4268,8 +4310,46 @@
                   "null"
                 ],
                 "description": "Payer bank ISPB (Banco Central participant identifier)."
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Payer e-mail: the one the payer typed on the hosted checkout, else the one in `customer`, or of the customer named in `customerId`, when the payment was created. `GET /v1/payments/{paymentId}` and `POST /v1/payments/{paymentId}/simulate` also fall back to the current e-mail of the customer linked to the payment; `GET /v1/payments` and `GET /v1/payments/txid/{txId}` do not. `null` when not known."
+              },
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Payer phone, with the same sources and fallback as `email`. `null` when not known."
               }
             }
+          },
+          "recoveryKit": {
+            "type": "object",
+            "description": "Recovery kit of this payment. See `recoveryKit` on `POST /v1/payments`.",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "description": "The kit is on for this payment. `false` when the payment was created with the kit off, in sandbox, or before the kit existed, and on a payment-link payment whose payer already has a kit running on that link."
+              },
+              "charged": {
+                "type": "boolean",
+                "description": "The kit price was debited from your balance. It is debited once, when the first e-mail of the kit is sent."
+              },
+              "emailsSent": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Recovery e-mails sent for this payment, including the one sent before a PIX code expires."
+              }
+            },
+            "required": [
+              "enabled",
+              "charged",
+              "emailsSent"
+            ]
           }
         }
       },
@@ -4291,7 +4371,7 @@
               "string",
               "null"
             ],
-            "description": "The reason sent with the refund request. `null` when none was sent and for refunds YuvexPay executed on its own, such as the return of a PIX MED."
+            "description": "The reason sent with the refund request. `Pedido de reembolso do comprador` on a refund the payer requested and you approved, or that was approved automatically. `Reembolso feito pela YuvexPay` on a refund YuvexPay made after a payer's refund request: it debits the full amount returned to the payer, YuvexPay keeps the processing fee and the balance can go negative. `null` when none was sent and on refunds that reached YuvexPay from the payment network, such as the return of a PIX MED."
           },
           "status": {
             "$ref": "#/components/schemas/TransactionStatus"
