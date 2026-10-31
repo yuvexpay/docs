@@ -145,6 +145,9 @@ YuvexPay handles method selection, card capture and PIX rendering.
   "description": "Order #1234",
   "returnUrl": "https://store.example.com/checkout/return",
   "completionUrl": "https://store.example.com/checkout/done",
+  "metadata": {
+    "cancelUrl": "https://store.example.com/cart"
+  },
   "customer": {
     "name": "Pedro Álvares Cabral",
     "email": "user@example.com",
@@ -155,6 +158,11 @@ YuvexPay handles method selection, card capture and PIX rendering.
 
 - `returnUrl` is where YuvexPay sends the payer if they abandon the checkout.
 - `completionUrl` is where YuvexPay redirects after a successful payment.
+- `metadata.cancelUrl`, an `http` or `https` URL of up to 2048 characters,
+  shows a back link to that URL on the hosted checkout while the payment is
+  unpaid, including after it expires or is cancelled. Any other value is
+  ignored, not rejected. The cancel URL of a payment link created in the
+  dashboard works the same way on the payments the link creates.
 
 Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
 method, then transition through the same lifecycle as a headless payment. If

@@ -3688,7 +3688,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Arbitrary key-value pairs attached to the payment."
+            "description": "Arbitrary key-value pairs attached to the payment. `cancelUrl`, an `http` or `https` URL of up to 2048 characters, shows a back link to that URL on the hosted checkout while the payment is unpaid; any other value under that key is ignored."
           },
           "passFeeToPayer": {
             "type": "boolean",
