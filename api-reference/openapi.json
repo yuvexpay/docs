@@ -3518,6 +3518,74 @@
           "value"
         ]
       },
+      "PaymentTrackingInput": {
+        "type": "object",
+        "description": "Attribution data for the payment, passed to the conversion plugins enabled for your account, such as GA4, Meta Conversions API, TikTok Events API and UTMify. Every field is optional and values are trimmed. A `gaClientId`, `fbp` or `fbc` that does not match its format is ignored and the payment is created without it. Any other field that is not a string or is longer than its limit fails the request with `400 VALIDATION_ERROR`. On the hosted checkout, the fields you leave empty are filled from the checkout URL's query parameters and from the checkout domain's cookies.",
+        "properties": {
+          "utmSource": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `utm_source` parameter of the landing URL."
+          },
+          "utmMedium": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `utm_medium` parameter of the landing URL."
+          },
+          "utmCampaign": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `utm_campaign` parameter of the landing URL."
+          },
+          "utmTerm": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `utm_term` parameter of the landing URL."
+          },
+          "utmContent": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `utm_content` parameter of the landing URL."
+          },
+          "src": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `src` parameter of the landing URL."
+          },
+          "sck": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The `sck` parameter of the landing URL."
+          },
+          "fbclid": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Meta click id, the `fbclid` parameter of the landing URL. When sent without `fbc`, an `fbc` is built from it for Meta."
+          },
+          "gclid": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Google Ads click id, the `gclid` parameter of the landing URL."
+          },
+          "ttclid": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "TikTok click id, the `ttclid` parameter of the landing URL."
+          },
+          "gaClientId": {
+            "type": "string",
+            "description": "GA4 client id, `<digits>.<digits>`. A raw `_ga` cookie value, `GA1.1.<a>.<b>`, is accepted too and stored as `<a>.<b>`. Any other value is ignored."
+          },
+          "fbp": {
+            "type": "string",
+            "description": "Value of the Meta `_fbp` cookie, `fb.<subdomainIndex>.<creationTime>.<random>`, up to 512 characters. Any other value is ignored."
+          },
+          "fbc": {
+            "type": "string",
+            "description": "Value of the Meta `_fbc` cookie, `fb.<subdomainIndex>.<creationTime>.<fbclid>`, up to 512 characters. Any other value is ignored."
+          }
+        }
+      },
       "CreatePaymentRequest": {
         "type": "object",
         "properties": {
@@ -3632,6 +3700,9 @@
               "$ref": "#/components/schemas/PaymentSplitInput"
             },
             "description": "Share part of this payment with other YuvexPay companies when it settles. Optional. The maximum number of entries is the recipient limit configured for your account — three by default, and support can raise it; going over it returns `SPLIT_RECIPIENT_LIMIT_EXCEEDED`. The sum of the splits must not exceed `netAmount`, otherwise the request fails with `SPLIT_AMOUNT_EXCEEDS_NET` and nothing is clamped. The YuvexPay fee is always yours and is never apportioned. Splits are set only at creation: there is no endpoint to add, edit or remove one afterwards."
+          },
+          "tracking": {
+            "$ref": "#/components/schemas/PaymentTrackingInput"
           },
           "boleto": {
             "type": "object",
