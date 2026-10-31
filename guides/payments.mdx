@@ -156,7 +156,9 @@ YuvexPay handles method selection, card capture and PIX rendering.
 }
 ```
 
-- `returnUrl` is where YuvexPay sends the payer if they abandon the checkout.
+- `returnUrl`, an `http` or `https` URL of up to 2048 characters, is the back
+  link the hosted checkout shows while the payment is unpaid, so the payer can
+  leave without paying. `metadata.cancelUrl` takes precedence when both are set.
 - `completionUrl` is where YuvexPay redirects after a successful payment.
 - `metadata.cancelUrl`, an `http` or `https` URL of up to 2048 characters,
   shows a back link to that URL on the hosted checkout while the payment is
