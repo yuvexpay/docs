@@ -9,7 +9,7 @@ rss: true
   tags={["Pagamentos", "Webhooks", "Reembolsos"]}
   rss={{
     title: "2026-10-31: kit de recuperação, contato do pagador e reembolsos pedidos pelo comprador",
-    description: "POST /v1/payments aceita recoveryKit, que liga os e-mails de recuperação para o pagador que preencheu o checkout hospedado e não pagou, com um preço fixo cobrado uma vez quando o primeiro e-mail sai. GET /v1/payments traz recoveryKit e o e-mail e o telefone do pagador em payer. CHECKOUT_ABANDONED ganha buyer, com nome, e-mail e telefone. O comprador pode pedir reembolso pela YuvexPay e, em último caso, a YuvexPay faz o reembolso, debitando o valor integral e mantendo a taxa."
+    description: "POST /v1/payments aceita recoveryKit, que liga os e-mails de recuperação para o pagador que preencheu o checkout hospedado e não pagou, com um preço fixo cobrado uma vez quando o primeiro e-mail sai. GET /v1/payments traz recoveryKit e o e-mail e o telefone do pagador em payer. CHECKOUT_ABANDONED ganha buyer, com nome, e-mail e telefone. O comprador pode pedir reembolso pela YuvexPay e, em último caso, a YuvexPay pode fazer o reembolso, debitando o valor integral e mantendo a taxa."
   }}
 >
   ## Kit de recuperação
@@ -66,7 +66,7 @@ rss: true
   `reason: "Pedido de reembolso do comprador"`.
 
   Em último caso, depois de um pedido recusado, sem resposta ou cujo reembolso
-  falhou, a YuvexPay faz o reembolso, com
+  falhou, a YuvexPay pode fazer o reembolso, com
   `reason: "Reembolso feito pela YuvexPay"`. Como num MED ou num chargeback, o
   saldo é debitado do valor integral devolvido ao pagador, a YuvexPay mantém a
   taxa de processamento e o saldo disponível pode ficar negativo. Os dois
