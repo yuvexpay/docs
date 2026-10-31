@@ -106,6 +106,16 @@
             ]
           },
           {
+            "group": "Coupons",
+            "pages": [
+              "api-reference/coupons/create",
+              "api-reference/coupons/list",
+              "api-reference/coupons/get",
+              "api-reference/coupons/update",
+              "api-reference/coupons/delete"
+            ]
+          },
+          {
             "group": "Customers",
             "pages": [
               "api-reference/customers/create",
