@@ -3699,7 +3699,7 @@
           "completionUrl": {
             "type": "string",
             "format": "uri",
-            "description": "URL to redirect the payer after successful payment completion."
+            "description": "Hosted mode: where the checkout sends the payer, after a 5-second countdown, once the payment is `PAID` or `CONFIRMED`. The checkout adds `yvx_payment_id`, `yvx_status`, `yvx_amount_cents`, `yvx_reference`, `yvx_ts` and `yvx_signature`, a lowercase hex HMAC-SHA256 of `payment_id.status.amount_cents.reference.ts` keyed with the account's redirect secret; see the payments guide to verify it. Only an http or https URL of up to 2048 characters is used. The redirect is not proof of payment: confirm with `GET /v1/payments/{paymentId}` or the webhook before fulfilling."
           },
           "description": {
             "type": "string",

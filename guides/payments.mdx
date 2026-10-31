@@ -159,7 +159,9 @@ YuvexPay handles method selection, card capture and PIX rendering.
 - `returnUrl`, an `http` or `https` URL of up to 2048 characters, is the back
   link the hosted checkout shows while the payment is unpaid, so the payer can
   leave without paying. `metadata.cancelUrl` takes precedence when both are set.
-- `completionUrl` is where YuvexPay redirects after a successful payment.
+- `completionUrl`, an `http` or `https` URL of up to 2048 characters, is where
+  the checkout sends the payer after a successful payment, with signed query
+  parameters (see [Signed success redirect](#signed-success-redirect)).
 - `metadata.cancelUrl`, an `http` or `https` URL of up to 2048 characters,
   shows a back link to that URL on the hosted checkout while the payment is
   unpaid, including after it expires or is cancelled. Any other value is
@@ -221,6 +223,303 @@ On a card payment, `GET /v1/payments/{paymentId}` returns
 `methodData.cardFundingType`: `credit` when the card was charged as a credit
 card, `debit` when it was charged as a debit card, and `null` when the funding
 type is not known, including older payments. Webhook bodies do not carry it.
+
+### Signed success redirect
+
+When a hosted payment with a `completionUrl` reaches `PAID` or `CONFIRMED`, the
+checkout shows the payment as approved, counts down 5 seconds and sends the
+payer to `completionUrl`. An **Ir agora** (Go now) button skips the countdown.
+On a payment link created in the dashboard, the link's success URL takes the
+place of `completionUrl`. Only an `http` or `https` URL of up to 2048
+characters is used.
+
+The checkout adds these query parameters to the URL:
+
+| Parameter | Value |
+|-----------|-------|
+| `yvx_payment_id` | The payment `id`. |
+| `yvx_status` | `PAID` or `CONFIRMED`. |
+| `yvx_amount_cents` | The payment `amount` in centavos, as an integer: `4990` for `49.90`. It does not include the fee added for the payer when `feePassedToPayer` is true. |
+| `yvx_reference` | `metadata.externalReference` when the payment has it, which is where a payment link puts its reference; otherwise the `externalId` you sent; otherwise empty. The parameter is sent even when it is empty. |
+| `yvx_ts` | Unix time, in seconds, when the URL was signed. |
+| `yvx_signature` | Lowercase hex HMAC-SHA256 of the five parameters above. |
+
+The query parameters already in your `completionUrl` are kept, and any `yvx_`
+parameter in it is replaced. The URL is signed again each time the checkout
+loads, so the same payment can reach your URL more than once, after a reload
+or when the payer opens the checkout again, each time with a new `yvx_ts` and
+`yvx_signature`. Sandbox payments redirect the same way, with the same secret.
+
+#### Redirect secret
+
+The signing key is your account's redirect secret, a 64-character string shown
+in the dashboard under **Desenvolvedores > Webhooks**, in
+**Segredo do redirecionamento** (Redirect secret), to users who can edit
+webhooks. It is not the secret of a webhook endpoint. It is created the first
+time that page is opened or a payment redirects, whichever comes first.
+
+**Trocar segredo** (Rotate secret) replaces it at once, with no overlap: a URL
+signed before the rotation, for example on a checkout page that was already
+open, no longer verifies. Keep the secret on your server and never send it to
+the browser.
+
+#### Verifying the redirect
+
+```
+message   = yvx_payment_id + "." + yvx_status + "." + yvx_amount_cents + "." + yvx_reference + "." + yvx_ts
+signature = hex(HMAC_SHA256(secret, message))
+```
+
+The key is the secret string exactly as shown, as UTF-8 bytes: do not
+hex-decode it. Build the message from the URL-decoded parameter values.
+`yvx_reference` can contain dots, so never split the message to read the
+values back.
+
+1. Read the six parameters. Reject the request if one is missing.
+   `yvx_reference` can be empty, but it is always present.
+2. Reject it if `yvx_ts` is more than **600 seconds** away from your clock.
+3. Compute the signature and compare it with `yvx_signature` in constant time.
+4. Look up your order by `yvx_payment_id` and compare `yvx_amount_cents` with
+   the order total in cents.
+5. Confirm the payment on your server before you fulfil the order: call
+   [`GET /v1/payments/{paymentId}`](/api-reference/payments/get), or wait for
+   the `PAYMENT_PAID` or `PAYMENT_CONFIRMED` [webhook](/guides/webhooks).
+   Fulfil each payment once, since the redirect can repeat and the webhook
+   arrives as well.
+
+<Warning>
+  The redirect brings the payer back to your site. It is not proof of payment:
+  a payer who closes the tab during the countdown never reaches your URL, and a
+  signed URL can be opened again until it is 600 seconds old. Fulfil orders
+  from the API or the webhook.
+</Warning>
+
+<CodeGroup>
+```javascript Node.js
+import crypto from "crypto";
+
+const MAX_AGE_SECONDS = 600;
+
+function signSuccessRedirect(secret, { paymentId, status, amountCents, reference, ts }) {
+  const message = `${paymentId}.${status}.${amountCents}.${reference}.${ts}`;
+  return crypto.createHmac("sha256", secret).update(message, "utf8").digest("hex");
+}
+
+function verifySuccessRedirect(params, secret) {
+  const paymentId = params.get("yvx_payment_id");
+  const status = params.get("yvx_status");
+  const amountCents = params.get("yvx_amount_cents");
+  const reference = params.get("yvx_reference");
+  const ts = params.get("yvx_ts");
+  const signature = params.get("yvx_signature");
+  const values = [paymentId, status, amountCents, reference, ts, signature];
+  if (values.some((value) => typeof value !== "string")) return false;
+
+  const now = Math.floor(Date.now() / 1000);
+  if (!/^\d+$/.test(ts) || Math.abs(now - Number(ts)) > MAX_AGE_SECONDS) return false;
+
+  const expected = signSuccessRedirect(secret, { paymentId, status, amountCents, reference, ts });
+  const a = Buffer.from(signature, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+app.get("/checkout/done", async (req, res) => {
+  const params = new URL(req.originalUrl, "https://store.example.com").searchParams;
+  if (!verifySuccessRedirect(params, process.env.YUVEX_REDIRECT_SECRET)) {
+    return res.status(400).send("Invalid redirect");
+  }
+
+  const paymentId = params.get("yvx_payment_id");
+  const order = await findOrderByPaymentId(paymentId);
+  if (!order || String(order.amountCents) !== params.get("yvx_amount_cents")) {
+    return res.status(400).send("Unknown order");
+  }
+
+  const response = await fetch(
+    `https://api.yuvexpay.com/v1/payments/${encodeURIComponent(paymentId)}`,
+    { headers: { Authorization: `Bearer ${process.env.YUVEX_API_KEY}` } },
+  );
+  const status = response.ok ? (await response.json()).payment.status : null;
+  if (status === "PAID" || status === "CONFIRMED") {
+    await fulfilOrderOnce(order);
+  }
+  res.redirect(`/orders/${order.id}`);
+});
+```
+
+```php PHP
+<?php
+
+const MAX_AGE_SECONDS = 600;
+
+function sign_success_redirect(
+    string $secret,
+    string $paymentId,
+    string $status,
+    string $amountCents,
+    string $reference,
+    string $ts
+): string {
+    $message = implode('.', [$paymentId, $status, $amountCents, $reference, $ts]);
+    return hash_hmac('sha256', $message, $secret);
+}
+
+function verify_success_redirect(array $query, string $secret): bool
+{
+    $names = ['yvx_payment_id', 'yvx_status', 'yvx_amount_cents', 'yvx_reference', 'yvx_ts', 'yvx_signature'];
+    foreach ($names as $name) {
+        if (!isset($query[$name]) || !is_string($query[$name])) {
+            return false;
+        }
+    }
+
+    $ts = $query['yvx_ts'];
+    if (!ctype_digit($ts) || abs(time() - (int) $ts) > MAX_AGE_SECONDS) {
+        return false;
+    }
+
+    $expected = sign_success_redirect(
+        $secret,
+        $query['yvx_payment_id'],
+        $query['yvx_status'],
+        $query['yvx_amount_cents'],
+        $query['yvx_reference'],
+        $ts
+    );
+    return hash_equals($expected, $query['yvx_signature']);
+}
+
+if (!verify_success_redirect($_GET, getenv('YUVEX_REDIRECT_SECRET'))) {
+    http_response_code(400);
+    exit('Invalid redirect');
+}
+
+$paymentId = $_GET['yvx_payment_id'];
+$order = find_order_by_payment_id($paymentId);
+if ($order === null || (string) $order['amount_cents'] !== $_GET['yvx_amount_cents']) {
+    http_response_code(400);
+    exit('Unknown order');
+}
+
+$ch = curl_init('https://api.yuvexpay.com/v1/payments/' . rawurlencode($paymentId));
+curl_setopt_array($ch, [
+    CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . getenv('YUVEX_API_KEY')],
+    CURLOPT_RETURNTRANSFER => true,
+]);
+$body = curl_exec($ch);
+$status = null;
+if (curl_getinfo($ch, CURLINFO_RESPONSE_CODE) === 200) {
+    $status = json_decode($body, true)['payment']['status'] ?? null;
+}
+if ($status === 'PAID' || $status === 'CONFIRMED') {
+    fulfil_order_once($order);
+}
+header('Location: /orders/' . $order['id']);
+```
+
+```python Python
+import hashlib
+import hmac
+import os
+import time
+
+import requests
+from flask import Flask, abort, redirect, request
+
+app = Flask(__name__)
+MAX_AGE_SECONDS = 600
+SIGNED = ("yvx_payment_id", "yvx_status", "yvx_amount_cents", "yvx_reference", "yvx_ts")
+
+
+def sign_success_redirect(secret: str, values) -> str:
+    message = ".".join(values)
+    return hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def verify_success_redirect(args, secret: str) -> bool:
+    values = [args.get(name) for name in SIGNED]
+    signature = args.get("yvx_signature")
+    if signature is None or None in values:
+        return False
+
+    ts = values[-1]
+    if not ts.isdecimal() or abs(int(time.time()) - int(ts)) > MAX_AGE_SECONDS:
+        return False
+
+    expected = sign_success_redirect(secret, values)
+    return hmac.compare_digest(expected.encode("utf-8"), signature.encode("utf-8"))
+
+
+@app.get("/checkout/done")
+def checkout_done():
+    if not verify_success_redirect(request.args, os.environ["YUVEX_REDIRECT_SECRET"]):
+        abort(400)
+
+    payment_id = request.args["yvx_payment_id"]
+    order = find_order_by_payment_id(payment_id)
+    if order is None or str(order.amount_cents) != request.args["yvx_amount_cents"]:
+        abort(400)
+
+    response = requests.get(
+        f"https://api.yuvexpay.com/v1/payments/{payment_id}",
+        headers={"Authorization": f"Bearer {os.environ['YUVEX_API_KEY']}"},
+        timeout=10,
+    )
+    status = response.json()["payment"]["status"] if response.ok else None
+    if status in ("PAID", "CONFIRMED"):
+        fulfil_order_once(order)
+    return redirect(f"/orders/{order.id}")
+```
+</CodeGroup>
+
+#### Test vector
+
+Check your signature function with this secret and these two messages. The
+second has an empty `yvx_reference`, hence the two dots in a row. Their
+`yvx_ts` is fixed, so the full verifier rejects them as older than 600
+seconds: test the signing function on its own.
+
+```
+secret:    0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0
+
+message:   3f2b8c1e-5d4a-4b6f-9e7d-1a2b3c4d5e6f.PAID.4990.order-1234.1793462400
+signature: ac8008714e1cb1e8475801af038e00c0fb7e8ed710be046d0bc4467c18667ab2
+
+message:   3f2b8c1e-5d4a-4b6f-9e7d-1a2b3c4d5e6f.CONFIRMED.10000..1793462400
+signature: e4ab206280ece8a96ff03c854ed96e0207b01cb1c0ec0924e998ed0e30c96976
+```
+
+### Skipping checkout steps
+
+The hosted checkout asks the payer for their name, e-mail and CPF or CNPJ
+before it shows the payment methods. When you already sent them on the
+payment, add `skip_customer=1` to the `checkoutUrl` and the checkout goes
+straight to the payment methods:
+
+```
+https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234?skip_customer=1
+```
+
+- The form is skipped only when the payment has a customer, from `customer` or
+  `customerId` on `POST /v1/payments`, with a name of 2 to 120 characters, a
+  valid e-mail and a CPF or CNPJ with valid check digits. Otherwise the checkout
+  shows the form as usual.
+- `1` and `true` turn a flag on. Any other value is ignored.
+- Once the payer has submitted the form on a payment, the flag no longer skips
+  it for that payment.
+- A card payment still asks for the name on the card and a phone number.
+- A checkout opened with `skip_customer=1` never sends
+  [`CHECKOUT_ABANDONED`](/guides/webhooks#abandoned-checkouts), which needs the
+  payer to submit the form.
+- `skip_address=1` is accepted but has no effect today. `POST /v1/payments` has
+  no address fields, so there is never an address to skip, and a card payment
+  keeps asking for the CEP and the street number.
+- Personal data in the URL is ignored. The checkout never fills the form from
+  query parameters such as `name`, `email` or `document`: send the payer's data
+  in `customer` when you create the payment.
+
+The flags are read on the `checkoutUrl` only, not on the URL of a payment link.
 
 ## Attribution tracking
 
