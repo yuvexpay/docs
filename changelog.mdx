@@ -6,6 +6,62 @@ rss: true
 
 <Update
   label="2026-10-31"
+  tags={["Webhooks", "Pagamentos"]}
+  rss={{
+    title: "2026-10-31: webhook CHECKOUT_ABANDONED, redirecionamento assinado e skip_customer",
+    description: "Novo evento opcional CHECKOUT_ABANDONED, enviado uma vez por pagamento quando o comprador preencheu os dados no checkout hospedado e o pagamento continua sem pagar 30 minutos depois. Depois do pagamento, o checkout leva o comprador para completionUrl com parâmetros yvx_ assinados com HMAC-SHA256. skip_customer=1 pula o formulário do comprador quando o pagamento já tem os dados do cliente."
+  }}
+>
+  ## Webhook `CHECKOUT_ABANDONED`
+
+  Novo evento de webhook, opcional por endpoint: só é entregue aos endpoints em
+  que você marcar **Checkout abandonado** em **Desenvolvedores > Webhooks**. Os
+  endpoints que já existem não o recebem até você editá-los e marcar o evento.
+
+  O evento é enviado uma vez por pagamento quando o comprador preencheu nome,
+  e-mail e CPF ou CNPJ no checkout hospedado, inclusive no de um link de
+  pagamento, e o pagamento continua sem pagar 30 minutos depois. Esse prazo é
+  definido pela YuvexPay para toda a plataforma. O evento não é enviado para
+  pagamentos headless, para um checkout aberto com `skip_customer=1`, para
+  pagamentos de sandbox nem num reenvio manual.
+
+  O corpo tem os mesmos campos do `PAYMENT_EXPIRED` que traz `id`:
+  `{ id, txId, status, amount }`, com `status` igual a
+  `PENDING_METHOD_SELECTION`, `NEW`, `PROCESSING`, `EXPIRED` ou `CANCELLED`. O
+  pagamento ainda pode ser pago depois do evento: consulte
+  `GET /v1/payments/{paymentId}` antes de falar com o comprador. Essa resposta
+  traz o nome e o documento em `payer`. O e-mail e o telefone digitados não vêm
+  na API e aparecem no pagamento no dashboard. Detalhes no
+  [guia de webhooks](/guides/webhooks#abandoned-checkouts).
+
+  ## Redirecionamento assinado depois do pagamento
+
+  Quando um pagamento hospedado com `completionUrl` chega a `PAID` ou
+  `CONFIRMED`, o checkout conta 5 segundos e leva o comprador para essa URL. A
+  URL de sucesso de um link de pagamento funciona da mesma forma. Antes, o
+  checkout mostrava só um botão para `completionUrl`, sem parâmetros.
+
+  O checkout acrescenta `yvx_payment_id`, `yvx_status`, `yvx_amount_cents` (o
+  `amount` em centavos, sem a taxa repassada ao pagador), `yvx_reference`,
+  `yvx_ts` e `yvx_signature`, um HMAC-SHA256 em hexadecimal minúsculo de
+  `payment_id.status.amount_cents.reference.ts`. A chave é o segredo do
+  redirecionamento, em **Desenvolvedores > Webhooks**, usado como texto, sem
+  decodificar o hexadecimal. Rejeite um `yvx_ts` com mais de 600 segundos de
+  diferença e confirme o pagamento pela API ou pelo webhook antes de liberar o
+  pedido. Exemplos em Node.js, PHP e Python e um vetor de teste no
+  [guia de pagamentos](/guides/payments#signed-success-redirect).
+
+  ## `skip_customer` e `skip_address` no checkout hospedado
+
+  `skip_customer=1` na `checkoutUrl` pula o formulário do comprador quando o
+  pagamento já tem um cliente com nome, e-mail válido e CPF ou CNPJ válido.
+  `skip_address=1` é aceito, mas hoje não tem efeito, porque a API não recebe
+  endereço. Dados pessoais na URL são ignorados. Detalhes no
+  [guia de pagamentos](/guides/payments#skipping-checkout-steps).
+</Update>
+
+<Update
+  label="2026-10-31"
   tags={["Pagamentos"]}
   rss={{
     title: "2026-10-31: returnUrl é o link de volta do checkout hospedado",
