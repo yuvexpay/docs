@@ -6,6 +6,23 @@ rss: true
 
 <Update
   label="2026-10-31"
+  tags={["Pagamentos"]}
+  rss={{
+    title: "2026-10-31: returnUrl é o link de volta do checkout hospedado",
+    description: "Em POST /v1/payments, returnUrl passa a ser o link de volta que o checkout hospedado mostra enquanto o pagamento não é pago. metadata.cancelUrl tem prioridade. O redirecionamento após o pagamento continua sendo completionUrl."
+  }}
+>
+  ## `returnUrl` no checkout hospedado
+
+  Em `POST /v1/payments`, `returnUrl` passa a ser o link de volta que o
+  checkout hospedado mostra enquanto o pagamento não é pago, para o pagador que
+  desiste. Só uma URL `http` ou `https` de até 2048 caracteres é usada, e
+  `metadata.cancelUrl` tem prioridade quando os dois existem. O
+  redirecionamento após o pagamento continua sendo `completionUrl`.
+</Update>
+
+<Update
+  label="2026-10-31"
   tags={["Webhooks", "Pagamentos"]}
   rss={{
     title: "2026-10-31: id de entrega dos webhooks, objeto tracking e metadata.cancelUrl",

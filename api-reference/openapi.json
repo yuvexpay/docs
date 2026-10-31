@@ -3632,7 +3632,7 @@
           "returnUrl": {
             "type": "string",
             "format": "uri",
-            "description": "URL to redirect the payer after payment (hosted mode)."
+            "description": "Hosted mode: the back link the checkout shows while the payment is unpaid, for a payer who leaves without paying. Only an http or https URL of up to 2048 characters is used; metadata.cancelUrl takes precedence. Use completionUrl for the redirect after payment."
           },
           "completionUrl": {
             "type": "string",
