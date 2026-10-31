@@ -68,10 +68,12 @@ not pay, so you can follow up with them.
   **Checkout abandonado** (Checkout abandoned) selected in
   **Desenvolvedores > Webhooks**. An endpoint you created before this event
   existed does not receive it until you edit the endpoint and select it.
-- **When it is sent.** The wait starts when the payer first submits their name,
-  e-mail and CPF or CNPJ on the hosted checkout, including the checkout of a
-  payment link. If the payment is still unpaid 30 minutes later, the event is
-  sent. YuvexPay sets this delay for the whole platform: it can change, and it
+- **When it is sent.** The wait starts the first time the hosted checkout saves
+  the payer's name, e-mail and CPF or CNPJ, including on the checkout of a
+  payment link. The checkout saves them as soon as all three are filled in and
+  valid, even if the payer does not continue, or right away when it opens with
+  details the browser remembered from an earlier payment. If the payment is
+  still unpaid 30 minutes later, the event is sent. YuvexPay sets this delay for the whole platform: it can change, and it
   cannot be set per account.
 - **Once per payment.** Failed deliveries are retried as described in
   [Retry behavior](#retry-behavior). A resend from the dashboard or by support
