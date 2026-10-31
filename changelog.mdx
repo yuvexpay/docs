@@ -6,6 +6,103 @@ rss: true
 
 <Update
   label="2026-10-31"
+  tags={["Pagamentos", "Cupons", "Webhooks"]}
+  rss={{
+    title: "2026-10-31: itens do pedido, cupons, pedidos gratuitos, order bump e upsell",
+    description: "POST /v1/payments aceita items, itemsQuantityEditable, couponCode, orderBump e upsell, e os pagamentos trazem items, subtotal, discount e coupon. Nova API de cupons em /v1/coupons, com os escopos coupons:read e coupons:write. Um cupom de 100% conclui o pedido sem cobrança, com o novo status FREE e o webhook opcional PAYMENT_FREE. Com a taxa repassada ao pagador, o checkout hospedado mostra o total de cada método com a taxa desse método."
+  }}
+>
+  ## Itens do pedido
+
+  `POST /v1/payments` aceita `items`, de 1 a 50 linhas com `name`,
+  `unitAmount` (até 2 casas decimais), `quantity` (de 1 a 999) e, opcionais,
+  `productId` e `sku`. O valor do pagamento é a soma das linhas, então `amount`
+  pode ser omitido; se for enviado, precisa ser igual à soma
+  (`400 AMOUNT_ITEMS_MISMATCH`, com `details.itemsTotal`). Um `productId` que
+  não é um produto da conta no ambiente da chave recebe
+  `400 ITEM_PRODUCT_NOT_FOUND`. Com `itemsQuantityEditable: true`, o pagador
+  muda as quantidades no checkout hospedado antes de escolher o método.
+
+  `GET /v1/payments`, `GET /v1/payments/{paymentId}` e
+  `GET /v1/payments/txid/{txId}` trazem `items`, cada um com `kind` (`ITEM`,
+  `ORDER_BUMP` ou `UPSELL`), `subtotal`, `discount`, `coupon`,
+  `parentPaymentId` e `completedAt`. A resposta de `POST /v1/payments` traz
+  `items`, `subtotal`, `discount` e `coupon`. Num pagamento hospedado, `amount`
+  pode mudar antes da escolha do método, quando o pagador altera quantidades,
+  marca o order bump ou aplica um cupom. Os corpos dos webhooks existentes não
+  mudam. Detalhes no [guia de pagamentos](/guides/payments#line-items).
+
+  ## Cupons
+
+  Nova API de cupons: `GET` e `POST /v1/coupons`, e `GET`, `PATCH` e
+  `DELETE /v1/coupons/{couponId}`, com os novos escopos `coupons:read` e
+  `coupons:write`. Um cupom é `PERCENT`, com `percentBp` em pontos-base, ou
+  `FIXED`, com `amount` em reais, e pode ter validade, limite total, limite por
+  e-mail do pagador e uma lista de produtos. Cada cupom fica no ambiente em que
+  foi criado. `DELETE` desativa o cupom, que some da lista e libera o código
+  para um cupom novo. `POST /v1/coupons` não exige `X-Idempotency-Key`.
+
+  O cupom entra no pagamento por `couponCode` em `POST /v1/payments` ou pelo
+  campo **Cupom** do checkout hospedado. Todo código que não pode ser usado
+  recebe a mesma resposta, `400 COUPON_INVALID`. O uso fica reservado enquanto
+  o pagamento está aberto, volta quando ele expira ou é cancelado e se confirma
+  quando ele é pago. Pagamentos com divisão `FIXED` não aceitam cupom. Detalhes
+  no [guia de pagamentos](/guides/payments#coupons).
+
+  ## Status `FREE` e webhook `PAYMENT_FREE`
+
+  Um cupom que cobre o valor inteiro conclui o pedido sem cobrança, com o novo
+  status `FREE`: na hora num pagamento headless, e quando o pagador confirma
+  num pagamento hospedado. `amount`, `feeAmount` e `netAmount` ficam em `0`,
+  `paidAt` fica `null` e `completedAt` traz a hora da conclusão. Um pagamento
+  `FREE` não pode ser reembolsado (`400 INVALID_STATUS`) e não tem comprovante
+  em `GET /v1/documents/payments/{paymentId}/receipt`. Trate `FREE` onde você
+  lê o status de um pagamento.
+
+  Cada pedido gratuito custa a parte fixa da sua taxa PIX, sem a parte
+  percentual e sem mínimo, debitada do saldo mesmo que ele fique negativo e
+  mostrada no extrato como **Taxa de pedido gratuito**. Em sandbox não há
+  cobrança.
+
+  Novo webhook `PAYMENT_FREE`, opcional por endpoint: só é entregue aos
+  endpoints em que você marcar **Pagamento gratuito (cupom 100%)** em
+  **Desenvolvedores > Webhooks**. O corpo tem os campos de `PAYMENT_PAID`, com
+  `status: "FREE"`, `amount: 0`, `endToEndId: null` e `paidAt` com a hora da
+  conclusão. Um pedido gratuito nunca envia `PAYMENT_PAID`. Ele chega aos
+  plugins como o evento `payment.free`, e os plugins de conversão, que esperam
+  `payment.paid`, não o registram como compra. O pagador recebe o e-mail de
+  comprovante e a página da compra, e o redirecionamento assinado leva
+  `yvx_status=FREE` e `yvx_amount_cents=0`. Detalhes no
+  [guia de webhooks](/guides/webhooks#free-orders).
+
+  ## Order bump e upsell no checkout hospedado
+
+  Num pagamento hospedado, `orderBump` oferece mais um produto, que o pagador
+  marca antes de escolher o método e que entra em `items` como `ORDER_BUMP`.
+  `upsell` oferece um segundo produto por 30 minutos depois do pagamento, de
+  R$ 1,00 até o `amount` do pagamento depois do cupom
+  (`400 UPSELL_AMOUNT_TOO_HIGH` acima disso), e não aparece se as mudanças do
+  pagador no checkout deixaram o valor final abaixo do preço do upsell.
+  Aceito, ele vira um novo pagamento, com `parentPaymentId` apontando para o
+  original e webhooks próprios, pago por PIX ou, no mesmo navegador que pagou
+  com cartão, em um clique com o mesmo cartão. Num pagamento headless, os dois
+  recebem
+  `400 VALIDATION_ERROR` com `OFFERS_REQUIRE_HOSTED` na mensagem, e um
+  `productId` que não é da conta recebe `400 OFFER_PRODUCT_NOT_FOUND`. Enquanto
+  o upsell está na tela, o checkout não faz a contagem para `completionUrl`.
+  Detalhes no [guia de pagamentos](/guides/payments#order-bump).
+
+  ## Taxa repassada ao pagador por método
+
+  Com `passFeeToPayer`, o checkout hospedado mostra, antes da escolha do
+  método, o total de cada método com a taxa desse método, e calcula a taxa de
+  novo sempre que o pedido muda. Na escolha, a taxa cobrada continua sendo a do
+  método escolhido, cartão incluído, sempre à vista. A taxa da resposta de
+  `POST /v1/payments` é a do primeiro método de `methods`.
+</Update>
+
+<Update
+  label="2026-10-31"
   tags={["Pagamentos", "Webhooks", "Reembolsos"]}
   rss={{
     title: "2026-10-31: kit de recuperação, contato do pagador e reembolsos pedidos pelo comprador",

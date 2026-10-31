@@ -24,6 +24,7 @@ when you want YuvexPay to render the checkout, including method selection.
 - All amounts are in **BRL** as decimal numbers (e.g. `49.90`), not cents.
 - The minimum chargeable amount is `R$ 0.01`. The maximum is `R$ 1,000,000.00`.
 - Card payments go through the hosted checkout only. They are charged to a credit card in a single installment (à vista) or to a debit card, and need an `amount` of at least `R$ 5.00`.
+- With [line items](#line-items), the amount is the sum of the lines. A [coupon](#coupons) lowers it, and on the hosted checkout the payer can change it before picking a method by editing quantities, ticking the [order bump](#order-bump) or applying a coupon. Read the final `amount` from `GET /v1/payments/{paymentId}` or the webhook.
 
 ## Identifiers
 
@@ -45,7 +46,9 @@ NEW
                                        ├── CHARGEBACK
                                        └── MED_FROZEN
   └── PENDING_METHOD_SELECTION ──► (one of the above, after the payer picks a method)
+                               ├──► FREE (a coupon covered the whole amount and the payer confirmed)
                                └──► EXPIRED (no method picked before expiresAt)
+  └── FREE (headless payment whose coupon covered the whole amount)
   └── EXPIRED
   └── CANCELLED
 ```
@@ -63,6 +66,7 @@ NEW
 | `REFUNDED` | A full refund has been issued. |
 | `CHARGEBACK` | A chargeback was filed and processed. If the card dispute is won, the payment returns to the status it had before the chargeback. |
 | `MED_FROZEN` | A PIX MED (special refund) is open; funds are temporarily held. |
+| `FREE` | A coupon discounted the whole amount and the order completed without a charge. It is final and cannot be refunded. See [Free orders](#free-orders). |
 
 Listen for the corresponding [webhook events](/guides/webhooks) to react to
 status changes asynchronously.
@@ -131,6 +135,158 @@ a second charge. To recover the payment after a `502`:
 Without `externalId`, a request with a new `X-Idempotency-Key` creates a new
 payment, and the payer can end up with two boletos for the same order.
 
+## Line items
+
+Send `items` on `POST /v1/payments` to charge several lines in one payment. The
+payment `amount` is the sum of `unitAmount × quantity`, so you can leave
+`amount` out:
+
+```json
+{
+  "items": [
+    { "name": "Camiseta", "unitAmount": 59.90, "quantity": 2, "sku": "TSHIRT-M" },
+    { "name": "Boné", "unitAmount": 39.90, "quantity": 1, "productId": "8a3f1c2e-6b4d-4e7a-9c1b-2d3e4f5a6b7c" }
+  ],
+  "methods": ["PIX", "CARD"],
+  "mode": "hosted",
+  "itemsQuantityEditable": true
+}
+```
+
+| Field | Value |
+|-------|-------|
+| `name` | 1 to 120 characters, shown to the payer. |
+| `unitAmount` | Unit price in BRL, greater than `0`, with at most 2 decimal places. |
+| `quantity` | An integer from `1` to `999`. |
+| `productId` | Optional. A product of your account in the environment of the key; any other id returns `400 ITEM_PRODUCT_NOT_FOUND`. [Coupons](#coupons) limited to products match lines by this id. |
+| `sku` | Optional. Your own code for the line, 1 to 64 characters. |
+
+- `items` takes 1 to 50 lines.
+- When you also send `amount`, it must equal the sum of the lines exactly.
+  Otherwise the request fails with `400 AMOUNT_ITEMS_MISMATCH`, and
+  `details.itemsTotal` carries the sum as a string, such as `"159.70"`.
+- The sum must be at most `R$ 1,000,000.00` (`400 AMOUNT_TOO_HIGH`), and at
+  least `R$ 5.00` when `methods` has `CARD` or `BOLETO`
+  (`400 MINIMUM_AMOUNT_FOR_CARD_OR_BOLETO`).
+- `itemsQuantityEditable: true` lets the payer change the quantity of each line
+  on the hosted checkout before picking a method. `amount`, the coupon
+  discount, the fee and the percentage splits follow the change. It has no
+  effect without `items` or on a payment with a `FIXED` split.
+
+Payment responses carry the lines and the totals:
+
+| Field | Meaning |
+|-------|---------|
+| `items` | The lines, each with `id`, `name`, `unitAmount`, `quantity`, `kind`, `productId` and `sku`. `[]` on a payment created with an amount only, until the payer ticks an order bump. |
+| `subtotal` | The amount before the coupon. |
+| `discount` | The coupon discount, `0` without one. |
+| `coupon` | `{ "code": "BLACK10" }`, or `null`. |
+| `amount` | `subtotal` minus `discount`, before any fee passed to the payer. |
+
+`kind` is `ITEM` for a line you sent, `ORDER_BUMP` for the
+[order bump](#order-bump) the payer ticked, and `UPSELL` for the line of a
+payment created by a [post-purchase upsell](#post-purchase-upsell). Webhook
+bodies do not carry the lines: read them with
+`GET /v1/payments/{paymentId}`.
+
+## Coupons
+
+Create coupons in the dashboard, under **Vendas &gt; Cupons**, or with the
+[Coupons API](/api-reference/coupons/create). A payment takes a coupon in two
+ways:
+
+- `couponCode` on `POST /v1/payments`.
+- The **Cupom** (Coupon) field of the hosted checkout, shown while the payer
+  has not picked a method and no coupon is applied.
+
+A coupon is `PERCENT`, with `percentBp` in basis points from `1` to `10000`
+(`1000` is 10%), or `FIXED`, with an `amount` in BRL. The discount is computed
+in centavos on the lines the coupon covers: a percentage rounds half up, and a
+fixed amount never goes beyond the total of those lines. `productIds` limits
+the coupon to the lines with those products, the order bump included when its
+product is in the list; empty, the coupon covers the whole order. On a payment
+without `items`, the coupon covers the `amount` when `productIds` is empty or
+lists the payment's `productId`.
+
+With the order above and a 10% coupon `BLACK10`, `subtotal` is `159.70`,
+`discount` is `15.97` and `amount` is `143.73`.
+
+- **One answer for every refusal.** `400 COUPON_INVALID` is returned for a code
+  that does not exist, is inactive or deleted, is outside its validity window,
+  has no uses left, is over the per-payer limit, or gives no discount on this
+  order. Codes are case-insensitive.
+- **Validity.** `validFrom` is inclusive and `validUntil` exclusive.
+- **Uses.** `maxRedemptions` counts the payments that hold the coupon plus the
+  completed ones, and the coupon's `redemptionCount` shows that number.
+  Applying the coupon takes one use. The use is given back when the payment
+  expires or is cancelled, and kept when it is paid or completes as `FREE`, so
+  an unpaid checkout holds its use until `expiresAt`. A payment paid after it
+  expired takes its use back, even past the limit.
+- **Per payer.** `maxRedemptionsPerBuyer` counts the uses per payer e-mail, and
+  is checked only when the e-mail is known: on `POST /v1/payments` with
+  `customer.email`, and on the hosted checkout when the payer picks a method.
+  If the payer is over the limit at that point, the checkout removes the coupon
+  and shows the full price. A headless payment created without
+  `customer.email` is not checked.
+- **Environments.** A coupon belongs to the environment it was created in: a
+  `ypk_test_` key manages sandbox coupons and a `ypk_live_` key production
+  ones, and a payment uses only coupons of its own environment.
+- **Before a method is picked.** On the hosted checkout, the payer applies or
+  removes a coupon only before picking a method. A payment that already holds a
+  coupon keeps it when you edit, deactivate or delete the coupon.
+- **Splits.** A payment with a `FIXED` split never takes a coupon. The discount
+  lowers `amount`, and the percentage splits with it. On the hosted checkout, a
+  coupon whose discount would take the splits over `netAmount` is refused with
+  `COUPON_INVALID`.
+- **Methods.** When the discount takes the total below `R$ 5.00`, the hosted
+  checkout offers PIX only, and a headless boleto fails with
+  `400 MINIMUM_AMOUNT_FOR_CARD_OR_BOLETO`.
+
+A coupon that covers the whole amount turns the payment into a
+[free order](#free-orders).
+
+## Free orders
+
+When a coupon covers the whole amount, the payment completes with no charge
+and ends `FREE`:
+
+- A headless payment completes on `POST /v1/payments` itself. The `201`
+  response has `status: "FREE"`, `amount: 0` and `methodData: null`.
+- A hosted payment stays `PENDING_METHOD_SELECTION`, with `amount: 0`, until
+  the payer confirms the order on the checkout, which asks for no payment
+  method. A payment that is never confirmed expires like any other, and its
+  coupon use is given back.
+
+On a `FREE` payment:
+
+- `amount`, `feeAmount` and `netAmount` are `0`, `discount` equals `subtotal`,
+  `feePassedToPayer` is `false`, `paidAt` is `null` and `completedAt` is the
+  time the order completed.
+- Nothing was charged, so nothing can be refunded:
+  `POST /v1/payments/{paymentId}/refund` returns `400 INVALID_STATUS`, and the
+  payer cannot request a refund on the purchase page.
+- YuvexPay charges a fee for each free order: the fixed part of your PIX fee,
+  without the percentage and without a minimum, and nothing when your PIX fee
+  has no fixed part. It is never passed to the payer. It is debited from your
+  balance when the order completes, even if the balance goes negative, and
+  appears in [`GET /v1/documents/statements`](/api-reference/documents/statement)
+  as **Taxa de pedido gratuito** (Free order fee). The payment's own
+  `feeAmount` stays `0`. Sandbox orders are never charged.
+- You receive [`PAYMENT_FREE`](/guides/webhooks#free-orders) on the endpoints
+  that selected it, and never `PAYMENT_PAID`. The conversion plugins listen for
+  `payment.paid`, so they do not report a free order as a purchase: the order
+  reaches plugins as the `payment.free` event.
+- In production, the payer gets the receipt e-mail and the purchase page, as
+  for a paid payment. The hosted checkout shows the order as confirmed and
+  sends the payer to `completionUrl` with `yvx_status=FREE` and
+  `yvx_amount_cents=0` (see [Signed success redirect](#signed-success-redirect)).
+- `GET /v1/documents/payments/{paymentId}/receipt` returns
+  `400 RECEIPT_NOT_AVAILABLE`.
+- `GET /v1/payments?status=FREE` lists free orders.
+- A free order never offers the [post-purchase upsell](#post-purchase-upsell),
+  and a create with an `upsell` and a `couponCode` that covers the whole amount
+  fails with `400 UPSELL_AMOUNT_TOO_HIGH`.
+
 ## Hosted checkout
 
 Set `mode: "hosted"` to receive a `checkoutUrl`. Redirect the payer there;
@@ -172,6 +328,15 @@ Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
 method, then transition through the same lifecycle as a headless payment. If
 the payer doesn't pick a method before `expiresAt`, the payment moves to
 `EXPIRED` shortly after and you receive `PAYMENT_EXPIRED`.
+
+While the payment waits for a method, the checkout shows the order: the
+[line items](#line-items), with buttons to change each quantity when
+`itemsQuantityEditable` is true, the **Cupom** field for a [coupon](#coupons),
+the [order bump](#order-bump), the discount and the total of each method. Each
+change is saved on the payment, which computes `amount`, the fee and the
+percentage splits again. Once the payer picks a method, the order no longer
+changes. After the payment, the checkout can offer a
+[post-purchase upsell](#post-purchase-upsell).
 
 ### Card payments
 
@@ -226,20 +391,22 @@ type is not known, including older payments. Webhook bodies do not carry it.
 
 ### Signed success redirect
 
-When a hosted payment with a `completionUrl` reaches `PAID` or `CONFIRMED`, the
-checkout shows the payment as approved, counts down 5 seconds and sends the
-payer to `completionUrl`. An **Ir agora** (Go now) button skips the countdown.
-On a payment link created in the dashboard, the link's success URL takes the
-place of `completionUrl`. Only an `http` or `https` URL of up to 2048
-characters is used.
+When a hosted payment with a `completionUrl` reaches `PAID`, `CONFIRMED` or
+`FREE`, the checkout shows the payment as approved, counts down 5 seconds and
+sends the payer to `completionUrl`. An **Ir agora** (Go now) button skips the
+countdown. While a [post-purchase upsell](#post-purchase-upsell) is offered,
+the checkout shows only the **Ir agora** button, and the countdown starts once
+the payer declines the offer. On a payment link created in the dashboard, the
+link's success URL takes the place of `completionUrl`. Only an `http` or
+`https` URL of up to 2048 characters is used.
 
 The checkout adds these query parameters to the URL:
 
 | Parameter | Value |
 |-----------|-------|
 | `yvx_payment_id` | The payment `id`. |
-| `yvx_status` | `PAID` or `CONFIRMED`. |
-| `yvx_amount_cents` | The payment `amount` in centavos, as an integer: `4990` for `49.90`. It does not include the fee added for the payer when `feePassedToPayer` is true. |
+| `yvx_status` | `PAID`, `CONFIRMED` or `FREE`. |
+| `yvx_amount_cents` | The payment `amount` in centavos, as an integer: `4990` for `49.90`, and `0` on a `FREE` payment. It is the final amount, after the coupon and any change the payer made on the checkout, and it does not include the fee added for the payer when `feePassedToPayer` is true. |
 | `yvx_reference` | `metadata.externalReference` when the payment has it, which is where a payment link puts its reference; otherwise the `externalId` you sent; otherwise empty. The parameter is sent even when it is empty. |
 | `yvx_ts` | Unix time, in seconds, when the URL was signed. |
 | `yvx_signature` | Lowercase hex HMAC-SHA256 of the five parameters above. |
@@ -280,10 +447,14 @@ values back.
 2. Reject it if `yvx_ts` is more than **600 seconds** away from your clock.
 3. Compute the signature and compare it with `yvx_signature` in constant time.
 4. Look up your order by `yvx_payment_id` and compare `yvx_amount_cents` with
-   the order total in cents.
+   the order total in cents. When the payer can change the order on the
+   checkout, with a coupon, editable quantities or an order bump, compare it
+   with the `amount` of `GET /v1/payments/{paymentId}` instead, and read what
+   was bought from `items`.
 5. Confirm the payment on your server before you fulfil the order: call
    [`GET /v1/payments/{paymentId}`](/api-reference/payments/get), or wait for
-   the `PAYMENT_PAID` or `PAYMENT_CONFIRMED` [webhook](/guides/webhooks).
+   the `PAYMENT_PAID`, `PAYMENT_CONFIRMED` or `PAYMENT_FREE`
+   [webhook](/guides/webhooks).
    Fulfil each payment once, since the redirect can repeat and the webhook
    arrives as well.
 
@@ -341,7 +512,7 @@ app.get("/checkout/done", async (req, res) => {
     { headers: { Authorization: `Bearer ${process.env.YUVEX_API_KEY}` } },
   );
   const status = response.ok ? (await response.json()).payment.status : null;
-  if (status === "PAID" || status === "CONFIRMED") {
+  if (status === "PAID" || status === "CONFIRMED" || status === "FREE") {
     await fulfilOrderOnce(order);
   }
   res.redirect(`/orders/${order.id}`);
@@ -412,7 +583,7 @@ $status = null;
 if (curl_getinfo($ch, CURLINFO_RESPONSE_CODE) === 200) {
     $status = json_decode($body, true)['payment']['status'] ?? null;
 }
-if ($status === 'PAID' || $status === 'CONFIRMED') {
+if ($status === 'PAID' || $status === 'CONFIRMED' || $status === 'FREE') {
     fulfil_order_once($order);
 }
 header('Location: /orders/' . $order['id']);
@@ -467,7 +638,7 @@ def checkout_done():
         timeout=10,
     )
     status = response.json()["payment"]["status"] if response.ok else None
-    if status in ("PAID", "CONFIRMED"):
+    if status in ("PAID", "CONFIRMED", "FREE"):
         fulfil_order_once(order)
     return redirect(f"/orders/{order.id}")
 ```
@@ -599,6 +770,94 @@ as **Kit de recuperação**.
 
 The dashboard shows the results per day under **Vendas &gt; Recuperação**.
 
+### Order bump
+
+An order bump is one more product offered on the hosted checkout, as a box the
+payer ticks before picking a method. Send `orderBump` on a hosted payment:
+
+```json
+{
+  "items": [{ "name": "Camiseta", "unitAmount": 59.90, "quantity": 1 }],
+  "methods": ["PIX", "CARD"],
+  "mode": "hosted",
+  "orderBump": {
+    "name": "Meias",
+    "unitAmount": 19.90,
+    "description": "Par de meias da mesma coleção",
+    "productId": "8a3f1c2e-6b4d-4e7a-9c1b-2d3e4f5a6b7c"
+  }
+}
+```
+
+| Field | Value |
+|-------|-------|
+| `name` | 1 to 120 characters. |
+| `unitAmount` | Price in BRL, greater than `0`, with at most 2 decimal places. |
+| `description` | Optional, up to 500 characters. |
+| `productId` | Optional. A product of your account in the environment of the key, whose image is shown with the offer. Any other id returns `400 OFFER_PRODUCT_NOT_FOUND`. |
+
+- When the payer ticks the box, the bump joins `items` with
+  `kind: "ORDER_BUMP"` and quantity `1`, and `amount`, the fee and the
+  percentage splits are computed again. Unticked, it leaves the order. The
+  payer can change it until they pick a method.
+- A coupon for the whole order covers the bump. A coupon limited to products
+  covers it only when its `productId` is in the coupon's `productIds`.
+- A payment created with an amount only can have a bump too: the bump is added
+  to that amount.
+- `orderBump` and `upsell` are for hosted payments only. In headless mode, the
+  default, they return `400 VALIDATION_ERROR` with `OFFERS_REQUIRE_HOSTED` in
+  the message.
+- The bump is not shown on a payment with a `FIXED` split.
+
+The dashboard shows how often bumps and upsells are accepted, and the revenue
+they add, under **Vendas &gt; Ofertas**.
+
+### Post-purchase upsell
+
+An upsell is a second product offered on the hosted checkout right after the
+payment is paid. Send `upsell` on a hosted payment, with the same fields as
+`orderBump`:
+
+```json
+"upsell": {
+  "name": "Moletom",
+  "unitAmount": 99.90,
+  "description": "Moletom da mesma coleção"
+}
+```
+
+- `unitAmount` goes from `R$ 1.00` up to the payment `amount` after the
+  coupon. Above it, the request fails with `400 UPSELL_AMOUNT_TOO_HIGH`.
+- The offer appears on the success screen of a `PAID` or `CONFIRMED` payment
+  for 30 minutes, counted from the payment for PIX and from the card charge for
+  a card. The payer sees it once: after they accept or decline, it is gone.
+- When the payer accepts, YuvexPay creates a new payment and takes the payer to
+  its checkout. If the original was paid by card in the same browser, the payer
+  can pay in one click with the same card, which goes through the same checks
+  as any card payment. Otherwise, the payer pays by PIX. PIX is offered when the
+  original payment accepted it, and the card only for an upsell of at least
+  `R$ 5.00`.
+- The new payment has its own `id` and `txId`, `parentPaymentId` set to the
+  original payment, one item with `kind: "UPSELL"`, the offer name as
+  `description`, the same payer and the same splits. It expires in 30 minutes,
+  never passes the fee to the payer, has no recovery kit and sends its own
+  webhooks.
+- The upsell is not offered on a payment with a `FIXED` split, or with a split
+  whose partner relationship is no longer active, nor on a
+  [free order](#free-orders). It is not offered either when the payer's changes
+  on the checkout, such as a lower quantity or a coupon, took the final
+  `amount` below the upsell price.
+
+<Note>
+  The upsell payment is created by YuvexPay, not by your integration. It keeps
+  `metadata.cancelUrl` but none of your other `metadata` keys, and it has no
+  `externalId`, so its webhooks arrive for an `id` you never created. Read it
+  with `GET /v1/payments/{paymentId}` and link it to your order through
+  `parentPaymentId`. Once it is paid, the checkout sends the payer to the same
+  `completionUrl`, with the upsell payment's `yvx_payment_id` and an empty
+  `yvx_reference`.
+</Note>
+
 ## Attribution tracking
 
 Send the optional `tracking` object on `POST /v1/payments` to attribute the
@@ -673,6 +932,15 @@ Fees are computed at creation time using the merchant's configured rate.
 `passFeeToPayer: true` shifts the fee onto the payer (the payer is charged
 `amount + feeAmount`); when `false`, the fee is deducted from `amount`.
 
+On a hosted payment, the fee in the create response is the one of the first
+method in `methods`. The checkout shows each method with its own total, and
+when the payer picks a method, `feeAmount`, `payerFeeAmount` and `netAmount`
+are computed again at that method's rate, card included. Cards are charged in a
+single installment, so no installment fee is added. The fee is also computed
+again whenever the order changes on the checkout. Below `R$ 1.00`, the fee is
+always passed to the payer. A [free order](#free-orders) has a fee of its own,
+never passed to the payer.
+
 A refund you issue returns the fee in proportion to the refunded amount, unless
 it takes the counted volume of your verified CPF or CNPJ below a rewards prize
 YuvexPay approved for it (see [refunds below a redeemed rewards prize](/guides/refunds#refunds-below-a-redeemed-rewards-prize)).
@@ -719,6 +987,12 @@ Splits are set at creation only: there is no endpoint to add, edit or remove one
 afterwards. The create response and the payment detail response echo them back
 as `splits`, each entry carrying an `id` alongside the three fields you sent,
 and `[]` when the payment has none.
+
+Percentage shares follow the final `amount`, after a [coupon](#coupons) and the
+payer's changes on the hosted checkout. A payment with a `FIXED` split takes no
+coupon, keeps its quantities, and offers no order bump and no upsell. A
+[post-purchase upsell](#post-purchase-upsell) payment carries the same splits
+as the original.
 
 ### How the money divides
 
@@ -895,7 +1169,7 @@ payments: it is the one exception to the sandbox-mode rule above.
 `GET /v1/payments` supports the standard `page` (default `1`) and `limit`
 (default `20`, max `100`) parameters along with these filters:
 
-- `status` — filter by `PaymentStatus`.
+- `status` — filter by `PaymentStatus`, `FREE` included.
 - `method` — filter by `PIX`, `CARD` or `BOLETO`.
 - `startDate` / `endDate` — ISO 8601 date or date-time bounds.
 - `minAmount` / `maxAmount` — decimal BRL bounds.
@@ -910,4 +1184,5 @@ GET /v1/documents/payments/{paymentId}/receipt?format=html
 ```
 
 See the [Documents reference](/api-reference/documents/payment-receipt) for the
-full response shape.
+full response shape. A [free order](#free-orders) has no receipt here: the
+request returns `400 RECEIPT_NOT_AVAILABLE`.

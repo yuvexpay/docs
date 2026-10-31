@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "YuvexPay API",
-    "description": "The YuvexPay API allows you to accept payments, process withdrawals, manage products and customers programmatically. All API access is over HTTPS and uses JSON request/response bodies.",
+    "description": "The YuvexPay API allows you to accept payments, process withdrawals, manage products, coupons and customers programmatically. All API access is over HTTPS and uses JSON request/response bodies.",
     "version": "1.0.0",
     "contact": {
       "name": "YuvexPay Support",
@@ -41,6 +41,10 @@
     {
       "name": "Customers",
       "description": "Manage customer records"
+    },
+    {
+      "name": "Coupons",
+      "description": "Manage discount coupons"
     },
     {
       "name": "Documents",
@@ -192,7 +196,7 @@
       "post": {
         "operationId": "createPayment",
         "summary": "Create a payment",
-        "description": "Create a new payment. Supports PIX and boleto, in headless or hosted mode, and card through the hosted checkout only. Requires an idempotency key.\n\nCard payments are not accepted through the API. A `card` object, `CARD` in `methods` in headless mode (`mode` omitted or `headless`), or any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`, is rejected with `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`, even without a valid API key, and the card data is not stored or logged.\n\nTo charge a card, create the payment with `mode: hosted` and `CARD` in `methods` (`[\"CARD\"]`, or `[\"PIX\", \"CARD\"]` to let the payer choose), with an `amount` of at least R$ 5.00, and redirect the payer to the returned `checkoutUrl`. The checkout collects the card, accepts credit cards in a single installment and debit cards, and runs 3D Secure itself. The result arrives as `PAYMENT_CONFIRMED`, `PAYMENT_PAID`, `PAYMENT_EXPIRED` or `PAYMENT_CANCELLED`; you can also poll `GET /v1/payments/{paymentId}`.",
+        "description": "Create a new payment. Supports PIX and boleto, in headless or hosted mode, and card through the hosted checkout only. Requires an idempotency key.\n\nCard payments are not accepted through the API. A `card` object, `CARD` in `methods` in headless mode (`mode` omitted or `headless`), or any of these fields at the top level of the body: `deviceInfo`, `remoteIp`, `holderInfo`, `authorizeOnly`, `creditCard`, `creditCardHolderInfo`, `creditCardToken`, `installmentCount`, `installmentValue`, `totalValue`, is rejected with `400 CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`, even without a valid API key, and the card data is not stored or logged.\n\nTo charge a card, create the payment with `mode: hosted` and `CARD` in `methods` (`[\"CARD\"]`, or `[\"PIX\", \"CARD\"]` to let the payer choose), with an `amount` of at least R$ 5.00, and redirect the payer to the returned `checkoutUrl`. The checkout collects the card, accepts credit cards in a single installment and debit cards, and runs 3D Secure itself. The result arrives as `PAYMENT_CONFIRMED`, `PAYMENT_PAID`, `PAYMENT_EXPIRED` or `PAYMENT_CANCELLED`; you can also poll `GET /v1/payments/{paymentId}`.\n\nSend `items` to sell several lines in one payment, `couponCode` to apply a coupon, and, on a hosted payment, `itemsQuantityEditable`, `orderBump` and `upsell`. The response carries `items`, `subtotal`, `discount` and `coupon`. A coupon that discounts the whole amount completes the payment as `FREE`, with no charge.",
         "tags": [
           "Payments"
         ],
@@ -315,6 +319,43 @@
                       }
                     ]
                   }
+                },
+                "hostedCart": {
+                  "summary": "Hosted checkout with line items, a coupon, an order bump and an upsell",
+                  "value": {
+                    "items": [
+                      {
+                        "name": "Camiseta",
+                        "unitAmount": 59.9,
+                        "quantity": 2,
+                        "sku": "TSHIRT-M"
+                      },
+                      {
+                        "name": "Boné",
+                        "unitAmount": 39.9,
+                        "quantity": 1,
+                        "productId": "8a3f1c2e-6b4d-4e7a-9c1b-2d3e4f5a6b7c"
+                      }
+                    ],
+                    "itemsQuantityEditable": true,
+                    "couponCode": "BLACK10",
+                    "orderBump": {
+                      "name": "Meias",
+                      "unitAmount": 19.9,
+                      "description": "Par de meias da mesma coleção"
+                    },
+                    "upsell": {
+                      "name": "Moletom",
+                      "unitAmount": 99.9
+                    },
+                    "methods": [
+                      "PIX",
+                      "CARD"
+                    ],
+                    "mode": "hosted",
+                    "externalId": "order-1235",
+                    "completionUrl": "https://store.example.com/checkout/done"
+                  }
                 }
               }
             }
@@ -412,13 +453,93 @@
                         }
                       }
                     }
+                  },
+                  "hostedCart": {
+                    "summary": "Hosted checkout with line items and a 10% coupon",
+                    "value": {
+                      "payment": {
+                        "id": "7e2b4c1d-9a3f-4d6e-8b5c-1f0a2e3d4c5b",
+                        "txId": "PAY6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d",
+                        "amount": 143.73,
+                        "feeAmount": 1.86,
+                        "netAmount": 141.87,
+                        "feePassedToPayer": false,
+                        "payerFeeAmount": null,
+                        "splits": [],
+                        "items": [
+                          {
+                            "id": "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e",
+                            "name": "Camiseta",
+                            "unitAmount": 59.9,
+                            "quantity": 2,
+                            "kind": "ITEM",
+                            "productId": null,
+                            "sku": "TSHIRT-M"
+                          },
+                          {
+                            "id": "1c2d3e4f-5a6b-4c7d-9e8f-0a1b2c3d4e5f",
+                            "name": "Boné",
+                            "unitAmount": 39.9,
+                            "quantity": 1,
+                            "kind": "ITEM",
+                            "productId": "8a3f1c2e-6b4d-4e7a-9c1b-2d3e4f5a6b7c",
+                            "sku": null
+                          }
+                        ],
+                        "subtotal": 159.7,
+                        "discount": 15.97,
+                        "coupon": {
+                          "code": "BLACK10"
+                        },
+                        "status": "PENDING_METHOD_SELECTION",
+                        "methods": [
+                          "PIX",
+                          "CARD"
+                        ],
+                        "currency": "BRL",
+                        "checkoutUrl": "https://checkout.yuvexpay.com/checkout/7e2b4c1d-9a3f-4d6e-8b5c-1f0a2e3d4c5b",
+                        "expiresAt": "2026-10-31T19:00:00.000Z",
+                        "isSandbox": false,
+                        "createdAt": "2026-10-31T18:00:00.000Z"
+                      }
+                    }
+                  },
+                  "headlessFree": {
+                    "summary": "Headless PIX payment completed as FREE by a 100% coupon",
+                    "value": {
+                      "payment": {
+                        "id": "3d4e5f6a-7b8c-4d9e-8f0a-1b2c3d4e5f6a",
+                        "txId": "PAY0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+                        "status": "FREE",
+                        "amount": 0,
+                        "method": "PIX",
+                        "paymentMethod": "PIX",
+                        "currency": "BRL",
+                        "methodData": null,
+                        "feeAmount": 0,
+                        "netAmount": 0,
+                        "feePassedToPayer": false,
+                        "payerFeeAmount": null,
+                        "description": "Order #1236",
+                        "expiresAt": "2026-10-31T19:00:00.000Z",
+                        "isSandbox": false,
+                        "createdAt": "2026-10-31T18:00:00.000Z",
+                        "splits": [],
+                        "items": [],
+                        "subtotal": 49.9,
+                        "discount": 49.9,
+                        "coupon": {
+                          "code": "FREE100"
+                        }
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Validation failed, or the request was refused. `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`: the request carries card data or asks for `CARD` in headless mode; card payments go through the hosted checkout only. It takes precedence over validation and authentication errors, so it is returned even without a valid API key. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`, `SPLIT_FEE_CAP_EXCEEDED`, `SPLIT_PLATFORM_SUSPENDED`, `SPLIT_PARTNER_LIMIT_EXCEEDED`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED` and `SPLIT_ENVIRONMENT_MISMATCH` are returned only for a recipient that had already accepted the relationship. `SPLIT_FEE_CAP_EXCEEDED`: a split to an approved split platform is above its fee cap, with `details.recipientCompanyId` and `details.feeCap`. `SPLIT_PLATFORM_SUSPENDED`: the recipient is a platform connected with a fee cap whose approval was withdrawn, with `details.recipientCompanyId`. `SPLIT_PARTNER_LIMIT_EXCEEDED`: a platform connection through `X-Split-Platform-Key` would take your company past its limit of active partners, with `details.limit`. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused boleto payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed, or the request was refused. `CARD_PAYMENTS_NOT_AVAILABLE_VIA_API`: the request carries card data or asks for `CARD` in headless mode; card payments go through the hosted checkout only. It takes precedence over validation and authentication errors, so it is returned even without a valid API key. Split-specific codes: `SPLIT_RECIPIENT_LIMIT_EXCEEDED`, `SPLIT_SELF_RECIPIENT`, `SPLIT_AMOUNT_EXCEEDS_NET`, `SPLIT_RELATIONSHIP_PENDING`, `SPLIT_RELATIONSHIP_REQUEST_LIMIT`, `SPLIT_RELATIONSHIP_REVOKED`, `SPLIT_RELATIONSHIP_DECLINED`, `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED`, `SPLIT_ENVIRONMENT_MISMATCH`, `SPLIT_FEE_CAP_EXCEEDED`, `SPLIT_PLATFORM_SUSPENDED`, `SPLIT_PARTNER_LIMIT_EXCEEDED`. `SPLIT_RELATIONSHIP_PENDING` is returned for every recipient that cannot receive a split yet apart from a pair that declined an invitation from your company or was revoked, identical whether the company ID exists or not; `SPLIT_RELATIONSHIP_DECLINED` carries `details.recipients`, the company IDs that declined; `SPLIT_RECIPIENT_INACTIVE`, `SPLIT_RECIPIENT_NOT_APPROVED` and `SPLIT_ENVIRONMENT_MISMATCH` are returned only for a recipient that had already accepted the relationship. `SPLIT_FEE_CAP_EXCEEDED`: a split to an approved split platform is above its fee cap, with `details.recipientCompanyId` and `details.feeCap`. `SPLIT_PLATFORM_SUSPENDED`: the recipient is a platform connected with a fee cap whose approval was withdrawn, with `details.recipientCompanyId`. `SPLIT_PARTNER_LIMIT_EXCEEDED`: a platform connection through `X-Split-Platform-Key` would take your company past its limit of active partners, with `details.limit`. Cart codes: `AMOUNT_ITEMS_MISMATCH`, `amount` is not the sum of `items`, with `details.amount` and `details.itemsTotal` (a string such as `\"159.70\"`); `ITEM_PRODUCT_NOT_FOUND`, an item `productId` is not a product of your account in this environment; `OFFER_PRODUCT_NOT_FOUND`, the same for `orderBump` or `upsell`; `UPSELL_AMOUNT_TOO_HIGH`, the upsell costs more than the payment `amount` after the coupon; `COUPON_INVALID`, `couponCode` cannot be used on this payment, one answer for every reason; `AMOUNT_TOO_HIGH`, the sum of `items` is above R$ 1,000,000.00; `MINIMUM_AMOUNT_FOR_CARD_OR_BOLETO`, the sum of `items`, or a headless boleto amount after the coupon, is below R$ 5.00. `orderBump` or `upsell` in headless mode returns `VALIDATION_ERROR` with `OFFERS_REQUIRE_HOSTED` in the message. `PROVIDER_REJECTED` means the payment was refused and the message is generic; a refused boleto payment is recorded as `CANCELLED`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -471,6 +592,28 @@
                           "recipientCompanyId": "b7f1c3d2-4e5a-4b6c-8d9e-0a1b2c3d4e5f",
                           "feeCap": "4.00"
                         }
+                      }
+                    }
+                  },
+                  "amountItemsMismatch": {
+                    "summary": "`amount` is not the sum of `items`",
+                    "value": {
+                      "error": {
+                        "code": "AMOUNT_ITEMS_MISMATCH",
+                        "message": "O valor informado não corresponde à soma dos itens.",
+                        "details": {
+                          "amount": 150,
+                          "itemsTotal": "159.70"
+                        }
+                      }
+                    }
+                  },
+                  "couponInvalid": {
+                    "summary": "The coupon cannot be used on this payment",
+                    "value": {
+                      "error": {
+                        "code": "COUPON_INVALID",
+                        "message": "Cupom inválido ou indisponível."
                       }
                     }
                   }
@@ -544,7 +687,7 @@
             "schema": {
               "$ref": "#/components/schemas/PaymentStatus"
             },
-            "description": "Filter by payment status."
+            "description": "Filter by payment status. `FREE` lists the orders a coupon covered in full."
           },
           {
             "name": "method",
@@ -760,7 +903,7 @@
       "post": {
         "operationId": "refundPayment",
         "summary": "Refund a payment",
-        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A payment can be refunded once, fully or partially: after a partial refund a new refund is rejected with `REFUND_ALREADY_PERFORMED`, and after a full refund with `ALREADY_REFUNDED`. While a refund is being processed, a new one is rejected with `400 REFUND_IN_PROGRESS`. A partial refund additionally requires a settled payment and a processing route that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company. When the refund takes the counted volume of your verified CPF or CNPJ below a rewards prize that YuvexPay approved for it, the processing fee is not returned: your balance is debited the full amount returned to the payer, and the kept fee, debited from the originating company only, can take the available balance negative.",
+        "description": "Issue a full or partial refund for a paid payment. Requires an idempotency key. A payment can be refunded once, fully or partially: after a partial refund a new refund is rejected with `REFUND_ALREADY_PERFORMED`, and after a full refund with `ALREADY_REFUNDED`. While a refund is being processed, a new one is rejected with `400 REFUND_IN_PROGRESS`. A partial refund additionally requires a settled payment and a processing route that supports partial refunds; otherwise it is rejected with `PARTIAL_REFUND_NOT_SUPPORTED`. When the payment carries splits, the refund is apportioned: every party is debited in proportion to what it received, including the originating company, and partial refunds use the same proportions. `INSUFFICIENT_BALANCE_FOR_REFUND` is evaluated against the originating company's share only — a recipient that has already withdrawn its share goes negative instead of blocking the refund, and the shortfall is never moved onto the originating company. When the refund takes the counted volume of your verified CPF or CNPJ below a rewards prize that YuvexPay approved for it, the processing fee is not returned: your balance is debited the full amount returned to the payer, and the kept fee, debited from the originating company only, can take the available balance negative. A `FREE` payment was never charged and returns `400 INVALID_STATUS`.",
         "tags": [
           "Payments"
         ],
@@ -2103,11 +2246,435 @@
         }
       }
     },
+    "/v1/coupons": {
+      "post": {
+        "operationId": "createCoupon",
+        "summary": "Create a coupon",
+        "description": "Create a discount coupon. Requires the `coupons:write` scope. Apply it with `couponCode` on `POST /v1/payments`, or let the payer type it on the hosted checkout. Coupons belong to the environment of the key: a `ypk_test_` key manages sandbox coupons and a `ypk_live_` key production coupons, and a payment uses only coupons of its own environment.",
+        "tags": [
+          "Coupons"
+        ],
+        "parameters": [
+          {
+            "name": "X-Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Optional on this endpoint. When sent, a `2xx` response is stored for 24 hours and replayed for a retry with the same key and body."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponRequest"
+              },
+              "examples": {
+                "percent": {
+                  "summary": "10% off the whole order, one use per payer",
+                  "value": {
+                    "code": "black10",
+                    "type": "PERCENT",
+                    "percentBp": 1000,
+                    "validFrom": "2026-11-27T00:00:00-03:00",
+                    "validUntil": "2026-12-01T00:00:00-03:00",
+                    "maxRedemptions": 500,
+                    "maxRedemptionsPerBuyer": 1
+                  }
+                },
+                "fixed": {
+                  "summary": "R$ 20.00 off one product",
+                  "value": {
+                    "code": "BONE20",
+                    "type": "FIXED",
+                    "amount": 20,
+                    "productIds": [
+                      "8a3f1c2e-6b4d-4e7a-9c1b-2d3e4f5a6b7c"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Coupon created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "coupon": {
+                      "$ref": "#/components/schemas/Coupon"
+                    }
+                  },
+                  "required": [
+                    "coupon"
+                  ]
+                },
+                "example": {
+                  "coupon": {
+                    "id": "4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e",
+                    "code": "BLACK10",
+                    "type": "PERCENT",
+                    "percentBp": 1000,
+                    "amount": null,
+                    "validFrom": "2026-11-27T03:00:00.000Z",
+                    "validUntil": "2026-12-01T03:00:00.000Z",
+                    "maxRedemptions": 500,
+                    "maxRedemptionsPerBuyer": 1,
+                    "productIds": [],
+                    "active": true,
+                    "redemptionCount": 0,
+                    "createdAt": "2026-10-31T18:00:00.000Z",
+                    "updatedAt": "2026-10-31T18:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed. Besides `VALIDATION_ERROR`: `COUPON_VALUE_INVALID`, `percentBp` and `amount` do not match `type`; `COUPON_WINDOW_INVALID`, `validUntil` is not after `validFrom`; `COUPON_PRODUCT_NOT_FOUND`, a `productIds` entry is not a product of your account in this environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "couponValueInvalid": {
+                    "summary": "`amount` sent on a `PERCENT` coupon",
+                    "value": {
+                      "error": {
+                        "code": "COUPON_VALUE_INVALID",
+                        "message": "Cupom percentual exige percentBp e não aceita amount."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "`COUPON_CODE_TAKEN`: another coupon of your account in this environment that is not deleted has this code. A reused `X-Idempotency-Key` returns the flat idempotency errors instead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "COUPON_CODE_TAKEN",
+                    "message": "Já existe um cupom com este código."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCoupons",
+        "summary": "List coupons",
+        "description": "List the coupons of your account that are not deleted, newest first. Requires the `coupons:read` scope. Coupons belong to the environment of the key: a `ypk_test_` key manages sandbox coupons and a `ypk_live_` key production coupons, and a payment uses only coupons of its own environment.",
+        "tags": [
+          "Coupons"
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "description": "Return the coupons whose code contains this text, case-insensitive."
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            },
+            "description": "Filter by `active`. Only `true` or `false`; any other value returns `400`."
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Limit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coupons listed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "coupons": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Coupon"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/coupons/{couponId}": {
+      "get": {
+        "operationId": "getCoupon",
+        "summary": "Get a coupon",
+        "description": "Retrieve a coupon. Requires the `coupons:read` scope. A deleted coupon, or one from the other environment, returns `404`.",
+        "tags": [
+          "Coupons"
+        ],
+        "parameters": [
+          {
+            "name": "couponId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The coupon ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coupon found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "coupon": {
+                      "$ref": "#/components/schemas/Coupon"
+                    }
+                  },
+                  "required": [
+                    "coupon"
+                  ]
+                },
+                "example": {
+                  "coupon": {
+                    "id": "4b5c6d7e-8f9a-4b0c-9d1e-2f3a4b5c6d7e",
+                    "code": "BLACK10",
+                    "type": "PERCENT",
+                    "percentBp": 1000,
+                    "amount": null,
+                    "validFrom": "2026-11-27T03:00:00.000Z",
+                    "validUntil": "2026-12-01T03:00:00.000Z",
+                    "maxRedemptions": 500,
+                    "maxRedemptionsPerBuyer": 1,
+                    "productIds": [],
+                    "active": true,
+                    "redemptionCount": 0,
+                    "createdAt": "2026-10-31T18:00:00.000Z",
+                    "updatedAt": "2026-10-31T18:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCoupon",
+        "summary": "Update a coupon",
+        "description": "Update one or more fields of a coupon. Requires the `coupons:write` scope. The change applies from the next time the coupon is applied; a payment that already holds the coupon keeps it.",
+        "tags": [
+          "Coupons"
+        ],
+        "parameters": [
+          {
+            "name": "couponId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The coupon ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCouponRequest"
+              },
+              "example": {
+                "active": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Coupon updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "coupon": {
+                      "$ref": "#/components/schemas/Coupon"
+                    }
+                  },
+                  "required": [
+                    "coupon"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed. Besides `VALIDATION_ERROR`: `COUPON_VALUE_INVALID`, `percentBp` and `amount` do not match `type`; `COUPON_WINDOW_INVALID`, `validUntil` is not after `validFrom`; `COUPON_PRODUCT_NOT_FOUND`, a `productIds` entry is not a product of your account in this environment.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "couponValueInvalid": {
+                    "summary": "`amount` sent on a `PERCENT` coupon",
+                    "value": {
+                      "error": {
+                        "code": "COUPON_VALUE_INVALID",
+                        "message": "Cupom percentual exige percentBp e não aceita amount."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`COUPON_CODE_TAKEN`: another coupon of your account in this environment that is not deleted has this code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "COUPON_CODE_TAKEN",
+                    "message": "Já existe um cupom com este código."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoupon",
+        "summary": "Delete a coupon",
+        "description": "Delete a coupon. Requires the `coupons:write` scope. The coupon is deactivated and kept for the payments that used it, but it no longer appears in the list, `GET` returns `404`, and its code can be used by a new coupon. A payment that already holds the coupon keeps its discount.",
+        "tags": [
+          "Coupons"
+        ],
+        "parameters": [
+          {
+            "name": "couponId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The coupon ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coupon deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "message": "Coupon deleted"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/v1/documents/payments/{paymentId}/receipt": {
       "get": {
         "operationId": "getPaymentReceipt",
         "summary": "Get payment receipt",
-        "description": "Render a receipt for a payment. Requires the `documents:read` scope. The payment must be `PAID` or `REFUNDED`; any other status returns `400 RECEIPT_NOT_AVAILABLE`. The lookup is scoped to the environment of the key: a production key resolves only production payments and a sandbox key only sandbox ones, so an id from the other environment returns `404` even when it belongs to your own account.",
+        "description": "Render a receipt for a payment. Requires the `documents:read` scope. The payment must be `PAID` or `REFUNDED`; any other status, `FREE` included, returns `400 RECEIPT_NOT_AVAILABLE`. The lookup is scoped to the environment of the key: a production key resolves only production payments and a sandbox key only sandbox ones, so an id from the other environment returns `404` even when it belongs to your own account.",
         "tags": [
           "Documents"
         ],
@@ -2243,7 +2810,7 @@
       "get": {
         "operationId": "getStatement",
         "summary": "Get account statement",
-        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances. Split credits received from other YuvexPay companies, and the proportional debits taken back on a refund or MED, appear here. Besides `GET /v1/balance`, this is the only public record a recipient has of a split: the payment itself belongs to the originating company and is not readable by the recipient. The price of a recovery kit appears as a debit labelled `Kit de recuperação`.",
+        "description": "Generate an account statement for a date range. Maximum range is 90 days. The statement is built from the real-money ledger, which sandbox transactions never touch, so a sandbox key always receives an empty statement with zero balances. Split credits received from other YuvexPay companies, and the proportional debits taken back on a refund or MED, appear here. Besides `GET /v1/balance`, this is the only public record a recipient has of a split: the payment itself belongs to the originating company and is not readable by the recipient. The price of a recovery kit appears as a debit labelled `Kit de recuperação`. The fee of a free order, a payment a coupon covered in full, appears as a debit labelled `Taxa de pedido gratuito`.",
         "tags": [
           "Documents"
         ],
@@ -2939,6 +3506,98 @@
         }
       }
     },
+    "PAYMENT_FREE": {
+      "post": {
+        "summary": "Payment free",
+        "description": "A coupon discounted the whole amount of the payment and the order completed without a charge. A free order never sends `PAYMENT_PAID`.\n\nOpt-in: delivered only to endpoints that selected this event, never to the others, and never for sandbox payments. A resend from the dashboard or by support carries only `id`, `txId`, `status` and `amount`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header.",
+        "tags": [
+          "Webhooks"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Payment id."
+                  },
+                  "txId": {
+                    "type": "string",
+                    "description": "Payment transaction id."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "FREE"
+                    ],
+                    "description": "Always `FREE`."
+                  },
+                  "amount": {
+                    "type": "number",
+                    "enum": [
+                      0
+                    ],
+                    "description": "Always `0`."
+                  },
+                  "paidAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the order completed. `GET /v1/payments/{paymentId}` returns this time as `completedAt`, with `paidAt: null`."
+                  },
+                  "endToEndId": {
+                    "type": "null",
+                    "description": "Always `null`: no PIX transfer exists."
+                  },
+                  "payer": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/WebhookPayerBlock"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The name and document the payment has, with `institutionName` and `institutionIspb` `null`, or `null` when neither is known."
+                  }
+                },
+                "required": [
+                  "id",
+                  "txId",
+                  "status",
+                  "amount",
+                  "paidAt",
+                  "endToEndId",
+                  "payer"
+                ]
+              },
+              "example": {
+                "id": "3d4e5f6a-7b8c-4d9e-8f0a-1b2c3d4e5f6a",
+                "txId": "PAY0F1E2D3C4B5A69788796A5B4C3D2E1F0",
+                "status": "FREE",
+                "amount": 0,
+                "paidAt": "2026-10-31T18:05:00.000Z",
+                "endToEndId": null,
+                "payer": {
+                  "name": "Maria Silva",
+                  "document": "39053344705",
+                  "documentType": "CPF",
+                  "institutionName": null,
+                  "institutionIspb": null
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Return a 2xx status to acknowledge receipt."
+          }
+        }
+      }
+    },
     "MED_RECEIVED": {
       "post": {
         "summary": "MED received",
@@ -3542,9 +4201,10 @@
           "REFUNDED",
           "PARTIAL_REFUND",
           "CHARGEBACK",
-          "MED_FROZEN"
+          "MED_FROZEN",
+          "FREE"
         ],
-        "description": "Possible payment statuses."
+        "description": "Possible payment statuses. `FREE`: a coupon discounted the whole amount and the order completed without a charge; it is terminal and cannot be refunded."
       },
       "WithdrawalStatus": {
         "type": "string",
@@ -3584,7 +4244,8 @@
           "WITHDRAWAL_REQUESTED",
           "WITHDRAWAL_SENT",
           "WITHDRAWAL_FAILED",
-          "CHECKOUT_ABANDONED"
+          "CHECKOUT_ABANDONED",
+          "PAYMENT_FREE"
         ],
         "description": "Subscribable webhook event types. This value is delivered in the `X-Webhook-Event` header, never in the request body."
       },
@@ -3686,6 +4347,109 @@
           }
         }
       },
+      "PaymentItemInput": {
+        "type": "object",
+        "description": "One order line.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Line name shown to the payer. Trimmed."
+          },
+          "unitAmount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000,
+            "description": "Unit price in BRL, at most 2 decimal places."
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A product of your account in the environment of the key. Any other id returns `400 ITEM_PRODUCT_NOT_FOUND`. Coupons limited to products match lines by this id."
+          },
+          "sku": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Your own code for the line. Trimmed."
+          }
+        },
+        "required": [
+          "name",
+          "unitAmount",
+          "quantity"
+        ]
+      },
+      "OrderBumpInput": {
+        "type": "object",
+        "description": "Order bump: an extra line the payer can tick on the hosted checkout before picking a method. Ticked, it joins the order as an `ORDER_BUMP` item and the totals, fee and percentage splits are computed again. A coupon limited to products covers it only when its `productId` is in the coupon's `productIds`. Not offered on a payment with a `FIXED` split.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Offer name shown to the payer. Trimmed."
+          },
+          "unitAmount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000,
+            "description": "Price in BRL, greater than 0, at most 2 decimal places."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Text shown with the offer. Trimmed; empty is the same as absent."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A product of your account in the environment of the key; its image is shown with the offer. Any other id returns `400 OFFER_PRODUCT_NOT_FOUND`."
+          }
+        },
+        "required": [
+          "name",
+          "unitAmount"
+        ]
+      },
+      "UpsellInput": {
+        "type": "object",
+        "description": "Post-purchase upsell: offered on the hosted checkout for 30 minutes after this payment is paid. Accepting it creates a new payment, with `parentPaymentId` set to this payment and one `UPSELL` item, for the same payer and with the same splits. It is paid by PIX or, from the browser that paid this payment by card, in one click with the same card. Not offered on a payment with a `FIXED` split, never on a `FREE` payment, and not when the payer's changes on the checkout took the final `amount` below the upsell price.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "description": "Offer name shown to the payer. Trimmed."
+          },
+          "unitAmount": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Price in BRL, from 1.00 up to the `amount` of this payment after the coupon (`400 UPSELL_AMOUNT_TOO_HIGH` above it), at most 2 decimal places. The upsell payment never carries a fee passed to the payer."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Text shown with the offer. Trimmed; empty is the same as absent."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A product of your account in the environment of the key; its image is shown with the offer. Any other id returns `400 OFFER_PRODUCT_NOT_FOUND`."
+          }
+        },
+        "required": [
+          "name",
+          "unitAmount"
+        ]
+      },
       "CreatePaymentRequest": {
         "type": "object",
         "properties": {
@@ -3703,7 +4467,7 @@
             "type": "number",
             "minimum": 0.01,
             "maximum": 1000000,
-            "description": "Payment amount. Required unless `productId` is provided."
+            "description": "Payment amount. Required unless `productId` or `items` is provided. With `items` it can be omitted; when sent, it must equal the sum of `unitAmount` x `quantity` exactly (`400 AMOUNT_ITEMS_MISMATCH`)."
           },
           "methods": {
             "type": "array",
@@ -3737,7 +4501,7 @@
           "completionUrl": {
             "type": "string",
             "format": "uri",
-            "description": "Hosted mode: where the checkout sends the payer, after a 5-second countdown, once the payment is `PAID` or `CONFIRMED`. The checkout adds `yvx_payment_id`, `yvx_status`, `yvx_amount_cents`, `yvx_reference`, `yvx_ts` and `yvx_signature`, a lowercase hex HMAC-SHA256 of `payment_id.status.amount_cents.reference.ts` keyed with the account's redirect secret; see the payments guide to verify it. Only an http or https URL of up to 2048 characters is used. The redirect is not proof of payment: confirm with `GET /v1/payments/{paymentId}` or the webhook before fulfilling."
+            "description": "Hosted mode: where the checkout sends the payer, after a 5-second countdown, once the payment is `PAID`, `CONFIRMED` or `FREE`. The checkout adds `yvx_payment_id`, `yvx_status`, `yvx_amount_cents`, `yvx_reference`, `yvx_ts` and `yvx_signature`, a lowercase hex HMAC-SHA256 of `payment_id.status.amount_cents.reference.ts` keyed with the account's redirect secret; see the payments guide to verify it. While a post-purchase upsell is offered, the checkout shows a button to this URL instead of the countdown. Only an http or https URL of up to 2048 characters is used. The redirect is not proof of payment: confirm with `GET /v1/payments/{paymentId}` or the webhook before fulfilling."
           },
           "description": {
             "type": "string",
@@ -3792,7 +4556,7 @@
           },
           "passFeeToPayer": {
             "type": "boolean",
-            "description": "Whether the YuvexPay fee should be added on top of `amount` and charged to the payer instead of being deducted from the merchant's net. When omitted, the company-level `passFeeToPayerDefault` setting applies. Note: payments with a resolved amount below R$1,00 are always charged to the payer regardless of this value (forced passthrough to keep merchant net positive). The final decision is reflected back as `feePassedToPayer` on the Payment object."
+            "description": "Whether the YuvexPay fee should be added on top of `amount` and charged to the payer instead of being deducted from the merchant's net. When omitted, the company-level `passFeeToPayerDefault` setting applies. Note: payments with a resolved amount below R$1,00 are always charged to the payer regardless of this value (forced passthrough to keep merchant net positive). The final decision is reflected back as `feePassedToPayer` on the Payment object. On a hosted payment the fee is computed again, at the rate of the method the payer picks, card included; the checkout shows each method with its own total. A payment that completes as `FREE` never passes a fee."
           },
           "splits": {
             "type": "array",
@@ -3807,6 +4571,48 @@
           "recoveryKit": {
             "type": "boolean",
             "description": "Turn the recovery kit on (`true`) or off (`false`) for this payment. When omitted, the account default applies (Ativar por padrão on the Kit de recuperação card in the dashboard, off until turned on). The kit e-mails a payer who filled in the hosted checkout and did not pay: up to 5 e-mails at the delays set for the account, 15 minutes, 1 hour and 24 hours unless changed, plus one about 10 minutes before a PIX code expires, sent only while the payment can still be paid. It starts when the hosted checkout saves the payer's details, or when the checkout is first opened for a payment whose customer already has them, so it does nothing on a headless payment. The kit price, shown in the dashboard, is debited once, when the first e-mail is sent, even if the balance goes negative. Sandbox payments never get a kit: `recoveryKit.enabled` is `false` on them. The result is returned as `recoveryKit` on the Payment object."
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PaymentItemInput"
+            },
+            "description": "Order lines. The payment amount is the sum of `unitAmount` x `quantity`. The sum must be at most R$ 1,000,000.00 (`400 AMOUNT_TOO_HIGH`), and at least R$ 5.00 when `methods` has `CARD` or `BOLETO` (`400 MINIMUM_AMOUNT_FOR_CARD_OR_BOLETO`)."
+          },
+          "itemsQuantityEditable": {
+            "type": "boolean",
+            "default": false,
+            "description": "Let the payer change the quantity of each line on the hosted checkout before picking a method; the amount, the coupon discount, the fee and percentage splits are computed again. Ignored without `items` and on a payment with a `FIXED` split."
+          },
+          "couponCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "Coupon to apply, case-insensitive. A code that does not exist, is inactive, outside its validity window, out of uses, over the per-payer limit for `customer.email`, gives no discount on this order, or is sent with a `FIXED` split returns `400 COUPON_INVALID`, one answer for every reason. A discount of the whole amount completes the payment as `FREE`: at once for a headless payment, when the payer confirms on the hosted checkout."
+          },
+          "orderBump": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OrderBumpInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hosted only: in headless mode, the default, it returns `400 VALIDATION_ERROR` with `OFFERS_REQUIRE_HOSTED` in the message. See `OrderBumpInput`."
+          },
+          "upsell": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UpsellInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Hosted only: in headless mode, the default, it returns `400 VALIDATION_ERROR` with `OFFERS_REQUIRE_HOSTED` in the message. See `UpsellInput`."
           },
           "boleto": {
             "type": "object",
@@ -4130,6 +4936,162 @@
           }
         }
       },
+      "CreateCouponRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "3 to 32 characters from `A-Z`, `0-9`, `_` and `-`, after trimming. Stored uppercase, so `black10` is saved as `BLACK10`. Unique among the coupons of your account in this environment that are not deleted (`409 COUPON_CODE_TAKEN`)."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ],
+            "description": "`PERCENT` requires `percentBp` and `FIXED` requires `amount`; sending the other field, or neither, returns `400 COUPON_VALUE_INVALID`."
+          },
+          "percentBp": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "`PERCENT` only: the discount in basis points, `1` to `10000` (`10000` is 100%)."
+          },
+          "amount": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1000000,
+            "description": "`FIXED` only: the discount in BRL, at most 2 decimal places."
+          },
+          "validFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "ISO 8601 date-time with an offset or `Z`. Inclusive."
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "ISO 8601 date-time with an offset or `Z`. Exclusive. Must be after `validFrom` (`400 COUPON_WINDOW_INVALID`)."
+          },
+          "maxRedemptions": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Total uses, counting payments holding the coupon and completed ones. Omitted or `null`: no limit."
+          },
+          "maxRedemptionsPerBuyer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Uses per payer e-mail, checked when the e-mail is known. Omitted or `null`: no limit."
+          },
+          "productIds": {
+            "type": "array",
+            "maxItems": 100,
+            "default": [],
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Products of your account in this environment that the discount covers (`400 COUPON_PRODUCT_NOT_FOUND` otherwise). Empty: the whole order."
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "code",
+          "type"
+        ]
+      },
+      "UpdateCouponRequest": {
+        "type": "object",
+        "description": "Send only the fields to change. `null` clears a nullable field. Changing `type` without the value of the new type returns `400 COUPON_VALUE_INVALID`, since the value of the old type is cleared.",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "3 to 32 characters from `A-Z`, `0-9`, `_` and `-`, after trimming. Stored uppercase, so `black10` is saved as `BLACK10`. Unique among the coupons of your account in this environment that are not deleted (`409 COUPON_CODE_TAKEN`)."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "percentBp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 1000000
+          },
+          "validFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "maxRedemptions": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "maxRedemptionsPerBuyer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "productIds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Replaces the whole list."
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
       "PaymentSplit": {
         "type": "object",
         "description": "A split recorded on a payment. Immutable once the payment is created.",
@@ -4164,6 +5126,77 @@
           "value"
         ]
       },
+      "PaymentItem": {
+        "type": "object",
+        "description": "An order line of a payment.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unitAmount": {
+            "type": "number",
+            "description": "Unit price in BRL."
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999,
+            "description": "Quantity. The payer may have changed it on the hosted checkout when the payment was created with `itemsQuantityEditable: true`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ITEM",
+              "ORDER_BUMP",
+              "UPSELL"
+            ],
+            "description": "`ITEM`: a line you sent in `items`. `ORDER_BUMP`: the order bump the payer ticked. `UPSELL`: the line of a payment created by a post-purchase upsell."
+          },
+          "productId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "sku": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "unitAmount",
+          "quantity",
+          "kind",
+          "productId",
+          "sku"
+        ]
+      },
+      "PaymentCoupon": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "description": "The coupon applied to the payment, or `null`.",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The coupon code, uppercase.",
+            "example": "BLACK10"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
       "Payment": {
         "type": "object",
         "properties": {
@@ -4177,7 +5210,7 @@
           },
           "amount": {
             "type": "number",
-            "description": "Merchant-requested base amount, in BRL. This is the seller's intended receivable."
+            "description": "Amount in BRL before any fee passed to the payer: `subtotal` minus `discount`. On a hosted payment it changes before the payer picks a method when the payer changes a quantity, ticks the order bump or applies a coupon. `0` on a `FREE` payment."
           },
           "feeAmount": {
             "type": "number",
@@ -4236,7 +5269,7 @@
               "object",
               "null"
             ],
-            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` or `EXPIRED` before a charge was created, or a hosted payment still in `PENDING_METHOD_SELECTION`. For CARD, `cardFundingType` is `credit` or `debit`, and `null` when the funding type is not known, including older payments.",
+            "description": "Payment method-specific data (QR code for PIX, masked card data for CARD, barcode for boleto). `null` while the payment has no method data: a boleto payment that is `PROCESSING` after a `502`, a card payment that is `PROCESSING` before the outcome of its charge is known, a payment recorded `CANCELLED` or `EXPIRED` before a charge was created, a hosted payment still in `PENDING_METHOD_SELECTION`, or a `FREE` payment. For CARD, `cardFundingType` is `credit` or `debit`, and `null` when the funding type is not known, including older payments.",
             "properties": {
               "type": {
                 "$ref": "#/components/schemas/PaymentMethod"
@@ -4262,7 +5295,15 @@
               "null"
             ],
             "format": "date-time",
-            "description": "Timestamp when the payment was confirmed paid. Null until paid."
+            "description": "Timestamp when the payment was confirmed paid. Null until paid, and on a `FREE` payment, which has `completedAt` instead."
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When a `FREE` payment completed. `null` on every other payment."
           },
           "payer": {
             "type": [
@@ -4350,6 +5391,32 @@
               "charged",
               "emailsSent"
             ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentItem"
+            },
+            "description": "Order lines, `[]` when the payment was created with an amount only, until the payer ticks an order bump."
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Amount before the coupon, in BRL."
+          },
+          "discount": {
+            "type": "number",
+            "description": "Coupon discount, in BRL. `0` without a coupon."
+          },
+          "coupon": {
+            "$ref": "#/components/schemas/PaymentCoupon"
+          },
+          "parentPaymentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "On a payment created by a post-purchase upsell, the payment whose upsell the payer accepted. `null` otherwise."
           }
         }
       },
@@ -4629,6 +5696,115 @@
           }
         }
       },
+      "Coupon": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string",
+            "description": "Uppercase code, 3 to 32 characters from `A-Z`, `0-9`, `_` and `-`.",
+            "example": "BLACK10"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED"
+            ]
+          },
+          "percentBp": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10000,
+            "description": "`PERCENT` only: the discount in basis points, `1500` for 15% and `10000` for 100%. `null` on a `FIXED` coupon."
+          },
+          "amount": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "`FIXED` only: the discount in BRL. `null` on a `PERCENT` coupon."
+          },
+          "validFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The coupon works from this time on, inclusive. `null`: no start."
+          },
+          "validUntil": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The coupon stops working at this time, exclusive. `null`: no end."
+          },
+          "maxRedemptions": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Total uses. `null`: no limit."
+          },
+          "maxRedemptionsPerBuyer": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "Uses per payer e-mail. `null`: no limit."
+          },
+          "productIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Products the discount covers. Empty: the whole order."
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "redemptionCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Uses taken: payments holding the coupon that are still open, plus the completed ones. A payment that expires or is cancelled gives its use back."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "type",
+          "percentBp",
+          "amount",
+          "validFrom",
+          "validUntil",
+          "maxRedemptions",
+          "maxRedemptionsPerBuyer",
+          "productIds",
+          "active",
+          "redemptionCount",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "CustomerDetail": {
         "allOf": [
           {
@@ -4855,7 +6031,7 @@
           },
           "amount": {
             "type": "number",
-            "description": "Merchant-requested base amount. Seller receivable when `feePassedToPayer` is true."
+            "description": "Amount in BRL before any fee passed to the payer: `subtotal` minus `discount`."
           },
           "feeAmount": {
             "type": "number",
@@ -4883,11 +6059,34 @@
             },
             "description": "Splits recorded on this payment, in the order they were sent. `[]` when the payment has none."
           },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentItem"
+            },
+            "description": "Order lines, `[]` when the payment was created with an amount only."
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Amount before the coupon, in BRL."
+          },
+          "discount": {
+            "type": "number",
+            "description": "Coupon discount, in BRL. `0` without a coupon."
+          },
+          "coupon": {
+            "$ref": "#/components/schemas/PaymentCoupon"
+          },
           "isSandbox": {
             "type": "boolean"
           },
           "status": {
-            "$ref": "#/components/schemas/PaymentStatus"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentStatus"
+              }
+            ],
+            "description": "`FREE` when `couponCode` discounted the whole amount: the payment completed on this request, with no charge."
           },
           "paymentMethod": {
             "$ref": "#/components/schemas/PaymentMethod"
@@ -4932,7 +6131,7 @@
                 "description": "CARD only. `credit` when the card was charged as a credit card in a single installment, `debit` when it was charged as a debit card. `null` when the funding type is not known, including older payments."
               }
             },
-            "description": "Method-specific data. PIX returns QR data. BOLETO returns the digitable line and barcode. CARD returns masked card data and `cardFundingType`, only when the request returns an existing card payment. `null` when the request returns an existing boleto payment that is `PROCESSING` after a `502`, or one recorded `CANCELLED` before a charge was created.",
+            "description": "Method-specific data. PIX returns QR data. BOLETO returns the digitable line and barcode. CARD returns masked card data and `cardFundingType`, only when the request returns an existing card payment. `null` when the request returns an existing boleto payment that is `PROCESSING` after a `502`, one recorded `CANCELLED` before a charge was created, or a payment created as `FREE`.",
             "example": {
               "type": "PIX",
               "pixCopyPaste": "00020126...",
@@ -4954,7 +6153,7 @@
           },
           "amount": {
             "type": "number",
-            "description": "Merchant-requested base amount. Seller receivable when `feePassedToPayer` is true."
+            "description": "Amount in BRL before any fee passed to the payer: `subtotal` minus `discount`."
           },
           "feeAmount": {
             "type": "number",
@@ -4981,6 +6180,24 @@
               "$ref": "#/components/schemas/PaymentSplit"
             },
             "description": "Splits recorded on this payment, in the order they were sent. `[]` when the payment has none."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentItem"
+            },
+            "description": "Order lines, `[]` when the payment was created with an amount only."
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Amount before the coupon, in BRL."
+          },
+          "discount": {
+            "type": "number",
+            "description": "Coupon discount, in BRL. `0` without a coupon."
+          },
+          "coupon": {
+            "$ref": "#/components/schemas/PaymentCoupon"
           },
           "status": {
             "$ref": "#/components/schemas/PaymentStatus"

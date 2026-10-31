@@ -119,6 +119,13 @@ All errors follow a consistent structure:
 | `SPLIT_PLATFORM_SUSPENDED` | 400 | The recipient is a split platform your company is connected to with a fee cap, and its approval was withdrawn. `details.recipientCompanyId` names it. New payments cannot split to it while it is not approved. |
 | `SPLIT_PLATFORM_KEY_INVALID` | 403 | The key sent in `X-Split-Platform-Key` was refused: unknown, revoked or expired, from the other environment, without `payments:write`, used from outside its IP allowlist, or from the same company as the request. Every reason gets this same answer, with no `details`. |
 | `SPLIT_PARTNER_LIMIT_EXCEEDED` | 400 | Connecting a split platform would take your company past its limit of active partners (three by default). `details.limit` carries the limit. The API returns it only on a platform connection: for dashboard invites the limit is enforced in the dashboard. |
+| `AMOUNT_ITEMS_MISMATCH` | 400 | `amount` is not the sum of `unitAmount × quantity` over `items`. `details.amount` echoes what you sent and `details.itemsTotal` carries the sum as a string, such as `"159.70"`. See [Line items](/guides/payments#line-items). |
+| `AMOUNT_TOO_HIGH` | 400 | The sum of `items` is above `R$ 1,000,000.00`. |
+| `MINIMUM_AMOUNT_FOR_CARD_OR_BOLETO` | 400 | The sum of `items`, or a headless boleto amount after the coupon, is below `R$ 5.00` while `methods` has `CARD` or `BOLETO`. |
+| `ITEM_PRODUCT_NOT_FOUND` | 400 | An item `productId` is not a product of your account in the environment of the key. |
+| `OFFER_PRODUCT_NOT_FOUND` | 400 | The `productId` of `orderBump` or `upsell` is not a product of your account in the environment of the key. |
+| `UPSELL_AMOUNT_TOO_HIGH` | 400 | The upsell `unitAmount` is above the payment `amount` after the coupon. See [Post-purchase upsell](/guides/payments#post-purchase-upsell). |
+| `COUPON_INVALID` | 400 | `couponCode` cannot be used on this payment: the code does not exist, is inactive or deleted, is outside its validity window, has no uses left, is over the per-payer limit, gives no discount on this order, or the payment has a `FIXED` split. One answer for every reason. See [Coupons](/guides/payments#coupons). |
 | `PROVIDER_REJECTED` | 400 | The payment was refused. The message is generic and does not say why. Ask the payer to check their details or use another payment method. |
 | `PROVIDER_TEMPORARILY_UNAVAILABLE` | 502, 503 | The service is temporarily unavailable. Retry later. On a boleto payment, a `502` means the outcome is not known yet and is replayed for the same `X-Idempotency-Key`: see [Boleto errors](/guides/payments#boleto-errors) before retrying. On a PIX payment, the payment is recorded as `CANCELLED`: retry with a new `externalId`. |
 
@@ -128,11 +135,24 @@ All errors follow a consistent structure:
   `POST /v1/payments`. None of these codes can be returned by the API any more.
 </Note>
 
+`orderBump` or `upsell` on a headless payment returns `400 VALIDATION_ERROR`,
+with `OFFERS_REQUIRE_HOSTED` in the message: both are offered on the hosted
+checkout only.
+
+### Coupon errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `COUPON_VALUE_INVALID` | 400 | `percentBp` and `amount` do not match `type`: a `PERCENT` coupon needs `percentBp` and no `amount`, a `FIXED` coupon needs `amount` and no `percentBp`. On `PATCH`, changing `type` clears the value of the old type, so send the new one with it. |
+| `COUPON_WINDOW_INVALID` | 400 | `validUntil` is not after `validFrom`. |
+| `COUPON_PRODUCT_NOT_FOUND` | 400 | A `productIds` entry is not a product of your account in the environment of the key. |
+| `COUPON_CODE_TAKEN` | 409 | Another coupon of your account in this environment that is not deleted has this code. |
+
 ### Refund errors
 
 | Code | Status | Description |
 |------|--------|-------------|
-| `INVALID_STATUS` | 400 | The payment is not in a refundable status. |
+| `INVALID_STATUS` | 400 | The payment is not in a refundable status, a `FREE` payment included. |
 | `PARTIAL_REFUND_NOT_SUPPORTED` | 400 | A partial refund needs a settled payment and a processing route that supports partial refunds; this payment fails one of the two. Send no `amount`, or the full remaining refundable amount. |
 | `ALREADY_REFUNDED` | 400 | The payment has already been fully refunded. |
 | `REFUND_ALREADY_PERFORMED` | 400 | The payment was already partially refunded. A payment can be refunded once. |
