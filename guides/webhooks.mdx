@@ -221,7 +221,7 @@ Each webhook delivery includes these headers:
 | `Content-Type` | `application/json` |
 | `User-Agent` | `YuvexPay-Webhook/1.0` |
 | `X-Webhook-Event` | The event type (e.g., `PAYMENT_PAID`). |
-| `X-Webhook-Delivery-Id` | Identifier for this delivery. Every automatic retry of a delivery carries the same id. A resend from the dashboard or by support, and each test ping, is a new delivery with a new id. Usually a UUID, but the endpoint-reactivation probe sends `probe-<webhookId>` instead — do not reject a delivery for failing a UUID check, or your endpoint can never be reactivated. |
+| `X-Webhook-Delivery-Id` | Identifier for this delivery. Every automatic retry of a delivery carries the same id. A resend from the dashboard or by support, and each test ping, is a new delivery with a new id. Usually a UUID, but the endpoint-reactivation probe sends `probe-<webhookId>` instead, the same on every probe of that endpoint — do not reject a delivery for failing a UUID check, or your endpoint can never be reactivated. |
 | `X-Webhook-Attempt` | Attempt number of this delivery, starting at `1`. Increments on each automatic retry. A resend starts at `1`. |
 | `X-Webhook-Timestamp` | Unix timestamp (seconds) when this attempt was signed. Every attempt is signed again, so a retry carries a new timestamp and a new signature. |
 | `X-Webhook-Signature` | `v1=<hex-encoded HMAC-SHA256>`. See [Verifying signatures](#verifying-signatures). |
