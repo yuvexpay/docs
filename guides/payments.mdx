@@ -145,6 +145,9 @@ YuvexPay handles method selection, card capture and PIX rendering.
   "description": "Order #1234",
   "returnUrl": "https://store.example.com/checkout/return",
   "completionUrl": "https://store.example.com/checkout/done",
+  "metadata": {
+    "cancelUrl": "https://store.example.com/cart"
+  },
   "customer": {
     "name": "Pedro Álvares Cabral",
     "email": "user@example.com",
@@ -155,6 +158,11 @@ YuvexPay handles method selection, card capture and PIX rendering.
 
 - `returnUrl` is where YuvexPay sends the payer if they abandon the checkout.
 - `completionUrl` is where YuvexPay redirects after a successful payment.
+- `metadata.cancelUrl`, an `http` or `https` URL of up to 2048 characters,
+  shows a back link to that URL on the hosted checkout while the payment is
+  unpaid, including after it expires or is cancelled. Any other value is
+  ignored, not rejected. The cancel URL of a payment link created in the
+  dashboard works the same way on the payments the link creates.
 
 Hosted payments start in `PENDING_METHOD_SELECTION` until the payer picks a
 method, then transition through the same lifecycle as a headless payment. If
@@ -211,6 +219,67 @@ On a card payment, `GET /v1/payments/{paymentId}` returns
 `methodData.cardFundingType`: `credit` when the card was charged as a credit
 card, `debit` when it was charged as a debit card, and `null` when the funding
 type is not known, including older payments. Webhook bodies do not carry it.
+
+## Attribution tracking
+
+Send the optional `tracking` object on `POST /v1/payments` to attribute the
+sale to the campaign and the visitor that brought the payer. YuvexPay stores it
+with the payment and passes it to the conversion plugins enabled for your
+account, such as GA4, Meta Conversions API, TikTok Events API and UTMify.
+
+```json
+{
+  "amount": 49.90,
+  "methods": ["PIX"],
+  "mode": "headless",
+  "tracking": {
+    "utmSource": "facebook",
+    "utmMedium": "cpc",
+    "utmCampaign": "black-friday",
+    "fbclid": "IwAR2F4-dbP0l7Mn1IawQQGCINEz7PYXQvwjNwB_qa2ofrHyiLjcbCRxTDMgk",
+    "gaClientId": "1234567890.1761900000",
+    "fbp": "fb.1.1761900000000.1116446470",
+    "fbc": "fb.1.1761900000000.IwAR2F4-dbP0l7Mn1IawQQGCINEz7PYXQvwjNwB_qa2ofrHyiLjcbCRxTDMgk"
+  }
+}
+```
+
+| Field | Value |
+|-------|-------|
+| `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent` | The `utm_source`, `utm_medium`, `utm_campaign`, `utm_term` and `utm_content` parameters of the landing URL. Up to 512 characters each. |
+| `src`, `sck` | The `src` and `sck` parameters of the landing URL. Up to 512 characters each. |
+| `fbclid` | Meta click id. Up to 512 characters. |
+| `gclid` | Google Ads click id. Up to 512 characters. |
+| `ttclid` | TikTok click id. Up to 1000 characters. |
+| `gaClientId` | GA4 client id, `<digits>.<digits>`. A raw `_ga` cookie value, `GA1.1.<a>.<b>`, is accepted too and stored as `<a>.<b>`. |
+| `fbp` | Value of the Meta `_fbp` cookie, `fb.<subdomainIndex>.<creationTime>.<random>`. |
+| `fbc` | Value of the Meta `_fbc` cookie, `fb.<subdomainIndex>.<creationTime>.<fbclid>`. |
+
+Every field is optional, and values are trimmed. A `gaClientId`, `fbp` or `fbc`
+that does not match its format is ignored, and the payment is created without
+it. Any other field that is not a string or is over its length limit fails the
+request with `400 VALIDATION_ERROR`. When you send `fbclid` without `fbc`,
+YuvexPay builds the `fbc` for Meta from it.
+
+### Tracking on the hosted checkout
+
+The hosted checkout fills `tracking` by itself from the URL the payer opens it
+with: the `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`,
+`utm_content`, `src`, `sck`, `fbclid`, `gclid` and `ttclid` query parameters,
+and `_ga`, `_fbp` and `_fbc` as query parameters or as cookies of the
+checkout's own domain. The fields you sent in `tracking` when you created the
+payment are kept: the checkout fills only the ones you left empty. Payment
+links created in the dashboard capture the same parameters from the link URL.
+
+Your own `_ga`, `_fbp` and `_fbc` cookies are set on your domain, so the
+checkout cannot read them. To attribute a hosted-checkout purchase to the
+visitor your GA4 tag and Meta Pixel saw, send those cookie values in `tracking`
+when you create the payment, or append them, URL-encoded, to the `checkoutUrl`
+as query parameters:
+
+```
+https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234?_ga=GA1.1.1234567890.1761900000&_fbp=fb.1.1761900000000.1116446470
+```
 
 ## Fees and net amount
 
