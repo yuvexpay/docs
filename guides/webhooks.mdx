@@ -32,7 +32,7 @@ A company can register up to **two webhook endpoints in total**, active or pause
 
 ## Event types
 
-These are the thirteen subscribable event types. The value in this column is
+These are the fourteen subscribable event types. The value in this column is
 exactly what arrives in the `X-Webhook-Event` header.
 
 | Event | Description |
@@ -45,13 +45,14 @@ exactly what arrives in the `X-Webhook-Event` header.
 | `PAYMENT_REFUND_FAILED` | A refund attempt failed. |
 | `PAYMENT_CHARGEBACK` | A chargeback was opened or processed. If the card dispute is won, the payment leaves `CHARGEBACK` and `PAYMENT_PAID` or `PAYMENT_CONFIRMED` is sent again for its restored status. |
 | `CHECKOUT_ABANDONED` | The payer's details were saved on the hosted checkout, or the checkout was opened for a payment that already had them, and the payment is still unpaid 30 minutes later. Sent at most once per payment, only to endpoints that selected it. See [Abandoned checkouts](#abandoned-checkouts). |
+| `PAYMENT_FREE` | A coupon discounted the whole amount and the order completed without a charge, as status `FREE`. Sent only to endpoints that selected it. See [Free orders](#free-orders). |
 | `MED_RECEIVED` | A PIX MED (special refund) request was opened by the payer's bank. |
 | `MED_RESOLVED` | A PIX MED was resolved (approved or rejected). |
 | `WITHDRAWAL_REQUESTED` | A withdrawal was created and is being processed. |
 | `WITHDRAWAL_SENT` | A withdrawal was sent successfully. |
 | `WITHDRAWAL_FAILED` | A withdrawal failed and the funds were returned to your balance. |
 
-A fourteenth value, `TEST`, is not subscribable. It is used for the test ping
+A fifteenth value, `TEST`, is not subscribable. It is used for the test ping
 you can fire from the dashboard and for the probe that reactivates a suspended
 endpoint; it arrives as `X-Webhook-Event: TEST`.
 
@@ -124,6 +125,47 @@ record linked to the payment, and is `null` when it is not known there either.
 `buyer` itself is never `null`. `GET /v1/payments/{paymentId}` returns the same
 e-mail and phone in `payer.email` and `payer.phone`, next to `payer.name`,
 `payer.document` and `payer.documentType`.
+
+### Free orders
+
+`PAYMENT_FREE` tells you that a coupon covered the whole amount of a payment and
+the order completed without a charge (see
+[Free orders](/guides/payments#free-orders)).
+
+- **Opt-in per endpoint.** It is delivered only to endpoints that have
+  **Pagamento gratuito (cupom 100%)** (Free payment, 100% coupon) selected in
+  **Desenvolvedores > Webhooks**. An endpoint you created before this event
+  existed does not receive it until you edit the endpoint and select it.
+- **Instead of `PAYMENT_PAID`.** A free order never sends `PAYMENT_PAID`. If
+  you fulfil orders from `PAYMENT_PAID` and use coupons that can cover a whole
+  order, select this event too.
+- **Production only.** Like every event on this page, it is not delivered for
+  sandbox payments.
+
+The body has the fields of `PAYMENT_PAID`, all always present:
+
+```json
+{
+  "id": "3d4e5f6a-7b8c-4d9e-8f0a-1b2c3d4e5f6a",
+  "txId": "PAY0F1E2D3C4B5A69788796A5B4C3D2E1F0",
+  "status": "FREE",
+  "amount": 0,
+  "paidAt": "2026-10-31T18:05:00.000Z",
+  "endToEndId": null,
+  "payer": {
+    "name": "Maria Silva",
+    "document": "39053344705",
+    "documentType": "CPF",
+    "institutionName": null,
+    "institutionIspb": null
+  }
+}
+```
+
+`amount` is always `0` and `endToEndId` always `null`. `paidAt` is the time the
+order completed: `GET /v1/payments/{paymentId}` returns that time as
+`completedAt`, with `paidAt: null`. `payer` carries the name and document the
+payment has, with no institution, and is `null` when neither is known.
 
 ## Webhook payload
 
@@ -233,6 +275,7 @@ recorded. It is never `null`. Its value is always one of these messages:
 | `PAYMENT_CANCELLED` | `txId`, `status`, `reason` — or `id`, `txId`, `status`, `amount`. `reason` is `payment_failed` when the payment was refused or could not be completed, for example a card that was refused, and `payment_cancelled` when the charge was cancelled before it was paid |
 | `PAYMENT_CHARGEBACK` | `txId`, `status`. That is the entire body — no amount, no id |
 | `CHECKOUT_ABANDONED` | `id`, `txId`, `status`, `amount`, `buyer`. `status` is the payment's unpaid status when the event is sent: `PENDING_METHOD_SELECTION`, `NEW`, `PROCESSING`, `EXPIRED` or `CANCELLED`. `buyer` is `{ name, email, phone }`, each `null` when not known |
+| `PAYMENT_FREE` | `id`, `txId`, `status`, `amount`, `paidAt`, `endToEndId`, `payer`, as `PAYMENT_PAID`. `status` is `FREE`, `amount` is `0`, `paidAt` is the completion time and `endToEndId` is `null` |
 | `PAYMENT_REFUNDED` | `paymentId`, `refundId`, `amount`; plus `source: null` on MED-driven refunds |
 | `PAYMENT_REFUND_FAILED` | `paymentId`, `refundId`, `reason`. `reason` is always `Reembolso não processado. O valor foi devolvido ao saldo.` |
 | `MED_RECEIVED` | `medId`, `paymentId`, `amount`, `frozenAmount`, `shortfall`; on some paths also `providerMedId`, always `null` |
@@ -244,12 +287,15 @@ recorded. It is never `null`. Its value is always one of these messages:
 
 Four things to design around:
 
-- **How a payment is identified varies by event.** `PAYMENT_PAID` and
-  `CHECKOUT_ABANDONED` carry both `id` (the payment UUID) and `txId`. `PAYMENT_CONFIRMED`, `PAYMENT_CHARGEBACK`
+- **How a payment is identified varies by event.** `PAYMENT_PAID`,
+  `PAYMENT_FREE` and `CHECKOUT_ABANDONED` carry both `id` (the payment UUID) and `txId`. `PAYMENT_CONFIRMED`, `PAYMENT_CHARGEBACK`
   and some `PAYMENT_EXPIRED` / `PAYMENT_CANCELLED` deliveries carry only
   `txId`. `PAYMENT_REFUNDED`, `PAYMENT_REFUND_FAILED`, `MED_RECEIVED` and
   `MED_RESOLVED` carry only `paymentId` and no `txId` at all. Key your lookup
-  on whichever of the three is present, not on one of them.
+  on whichever of the three is present, not on one of them. A payment created
+  by a [post-purchase upsell](/guides/payments#post-purchase-upsell) sends
+  webhooks for an `id` your integration never created: read it with
+  `GET /v1/payments/{paymentId}` and follow `parentPaymentId` to the original.
 - **Absent means `null`, except for a few keys that vanish.** Most optional
   fields arrive as an explicit `null` — `paidAt`, `endToEndId`, `payer`,
   `recipient` all do. A small set is dropped from the JSON instead:
@@ -481,7 +527,8 @@ event:
 - it carries a new `X-Webhook-Delivery-Id` and starts again at
   `X-Webhook-Attempt: 1`;
 - its event type follows the resource's current status, so a payment refunded
-  after it was paid is resent as `PAYMENT_REFUNDED`, not `PAYMENT_PAID`;
+  after it was paid is resent as `PAYMENT_REFUNDED`, not `PAYMENT_PAID`, and a
+  `FREE` payment as `PAYMENT_FREE`;
 - its body carries the resource's current state, so it does not have to match
   the delivery that failed.
 

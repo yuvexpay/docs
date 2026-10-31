@@ -38,12 +38,17 @@ curl -X POST https://api.yuvexpay.com/v1/payments \
 The terminal status is **not** reached at creation. `POST /v1/payments` always
 returns the non-terminal status — `NEW`, or `PENDING_METHOD_SELECTION` for a
 hosted checkout. A status check runs about **5 seconds** later and writes the
-outcome; in the hosted flow, 5 seconds after the payer selects a method.
+outcome; in the hosted flow, 5 seconds after the payer selects a method. The
+one exception is a [free order](/guides/payments#free-orders): a headless
+payment whose coupon covers the whole amount is already `FREE` in the create
+response.
 
 The outcome is picked from the **decimal cents** of the payment `amount` you
 send, the same way for `PIX`, `CARD` and `BOLETO`. The cents are read before any
 fee passed to the payer: with `passFeeToPayer`, an `amount` of `R$ 49.02` is
-read as `.02` whatever total the payer is shown.
+read as `.02` whatever total the payer is shown. With line items, a coupon or an
+order bump, the cents are read from the final `amount`, after the discount and
+the payer's changes on the checkout.
 
 | Cents | Status after the check | Notes |
 |-------|------------------------|-------|
@@ -192,6 +197,10 @@ match on retries.
   same fee cap as in production and with no notification to the seller, and its
   production company can then be named in that seller's sandbox payments. A
   sandbox split never touches a production balance, statement or report.
+- **Coupons** belong to one environment: a `ypk_test_` key manages sandbox
+  coupons, and a sandbox payment takes only those. A sandbox
+  [free order](/guides/payments#free-orders) is never charged the free order
+  fee.
 - Webhooks are not delivered — see
   [Webhooks in sandbox](#webhooks-in-sandbox).
 - Sandbox keys cannot access production data, and vice versa.
