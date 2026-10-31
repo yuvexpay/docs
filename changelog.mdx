@@ -6,6 +6,78 @@ rss: true
 
 <Update
   label="2026-10-31"
+  tags={["Pagamentos", "Webhooks", "Reembolsos"]}
+  rss={{
+    title: "2026-10-31: kit de recuperação, contato do pagador e reembolsos pedidos pelo comprador",
+    description: "POST /v1/payments aceita recoveryKit, que liga os e-mails de recuperação para o pagador que preencheu o checkout hospedado e não pagou, com um preço fixo cobrado uma vez quando o primeiro e-mail sai. GET /v1/payments traz recoveryKit e o e-mail e o telefone do pagador em payer. CHECKOUT_ABANDONED ganha buyer, com nome, e-mail e telefone. O comprador pode pedir reembolso pela YuvexPay e, em último caso, a YuvexPay pode fazer o reembolso, debitando o valor integral e mantendo a taxa."
+  }}
+>
+  ## Kit de recuperação
+
+  `POST /v1/payments` aceita o campo opcional `recoveryKit`. Com `true`, a
+  YuvexPay envia e-mails ao pagador que preencheu o checkout hospedado e não
+  pagou: até 5 e-mails, nos intervalos definidos no card
+  **Kit de recuperação** de **Configurações > Empresa** (15 minutos, 1 hora e
+  24 horas, se você não mudar), e mais um cerca de 10 minutos antes de o código
+  PIX expirar. Os e-mails só saem enquanto o pagamento ainda pode ser pago. Sem
+  o campo, vale o padrão da conta, **Ativar por padrão**, desligado até você
+  ligar. Um link de pagamento tem a própria configuração.
+
+  O kit tem um preço fixo por pagamento, mostrado no dashboard. Ele é cobrado
+  uma vez, quando o primeiro e-mail sai, mesmo que o pagador pague depois, e é
+  debitado do saldo mesmo que ele fique negativo. No extrato
+  (`GET /v1/documents/statements`) o débito aparece como
+  **Kit de recuperação**. Pagamentos headless e de sandbox nunca têm kit.
+
+  `GET /v1/payments`, `GET /v1/payments/{paymentId}` e
+  `GET /v1/payments/txid/{txId}` trazem
+  `recoveryKit: { enabled, charged, emailsSent }`. Detalhes no
+  [guia de pagamentos](/guides/payments#recovery-kit).
+
+  ## E-mail e telefone do pagador
+
+  O objeto `payer` de `GET /v1/payments`, `GET /v1/payments/{paymentId}` e
+  `GET /v1/payments/txid/{txId}` ganha `email` e `phone`: os digitados no
+  checkout hospedado ou, se não houver, os enviados em `customer` ao criar o
+  pagamento. `GET /v1/payments/{paymentId}` também usa os do cliente vinculado
+  ao pagamento. `payer` pode vir só com o contato antes de o pagamento ser pago,
+  então um `payer` preenchido não indica pagamento. Os blocos `payer` dos
+  webhooks não mudam.
+
+  ## `buyer` em `CHECKOUT_ABANDONED`
+
+  O corpo de `CHECKOUT_ABANDONED` ganha `buyer: { name, email, phone }`, cada
+  campo `null` quando não é conhecido. O e-mail e o telefone digitados no
+  checkout deixam de aparecer só no dashboard.
+
+  Quando o pagamento foi criado com um cliente com nome, e-mail válido e CPF ou
+  CNPJ válido, a espera de 30 minutos passa a começar na primeira vez que o
+  checkout é aberto, com ou sem `skip_customer=1`. Antes, um checkout aberto com
+  `skip_customer=1` nunca enviava o evento. Detalhes no
+  [guia de webhooks](/guides/webhooks#abandoned-checkouts).
+
+  ## Reembolsos pedidos pelo comprador
+
+  Em produção, o pagador de um pagamento pago pode pedir o reembolso na página
+  da compra da YuvexPay, por até 90 dias. Você responde em
+  **Vendas > Reembolsos solicitados**; não há API para os pedidos. Um pedido
+  aprovado é um reembolso integral, com as mesmas regras e taxas de
+  `POST /v1/payments/{paymentId}/refund` e
+  `reason: "Pedido de reembolso do comprador"`.
+
+  Em último caso, depois de um pedido recusado, sem resposta ou cujo reembolso
+  falhou, a YuvexPay pode fazer o reembolso, com
+  `reason: "Reembolso feito pela YuvexPay"`. Como num MED ou num chargeback, o
+  saldo é debitado do valor integral devolvido ao pagador, a YuvexPay mantém a
+  taxa de processamento e o saldo disponível pode ficar negativo. Os dois
+  reembolsos chegam pelos webhooks `PAYMENT_REFUNDED` e `PAYMENT_REFUND_FAILED`
+  de sempre, sem `reason` no corpo, e aparecem em
+  `GET /v1/payments/{paymentId}/refunds`. Detalhes no
+  [guia de reembolsos](/guides/refunds#refunds-requested-by-the-payer).
+</Update>
+
+<Update
+  label="2026-10-31"
   tags={["Webhooks", "Pagamentos"]}
   rss={{
     title: "2026-10-31: webhook CHECKOUT_ABANDONED, redirecionamento assinado e skip_customer",

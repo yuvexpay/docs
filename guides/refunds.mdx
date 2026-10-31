@@ -87,8 +87,10 @@ A PIX MED freezes each party's proportional share the same way.
 A refund you issue debits your balance net of the processing fee: the fee is
 returned in proportion to the refunded amount, except in the case described in
 [refunds below a redeemed rewards prize](#refunds-below-a-redeemed-rewards-prize).
-A PIX MED that returns funds and a chargeback debit the full amount returned to
-the payer, and the processing fee is not returned. On a split payment that debit
+A PIX MED that returns funds, a chargeback and a
+[refund YuvexPay makes](#refunds-requested-by-the-payer) after a refund request
+from the payer debit the full amount returned to the payer, and the processing
+fee is not returned. On a split payment the debit of a PIX MED or a chargeback
 is apportioned across the parties the same way.
 
 If the card dispute is won, the amount debited for the chargeback is credited back to your balance, the processing fee stays with YuvexPay, and the payment returns to the status it had before the chargeback: `PAID`, `CONFIRMED`, `REFUNDED` or `PARTIAL_REFUND`. On a split payment each party is credited back the
@@ -120,6 +122,46 @@ boleto and 90 days old for card. In that case:
   only. The recipients are debited as in any other refund.
 - If the refund fails at the underlying network, the whole amount, fee
   included, is returned to your balance.
+
+## Refunds requested by the payer
+
+In production, the payer of a paid payment can ask for a refund on the purchase
+page YuvexPay shows them after they pay, for up to 90 days after the payment.
+You answer the request in the dashboard, under
+**Vendas &gt; Reembolsos solicitados** (Requested refunds). There is no API to
+read or answer requests.
+
+- Approving a request issues a full refund exactly like
+  `POST /v1/payments/{paymentId}/refund`: the same eligibility rules, the same
+  fees and the same `INSUFFICIENT_BALANCE_FOR_REFUND` check. With
+  **Aprovar automaticamente pedidos em até 7 dias** (Approve requests within 7
+  days automatically) turned on under **Configurações &gt; Empresa**, a request
+  made within 7 days of the payment is approved without you. If its refund
+  cannot be issued, for example for lack of balance, the request stays open.
+- If you refuse the request, do not answer it, or its refund fails, YuvexPay
+  support can take it over. As a last resort, YuvexPay can refund the payment
+  itself. That refund debits your balance the full amount returned to the
+  payer, and YuvexPay keeps the processing fee, as with a PIX MED or a
+  chargeback. It is not held back by `INSUFFICIENT_BALANCE_FOR_REFUND`, so it
+  can take your available balance negative. You are notified in the dashboard.
+- A payment with an open PIX MED or a chargeback cannot be refunded through a
+  request, and an open request is closed when either is opened. A refund you
+  issue yourself closes the open request of that payment once it completes.
+
+Both arrive like any other refund: `PAYMENT_REFUNDED` or
+`PAYMENT_REFUND_FAILED` with the usual body, and an entry in
+`GET /v1/payments/{paymentId}/refunds`. The webhook body has no reason; the
+refund's `reason` tells them apart:
+
+| `reason` | Refund |
+|----------|--------|
+| `Pedido de reembolso do comprador` | A payer's request that you approved, or that was approved automatically. |
+| `Reembolso feito pela YuvexPay` | The refund YuvexPay made after a payer's request. |
+
+Because these refunds do not go through your integration, your own
+`POST /v1/payments/{paymentId}/refund` can meet one that is in progress
+(`REFUND_IN_PROGRESS`) or already completed (`ALREADY_REFUNDED`). Update your
+order from the webhook, not only from your own refund calls.
 
 ## Refund lifecycle
 
@@ -155,6 +197,11 @@ GET /v1/payments/{paymentId}/refunds
 Returns every refund that has been attempted or completed against a payment,
 in chronological order. Useful for reconciling refund flows or showing a
 history to your operations team.
+
+`reason` is the one you sent with the refund, one of the two reasons in
+[Refunds requested by the payer](#refunds-requested-by-the-payer), or `null`
+when none was sent and on refunds that reached YuvexPay from the payment
+network, such as the return of a PIX MED.
 
 ## Common error codes
 
