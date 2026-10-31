@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "YuvexPay API",
-    "description": "The YuvexPay API allows you to accept payments, process withdrawals, manage products and customers programmatically. All API access is over HTTPS and uses JSON request/response bodies.",
+    "description": "The YuvexPay API allows you to accept payments, process withdrawals, manage products, coupons and customers programmatically. All API access is over HTTPS and uses JSON request/response bodies.",
     "version": "1.0.0",
     "contact": {
       "name": "YuvexPay Support",
@@ -4420,7 +4420,7 @@
       },
       "UpsellInput": {
         "type": "object",
-        "description": "Post-purchase upsell: offered on the hosted checkout for 30 minutes after this payment is paid. Accepting it creates a new payment, with `parentPaymentId` set to this payment and one `UPSELL` item, for the same payer and with the same splits. It is paid by PIX or, from the browser that paid this payment by card, in one click with the same card. Not offered on a payment with a `FIXED` split, and never on a `FREE` payment.",
+        "description": "Post-purchase upsell: offered on the hosted checkout for 30 minutes after this payment is paid. Accepting it creates a new payment, with `parentPaymentId` set to this payment and one `UPSELL` item, for the same payer and with the same splits. It is paid by PIX or, from the browser that paid this payment by card, in one click with the same card. Not offered on a payment with a `FIXED` split, never on a `FREE` payment, and not when the payer's changes on the checkout took the final `amount` below the upsell price.",
         "properties": {
           "name": {
             "type": "string",

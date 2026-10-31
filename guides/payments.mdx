@@ -273,8 +273,9 @@ On a `FREE` payment:
   as **Taxa de pedido gratuito** (Free order fee). The payment's own
   `feeAmount` stays `0`. Sandbox orders are never charged.
 - You receive [`PAYMENT_FREE`](/guides/webhooks#free-orders) on the endpoints
-  that selected it, and never `PAYMENT_PAID`. Plugins enabled for your account
-  receive the `payment.free` event instead of `payment.paid`.
+  that selected it, and never `PAYMENT_PAID`. The conversion plugins listen for
+  `payment.paid`, so they do not report a free order as a purchase: the order
+  reaches plugins as the `payment.free` event.
 - In production, the payer gets the receipt e-mail and the purchase page, as
   for a paid payment. The hosted checkout shows the order as confirmed and
   sends the payer to `completionUrl` with `yvx_status=FREE` and
@@ -843,7 +844,9 @@ payment is paid. Send `upsell` on a hosted payment, with the same fields as
   webhooks.
 - The upsell is not offered on a payment with a `FIXED` split, or with a split
   whose partner relationship is no longer active, nor on a
-  [free order](#free-orders).
+  [free order](#free-orders). It is not offered either when the payer's changes
+  on the checkout, such as a lower quantity or a coupon, took the final
+  `amount` below the upsell price.
 
 <Note>
   The upsell payment is created by YuvexPay, not by your integration. It keeps
