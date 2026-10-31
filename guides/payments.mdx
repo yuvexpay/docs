@@ -506,12 +506,12 @@ https://checkout.yuvexpay.com/checkout/fa1c0a85-7c29-4e3a-9e07-5b1a7b6d1234?skip
   valid e-mail and a CPF or CNPJ with valid check digits. Otherwise the checkout
   shows the form as usual.
 - `1` and `true` turn a flag on. Any other value is ignored.
-- Once the payer has submitted the form on a payment, the flag no longer skips
-  it for that payment.
+- Once the checkout has saved details the payer filled in on a payment, the
+  flag no longer skips the form on that payment.
 - A card payment still asks for the name on the card and a phone number.
 - A checkout opened with `skip_customer=1` never sends
   [`CHECKOUT_ABANDONED`](/guides/webhooks#abandoned-checkouts), which needs the
-  payer to submit the form.
+  payer to fill in the form.
 - `skip_address=1` is accepted but has no effect today. `POST /v1/payments` has
   no address fields, so there is never an address to skip, and a card payment
   keeps asking for the CEP and the street number.
