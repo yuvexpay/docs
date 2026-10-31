@@ -5,6 +5,64 @@ rss: true
 ---
 
 <Update
+  label="2026-10-31"
+  tags={["Webhooks", "Pagamentos"]}
+  rss={{
+    title: "2026-10-31: id de entrega dos webhooks, objeto tracking e metadata.cancelUrl",
+    description: "O guia de webhooks passa a dizer quando X-Webhook-Delivery-Id muda: ele se repete nas tentativas automáticas de uma entrega, e um reenvio pelo dashboard ou pelo suporte é uma nova entrega, com novo id e tentativa 1. Deduplique por tipo de evento, id do recurso e status. POST /v1/payments documenta o objeto opcional tracking, com UTMs, ids de clique e os novos gaClientId, fbp e fbc, preenchido também pelo checkout hospedado. metadata.cancelUrl mostra um link de volta no checkout hospedado enquanto o pagamento não é pago."
+  }}
+>
+  ## Quando o id de entrega de um webhook muda
+
+  Correção na documentação, sem mudança de comportamento: o guia dizia que um
+  reenvio manual mantinha o `X-Webhook-Delivery-Id` da entrega original, e não
+  mantém.
+
+  - Cada tentativa automática de uma entrega repete o mesmo
+    `X-Webhook-Delivery-Id`. `X-Webhook-Attempt` aumenta, e cada tentativa é
+    assinada de novo, com novos `X-Webhook-Timestamp` e `X-Webhook-Signature`.
+    A ordem das chaves do JSON pode mudar entre tentativas.
+  - Um reenvio pelo dashboard ou pelo suporte é uma nova entrega para cada
+    endpoint ativo inscrito no evento, com novo `X-Webhook-Delivery-Id` e
+    `X-Webhook-Attempt: 1`. O tipo de evento vem do status atual do pagamento
+    ou do saque, e o corpo traz o estado atual dele.
+  - Cada teste enviado pelo botão **Enviar teste** também é uma nova entrega.
+
+  Não existe id de evento. Deduplique pelo tipo de evento, pelo id do recurso e
+  pelo status, comparando com o estado que você já guardou, e não só pelo id de
+  entrega. Detalhes no
+  [guia de webhooks](/guides/webhooks#delivery-semantics).
+
+  ## Objeto `tracking` em `POST /v1/payments`
+
+  `POST /v1/payments` aceita o objeto opcional `tracking`, com dados de
+  atribuição que vão para os plugins de conversão ativos na sua conta, como
+  GA4, Meta Conversions API, TikTok Events API e UTMify:
+
+  - `utmSource`, `utmMedium`, `utmCampaign`, `utmTerm`, `utmContent`, `src`,
+    `sck`, `fbclid` e `gclid`, com até 512 caracteres cada, e `ttclid`, com até
+    1000. Um valor maior recebe `400 VALIDATION_ERROR`.
+  - Novos: `gaClientId`, o client id do GA4 (`<dígitos>.<dígitos>`, ou o valor
+    do cookie `_ga`), e `fbp` e `fbc`, os valores dos cookies `_fbp` e `_fbc`
+    da Meta. Um valor fora do formato é ignorado.
+
+  O checkout hospedado preenche os campos que você deixou vazios a partir dos
+  parâmetros da URL (`utm_*`, `src`, `sck`, `fbclid`, `gclid`, `ttclid`, `_ga`,
+  `_fbp`, `_fbc`) e dos cookies do domínio do próprio checkout. Os seus cookies
+  `_ga`, `_fbp` e `_fbc` ficam no seu domínio: para atribuir uma compra no
+  checkout hospedado, envie-os em `tracking` ao criar o pagamento ou
+  acrescente-os à `checkoutUrl` como parâmetros. Detalhes no
+  [guia de pagamentos](/guides/payments#attribution-tracking).
+
+  ## Link de volta com `metadata.cancelUrl`
+
+  Num pagamento hospedado, `metadata.cancelUrl` com uma URL `http` ou `https` de
+  até 2048 caracteres mostra no checkout um link de volta para essa URL enquanto
+  o pagamento não é pago. A URL de cancelamento de um link de pagamento passa a
+  chegar ao checkout da mesma forma.
+</Update>
+
+<Update
   label="2026-10-24"
   tags={["Preços"]}
   rss={{
