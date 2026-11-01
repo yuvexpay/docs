@@ -129,8 +129,8 @@ boleto and 90 days old for card. In that case:
 In production, the payer of a paid payment can ask for a refund on the purchase
 page YuvexPay shows them after they pay, for up to 90 days after the payment.
 You answer the request in the dashboard, under
-**Vendas &gt; Reembolsos solicitados** (Requested refunds). There is no API to
-read or answer requests.
+**Vendas &gt; Disputas &gt; Reembolsos** (Sales &gt; Disputes &gt; Refunds).
+There is no API to read or answer requests.
 
 - Approving a request issues a full refund exactly like
   `POST /v1/payments/{paymentId}/refund`: the same eligibility rules, the same

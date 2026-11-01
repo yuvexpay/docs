@@ -3509,7 +3509,7 @@
     "PAYMENT_FREE": {
       "post": {
         "summary": "Payment free",
-        "description": "A coupon discounted the whole amount of the payment and the order completed without a charge. A free order never sends `PAYMENT_PAID`.\n\nOpt-in: delivered only to endpoints that selected this event, never to the others, and never for sandbox payments. A resend from the dashboard or by support carries only `id`, `txId`, `status` and `amount`.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header.",
+        "description": "A coupon discounted the whole amount of the payment and the order completed without a charge. A free order never sends `PAYMENT_PAID`.\n\nOpt-in: delivered only to endpoints that selected this event, never to the others, and never for sandbox payments. A resend from the dashboard or by support repeats the exact body of the original delivery.\n\nThe HTTP body is this object exactly — there is no envelope and no `type` field. The event name is delivered in the `X-Webhook-Event` header.",
         "tags": [
           "Webhooks"
         ],

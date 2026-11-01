@@ -302,10 +302,10 @@ Four things to design around:
   `failureReason` on `WITHDRAWAL_SENT`, and `source`, `providerMedId`,
   `refundId` and `amount` on the MED and refund paths that do not set them.
   Read the value with a null-safe accessor rather than testing key presence.
-- **A resend carries the current state.** A delivery you trigger by hand from
+- **A resend repeats the original body.** A delivery you trigger by hand from
   a payment or withdrawal in the dashboard, or that support sends for you,
-  carries the resource's current state, not a copy of the original delivery.
-  See [Resending a webhook](#resending-a-webhook).
+  carries the exact bytes of an earlier delivery of the same event, not the
+  resource's current state. See [Resending a webhook](#resending-a-webhook).
 - **`txId` formats.** Payments are `PAY` + 32 uppercase hex characters.
   Withdrawals are `WIT` + a millisecond timestamp + 5 uppercase alphanumerics
   (e.g. `WIT1746280868443K3F9Q`). Refunds vary by origin. Treat `txId` as an
@@ -478,7 +478,7 @@ def webhook():
 YuvexPay aims to deliver every event at least once. A few characteristics worth designing around:
 
 - **At-least-once delivery.** The same event may arrive more than once: as automatic retries of one delivery, which share an `X-Webhook-Delivery-Id`, or as a resend, which is a new delivery with a new id. Deduplicate on the event type, the resource id and its status, not on the delivery id alone. Use `refundId` for refund events and `medId` with `resolution` for MED events, whose bodies carry no `status`. If your stored state for that resource already reflects the event, return `200` and skip the side effects. Compare against your current state rather than a list of events seen: after a won chargeback, `PAYMENT_PAID` arrives again for a payment you already marked paid once.
-- **Every attempt is signed again.** A retry carries a new `X-Webhook-Timestamp` and `X-Webhook-Signature`, so a retry sent hours later still passes the timestamp check. The keys of its JSON body can come in a different order than in an earlier attempt: verify each attempt against its own raw body, and do not deduplicate on a hash of the body.
+- **Every attempt is signed again.** A retry sends the same body, byte for byte, as the first attempt, with a new `X-Webhook-Timestamp` and `X-Webhook-Signature`, so a retry sent hours later still passes the timestamp check. Verify each attempt against its own raw body and headers.
 - **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in the body's `status` field, not against the order of arrival.
 - **Synchronous timeout: 10 seconds.** Return `2xx` within 10 seconds. Process work asynchronously if you need longer.
 - **Redirects are not followed.** Your endpoint must respond directly.
@@ -519,21 +519,34 @@ In every case the delivery lands in a terminal `FAILED` state and produces no fu
 
 ### Resending a webhook
 
-A resend does not replay the failed delivery. When you resend the webhook of a
-payment or withdrawal from the dashboard, or support resends it for you,
-YuvexPay creates a new delivery to every active endpoint subscribed to the
-event:
+When you resend the webhook of a payment or withdrawal from the dashboard, or
+support resends it for you, YuvexPay sends the body of an earlier delivery
+again:
 
-- it carries a new `X-Webhook-Delivery-Id` and starts again at
-  `X-Webhook-Attempt: 1`;
 - its event type follows the resource's current status, so a payment refunded
   after it was paid is resent as `PAYMENT_REFUNDED`, not `PAYMENT_PAID`, and a
   `FREE` payment as `PAYMENT_FREE`;
-- its body carries the resource's current state, so it does not have to match
-  the delivery that failed.
+- its body is the exact bytes of the latest original delivery of that event
+  for that payment or withdrawal, not the resource's current state. It is not
+  necessarily the delivery that failed: for a payment refunded twice, it is the
+  body of the latest refund;
+- it is a new delivery to every endpoint that is active and subscribed to the
+  event now, including one created after the original. It carries a new
+  `X-Webhook-Delivery-Id`, starts again at `X-Webhook-Attempt: 1`, and is
+  signed with a new `X-Webhook-Timestamp` and `X-Webhook-Signature` over those
+  same bytes.
 
-A payment whose status has no event, such as `NEW`, cannot be resent. An
-endpoint that already received the original receives the resend too.
+A resend that cannot be sent returns `400` with one of these codes:
+
+| Code | Meaning |
+|------|---------|
+| `NO_EVENT_FOR_STATUS` | The current status sends no webhook, such as `NEW`. |
+| `NO_WEBHOOK_CONFIGURED` | No active endpoint is subscribed to the event. |
+| `NO_DELIVERY_TO_RESEND` | The event never went out for this payment or withdrawal: it is a sandbox resource, which sends no webhooks, or no endpoint was active and subscribed to the event when it happened. |
+| `WEBHOOK_RESEND_UNAVAILABLE` | The original is an older delivery whose exact body can no longer be reproduced. Deliveries made from 2026-11-01 on can always be resent. |
+| `WEBHOOK_RESEND_RATE_LIMITED` | The same event of this payment or withdrawal was resent less than about 30 seconds ago. Wait and try again. |
+
+An endpoint that already received the original receives the resend too.
 Deduplicate on the resource state, as described in
 [Delivery semantics](#delivery-semantics): a resend is then processed when you
 missed the original and skipped when you already applied it.
@@ -607,7 +620,7 @@ A reactivation requested too early returns `429` and sends no test delivery:
 
 The webhook list, `GET /app/companies/{companyId}/webhooks`, returns `reactivationAvailableAt` on each endpoint: the earliest time a suspended endpoint can be reactivated, covering both limits, or `null` when the endpoint is not suspended.
 
-Deliveries that failed while the endpoint was down are not resent automatically — resend the payments and withdrawals you need from the dashboard once the endpoint is back.
+Deliveries that failed while the endpoint was down are not resent automatically — resend the payments and withdrawals you need from the dashboard once the endpoint is back. An event that happened while no endpoint was active and subscribed to it created no delivery, so it cannot be resent (`NO_DELIVERY_TO_RESEND`): read those payments and withdrawals with [`GET /v1/payments/{paymentId}`](/api-reference/payments/get) and [`GET /v1/withdrawals/{withdrawalId}`](/api-reference/withdrawals/get).
 
 ## Best practices
 
