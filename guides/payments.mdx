@@ -282,7 +282,7 @@ On a `FREE` payment:
   `payment.paid`, so they do not report a free order as a purchase: the order
   reaches plugins as the `payment.free` event.
 - In production, the payer gets the
-  [receipt e-mail](#payer-e-mails-and-accounts) and the purchase page, as for
+  [receipt e-mail](#payer-e-mails) and the purchase page, as for
   a paid payment. The hosted checkout shows the order as confirmed and
   sends the payer to `completionUrl` with `yvx_status=FREE` and
   `yvx_amount_cents=0` (see [Signed success redirect](#signed-success-redirect)).
@@ -763,7 +763,7 @@ pay, with a link back to the payment. Turn it on for a payment with
   or reached YuvexPay's sending limits for their address. YuvexPay also stops
   sending payer e-mails to an address, for every store, after a hard bounce, a
   block for an invalid address or a spam report. See
-  [Payer e-mails and accounts](#payer-e-mails-and-accounts).
+  [Payer e-mails](#payer-e-mails).
 - Sandbox payments never get a kit: `recoveryKit.enabled` is `false` on them,
   even when you send `true`.
 
@@ -1205,7 +1205,7 @@ payments: it is the one exception to the sandbox-mode rule above.
 - `minAmount` / `maxAmount` — decimal BRL bounds.
 - `environment` — `SANDBOX` or `PRODUCTION` (defaults to the API key's environment).
 
-## Payer e-mails and accounts
+## Payer e-mails
 
 - **Receipt e-mail.** In production, YuvexPay e-mails the payer a receipt after
   they pay. **E-mail de recibo ao comprador** (Buyer receipt e-mail), under
@@ -1215,14 +1215,6 @@ payments: it is the one exception to the sandbox-mode rule above.
   a spam report, for every store. An address that unsubscribed from your
   store's e-mails gets none of them, receipts and
   [recovery kit](#recovery-kit) e-mails included.
-- **Payer accounts.** A payer can sign in to YuvexPay with their e-mail,
-  download their data as JSON and delete their account. Deletion requires the
-  payer to confirm their identity again, and is refused while a payment linked
-  to the account has a pending charge, a refund in progress, an open dispute,
-  MED or chargeback, or an open refund request. The payment records kept for
-  financial and anti-money-laundering retention stay. The rest of the
-  account's data is erased or anonymized, and a running recovery kit on those
-  payments stops.
 
 ## Receipts
 

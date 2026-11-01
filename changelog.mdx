@@ -9,7 +9,7 @@ rss: true
   tags={["Webhooks", "Pagamentos", "Cupons"]}
   rss={{
     title: "2026-11-01: reenvio de webhook com o corpo original, dashboard reorganizado e dados do comprador",
-    description: "Um reenvio de webhook pelo dashboard ou pelo suporte repete, byte a byte, o corpo da última entrega original do evento, numa nova entrega assinada de novo, e as tentativas automáticas enviam os mesmos bytes da primeira. O segredo do redirecionamento, o padrão do kit de recuperação, a marca do checkout e o e-mail de recibo ficam em Configurações > Checkout, e os pedidos de reembolso em Vendas > Disputas > Reembolsos. O campo Cupom só aparece quando algum cupom ativo pode valer para o pagamento, e o comprador vê o nome da loja da empresa. O comprador pode baixar os seus dados e excluir a conta."
+    description: "Um reenvio de webhook pelo dashboard ou pelo suporte repete, byte a byte, o corpo da última entrega original do evento, numa nova entrega assinada de novo, e as tentativas automáticas enviam os mesmos bytes da primeira. O segredo do redirecionamento, o padrão do kit de recuperação, a marca do checkout e o e-mail de recibo ficam em Configurações > Checkout, e os pedidos de reembolso em Vendas > Disputas > Reembolsos. O campo Cupom só aparece quando algum cupom ativo pode valer para o pagamento, e o comprador vê o nome da loja da empresa."
   }}
 >
   ## Reenvio de webhook com o corpo original
@@ -51,15 +51,12 @@ rss: true
   - O comprador vê o nome da loja da empresa (**Nome da loja**), nunca o nome
     ou o CPF do titular de uma empresa com CPF. Sem nome da loja válido,
     aparece YuvexPay.
-  - O comprador pode baixar os seus dados em JSON e excluir a conta, o que é
-    recusado enquanto um pagamento vinculado tem cobrança, reembolso, disputa,
-    MED, chargeback ou pedido de reembolso em aberto.
   - Os e-mails ao comprador param para um endereço depois de um hard bounce, de
     um bloqueio por endereço inválido ou de uma denúncia de spam, e param para a
     sua loja depois de um descadastramento.
 
   Detalhes no [guia de pagamentos](/guides/payments#store-name-and-branding)
-  e em [e-mails e contas do comprador](/guides/payments#payer-e-mails-and-accounts).
+  e em [e-mails do comprador](/guides/payments#payer-e-mails).
 </Update>
 
 <Update
