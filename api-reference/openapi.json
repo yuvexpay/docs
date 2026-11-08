@@ -1183,7 +1183,7 @@
             }
           },
           "400": {
-            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` (`details.blockedUntil`), `WITHDRAWAL_UNAVAILABLE_TODAY` (`details.retryAt`), `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3918,7 +3918,7 @@
                   },
                   "failureReason": {
                     "type": "string",
-                    "description": "Generic failure message from a fixed set: `Saque não processado. O valor foi devolvido ao saldo.`, `Saque recusado pela instituição de destino.`, `A chave PIX informada não existe ou já não está ativa. Confira a chave e tente de novo.`, `A conta de destino está bloqueada. Utilize outra chave PIX.`, `A conta de destino foi encerrada. Utilize outra chave PIX.`, `O documento informado não corresponde ao titular da chave PIX informada.`. Never `null` — the key is absent when no reason was recorded."
+                    "description": "Generic failure message from a fixed set: `Não foi possível processar este saque agora. O valor está no seu saldo; tente novamente a partir das 00h (Brasília).`, `Saque não processado. O valor foi devolvido ao saldo.`, `Saque recusado pela instituição de destino.`, `A chave PIX informada não existe ou já não está ativa. Confira a chave e tente de novo.`, `A conta de destino está bloqueada. Utilize outra chave PIX.`, `A conta de destino foi encerrada. Utilize outra chave PIX.`, `O documento informado não corresponde ao titular da chave PIX informada.`. Never `null` — the key is absent when no reason was recorded."
                   }
                 }
               },
