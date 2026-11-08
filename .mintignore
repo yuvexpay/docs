@@ -2,3 +2,7 @@ drafts/
 *.draft.mdx
 
 mcp-server/
+.githooks/
+.nvmrc
+commitlint.config.cjs
+renovate.json

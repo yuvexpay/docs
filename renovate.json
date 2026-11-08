@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/Sao_Paulo",
+  "schedule": ["* 0-5 * * 5"],
+  "automergeSchedule": ["* 0-5 * * 5"],
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 0,
+  "rangeStrategy": "bump",
+  "platformAutomerge": false,
+  "lockFileMaintenance": { "enabled": true, "automerge": true, "schedule": ["* 0-5 * * 5"] },
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "groupName": "non-major dependencies",
+      "groupSlug": "non-major",
+      "automerge": true
+    },
+    { "matchUpdateTypes": ["major"], "automerge": false },
+    {
+      "matchDatasources": ["docker", "node-version"],
+      "matchPackageNames": ["node"],
+      "allowedVersions": "<25",
+      "groupName": "node"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["(?<depName>@commitlint/[a-z-]+)@(?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "datasourceTemplate": "npm"
+    }
+  ]
+}

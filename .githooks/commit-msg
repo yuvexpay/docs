@@ -1,0 +1,14 @@
+#!/bin/sh
+header="$(tr -d '\r' < "$1" | grep -v '^#' | grep -v '^[[:space:]]*$' | head -n 1)"
+case "$header" in
+  'Merge '* | 'Revert "'* | 'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+esac
+if ! printf '%s\n' "$header" | grep -Eq '^(feat|fix|chore|docs|refactor|perf|style|test|build|ci|revert)(\([^)]+\))?!?: .+'; then
+  echo "commit-msg: the header must be type(scope): subject" >&2
+  echo "commit-msg: types are feat fix chore docs refactor perf style test build ci revert" >&2
+  exit 1
+fi
+if [ "${#header}" -gt 100 ]; then
+  echo "commit-msg: the header has ${#header} characters, the limit is 100" >&2
+  exit 1
+fi
