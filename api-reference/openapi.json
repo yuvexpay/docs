@@ -4078,7 +4078,7 @@
               "object",
               "null"
             ],
-            "description": "Standard PIX price for an account opened with a CPF never registered at YuvexPay, or with a CNPJ never registered whose partners are not linked to any existing account. It applies from the account's creation; `methods` keeps the price of every other account. `null` while it is not offered.",
+            "description": "Standard PIX price for an account opened with a CPF never registered at YuvexPay, or with a CNPJ never registered whose partners are not linked to any existing account. It is set when the account is created and withdrawn if the identity or company verification finds an earlier registration before the first paid payment; `methods` keeps the price of every other account. `null` while it is not offered.",
             "required": [
               "method",
               "percent",
