@@ -1040,26 +1040,26 @@ all.
 the fee is passed to the payer. You keep `netAmount` minus the sum of the
 splits, and the recipients are credited when the payment settles.
 
-For `amount: 49.90` against a `2.99` fee, split 10% to one company and a fixed
+For `amount: 49.90` against a `0.80` fee, split 10% to one company and a fixed
 `R$ 5.00` to another:
 
 | Field | Value | Meaning |
 |-------|-------|---------|
 | `amount` | `49.90` | The gross. Percentage shares are computed from it. |
-| `feeAmount` | `2.99` | Yours. Never apportioned. |
-| `netAmount` | `46.91` | `amount - feeAmount`, before splits. |
+| `feeAmount` | `0.80` | Yours. Never apportioned. |
+| `netAmount` | `49.10` | `amount - feeAmount`, before splits. |
 | First split (`PERCENTAGE`, `10`) | `4.99` | 10% of `49.90`. |
 | Second split (`FIXED`, `5.00`) | `5.00` | Taken as sent. |
-| Your share | `36.92` | `netAmount` minus both splits. |
+| Your share | `39.11` | `netAmount` minus both splits. |
 
 The sum of the splits must be at most `netAmount`. A request that goes over
 fails with `SPLIT_AMOUNT_EXCEEDS_NET` and the response names the overflow.
 Nothing is clamped.
 
 Percentage shares are rounded **down** to the cent, and every remaining cent
-stays with the originating company. On `amount: 100.00` with a `2.99` fee and
+stays with the originating company. On `amount: 100.00` with a `0.80` fee and
 one recipient at `33.33%`, the recipient is credited `33.33` and you keep
-`97.01 - 33.33 = 63.68`.
+`99.20 - 33.33 = 65.87`.
 
 ### Split partners
 
