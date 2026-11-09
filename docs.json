@@ -203,5 +203,10 @@
       "method": "bearer"
     }
   },
-  "openapi": "api-reference/openapi.json"
+  "openapi": "api-reference/openapi.json",
+  "integrations": {
+    "telemetry": {
+      "enabled": false
+    }
+  }
 }
