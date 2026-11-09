@@ -8,6 +8,29 @@ rss: true
   label="2026-11-09"
   tags={["Saques"]}
   rss={{
+    title: "2026-11-09: teto por saque da rota PIX responde WITHDRAWAL_RETRY_LATER",
+    description: "Um saque acima do teto por saque da rota PIX que envia o pagamento passa a responder 400 WITHDRAWAL_RETRY_LATER, com a mensagem \"Não foi possível processar seu saque. Tente novamente em algumas horas.\" e sem details.retryAt. Substitui a entrada anterior do mesmo dia, que respondia WITHDRAWAL_UNAVAILABLE_TODAY nesse caso. WITHDRAWAL_UNAVAILABLE_TODAY continua igual para os demais casos."
+  }}
+>
+  ## Teto por saque da rota PIX responde `WITHDRAWAL_RETRY_LATER`
+
+  - Quando o valor passa do teto por saque da rota PIX que envia o pagamento,
+    `POST /v1/withdrawals` responde `400 WITHDRAWAL_RETRY_LATER` com a mensagem
+    "Não foi possível processar seu saque. Tente novamente em algumas horas." e
+    `details: { "retryable": true }`, sem `details.retryAt`.
+  - Substitui a entrada anterior do mesmo dia, logo abaixo: nesse caso a
+    resposta deixa de ser `400 WITHDRAWAL_UNAVAILABLE_TODAY`. Esse código, a
+    mensagem dele e `details.retryAt` continuam iguais para os demais casos.
+  - Nada é enviado à rede: o pedido fica registrado como saque `CANCELLED` e o
+    valor continua no saldo disponível.
+
+  Detalhes no [guia de saques](/guides/withdrawals).
+</Update>
+
+<Update
+  label="2026-11-09"
+  tags={["Saques"]}
+  rss={{
     title: "2026-11-09: teto por saque da rota PIX responde WITHDRAWAL_UNAVAILABLE_TODAY",
     description: "Um saque acima do teto por saque da rota PIX que envia o pagamento passa a responder 400 WITHDRAWAL_UNAVAILABLE_TODAY, com a mesma mensagem neutra e details.retryAt, em vez de WITHDRAWAL_LIMIT_EXCEEDED com o teto da rota em details.limit. WITHDRAWAL_LIMIT_EXCEEDED fica só para os limites da sua conta."
   }}

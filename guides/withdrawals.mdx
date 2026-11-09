@@ -58,7 +58,7 @@ from there rather than hardcoding `2.49`.
   the network side depending on which PIX route sends the payout. That
   one is not knowable before submission, but it is still evaluated
   synchronously, after the account-level checks have passed: above it the
-  create call fails with `400 WITHDRAWAL_UNAVAILABLE_TODAY` (see below), and
+  create call fails with `400 WITHDRAWAL_RETRY_LATER` (see below), and
   below the route minimum with `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM`.
   Requests above `R$ 1,000,000.00` are rejected by request validation before
   any of this is evaluated.
@@ -304,6 +304,7 @@ even for a withdrawal id that belongs to your own account.
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
 | `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` | 400 | The same `amount` to the same destination was refused 3 times within 1 hour, so that combination is blocked for 6 hours from the third refusal. No withdrawal is created and nothing is sent to the network. `details.blockedUntil` (ISO 8601) is when it is accepted again; a different amount or destination is accepted right away. |
 | `WITHDRAWAL_UNAVAILABLE_TODAY` | 400 | The withdrawal cannot be processed today. Nothing is sent to the network: the request is recorded as a `CANCELLED` withdrawal and the amount stays in your available balance. Do not retry before `details.retryAt` (ISO 8601, the next 00:00 in Brasília). |
+| `WITHDRAWAL_RETRY_LATER` | 400 | The withdrawal cannot be processed right now: the amount is above the per-transaction ceiling of the PIX route that sends the payout. Nothing is sent to the network: the request is recorded as a `CANCELLED` withdrawal and the amount stays in your available balance. There is no `details.retryAt`; try again in a few hours. |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for this account. |
 | `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — existence is checked by the network after acceptance. |
 | `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |

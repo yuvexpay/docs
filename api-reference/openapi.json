@@ -1183,7 +1183,7 @@
             }
           },
           "400": {
-            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` (`details.blockedUntil`), `WITHDRAWAL_UNAVAILABLE_TODAY` (`details.retryAt`), `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
+            "description": "Validation failed, or the PIX network rejected the payout deterministically. Withdrawal-specific codes: `INVALID_PIX_KEY`, `INVALID_RECIPIENT_DOCUMENT`, `RECIPIENT_DOCUMENT_MISMATCH`, `CREDITOR_DOCUMENT_SOURCE_NOT_SUPPORTED`, `WITHDRAWAL_BELOW_MINIMUM`, `WITHDRAWAL_LIMIT_EXCEEDED`, `WITHDRAWAL_BELOW_PROVIDER_MINIMUM`, `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` (`details.blockedUntil`), `WITHDRAWAL_UNAVAILABLE_TODAY` (`details.retryAt`), `WITHDRAWAL_RETRY_LATER`, `WITHDRAWAL_PIX_KEY_BLOCKED`, `BLOCKLIST_DENIED`, `INSUFFICIENT_BALANCE`, `WITHDRAWAL_RECIPIENT_DOCUMENT_MISMATCH`, `PROVIDER_ERROR`. Note that a missing `X-Idempotency-Key` is rejected before the error envelope is applied and returns the flat shape `{ statusCode, error, message, code }` with code `IDEMPOTENCY_KEY_REQUIRED`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5633,7 +5633,7 @@
               "number",
               "null"
             ],
-            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously: above it the create call fails with `400 WITHDRAWAL_UNAVAILABLE_TODAY`, and below the route minimum with `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
+            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously: above it the create call fails with `400 WITHDRAWAL_RETRY_LATER`, and below the route minimum with `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
           }
         }
       },
