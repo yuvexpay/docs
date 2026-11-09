@@ -933,11 +933,16 @@ YuvexPay builds the `fbc` for Meta from it.
 
 The hosted checkout fills `tracking` by itself from the URL the payer opens it
 with: the `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`,
-`utm_content`, `src`, `sck`, `fbclid`, `gclid` and `ttclid` query parameters,
-and `_ga`, `_fbp` and `_fbc` as query parameters or as cookies of the
-checkout's own domain. The fields you sent in `tracking` when you created the
+`utm_content`, `src`, `sck`, `fbclid`, `gclid`, `ttclid`, `_ga`, `_fbp` and
+`_fbc` query parameters. The fields you sent in `tracking` when you created the
 payment are kept: the checkout fills only the ones you left empty. Payment
 links created in the dashboard capture the same parameters from the link URL.
+
+The checkout reads these parameters only on the visit that carries them and
+stores nothing in the payer's browser. They reach YuvexPay when the payer
+saves their details or picks a method on that visit, and stay on the payment
+from then on. A payer who comes back later through a URL without them adds
+nothing, so keep the parameters on every `checkoutUrl` you hand out.
 
 Your own `_ga`, `_fbp` and `_fbc` cookies are set on your domain, so the
 checkout cannot read them. To attribute a hosted-checkout purchase to the
