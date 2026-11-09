@@ -169,6 +169,8 @@ checkout only.
 | `INSUFFICIENT_BALANCE` | 400 | Your available balance is not sufficient. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
+| `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` | 400 | The same `amount` to the same destination was refused 3 times within 1 hour, so that combination is blocked for 6 hours from the third refusal. No withdrawal is created and nothing is sent to the network. `details.blockedUntil` (ISO 8601) is when it is accepted again; a different amount or destination is accepted right away. |
+| `WITHDRAWAL_UNAVAILABLE_TODAY` | 400 | The withdrawal cannot be processed today. Nothing is sent to the network: the request is recorded as a `CANCELLED` withdrawal and the amount stays in your available balance. Do not retry before `details.retryAt` (ISO 8601, the next 00:00 in Brasília). |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for the account. |
 | `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — key existence is resolved by the network after acceptance. |
 | `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |

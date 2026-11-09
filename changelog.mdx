@@ -5,6 +5,45 @@ rss: true
 ---
 
 <Update
+  label="2026-11-08"
+  tags={["Saques"]}
+  rss={{
+    title: "2026-11-08: bloqueio de recusas repetidas e saque indisponível no dia",
+    description: "Três recusas do mesmo valor para o mesmo destino em até 1 hora bloqueiam essa combinação por 6 horas, com o código WITHDRAWAL_REPEATED_FAILURE_BLOCKED e details.blockedUntil. Um saque que não pode ser processado no dia volta com WITHDRAWAL_UNAVAILABLE_TODAY e details.retryAt. Falhas sem motivo utilizável passam a usar uma mensagem neutra."
+  }}
+>
+  ## Recusas repetidas
+
+  - Quando a rede recusa o mesmo `amount` para o mesmo destino 3 vezes em até
+    1 hora, essa combinação fica bloqueada por 6 horas a partir da terceira
+    recusa.
+  - Durante o bloqueio, `POST /v1/withdrawals` responde
+    `400 WITHDRAWAL_REPEATED_FAILURE_BLOCKED` sem criar o saque e sem enviar
+    nada à rede. `details.blockedUntil` (ISO 8601) indica quando a combinação
+    volta a ser aceita.
+  - Outro valor ou outro destino é aceito na hora. Falhas do lado da plataforma
+    (nenhuma rota disponível, timeouts) não contam como recusa.
+
+  ## Saque indisponível no dia
+
+  - Quando o saque não pode ser processado no dia, `POST /v1/withdrawals`
+    responde `400 WITHDRAWAL_UNAVAILABLE_TODAY` antes de qualquer envio à rede.
+    O pedido fica registrado como saque `CANCELLED` e o valor continua no saldo
+    disponível.
+  - `details.retryAt` (ISO 8601) é a próxima 00:00 de Brasília. Não tente de
+    novo antes disso.
+
+  ## Mensagem de falha
+
+  - Falhas de saque sem motivo utilizável passam a trazer
+    `Não foi possível processar este saque agora. O valor está no seu saldo; tente novamente a partir das 00h (Brasília).` em `failureReason`, no lugar de
+    `Saque não processado. O valor foi devolvido ao saldo.`
+
+  Detalhes no [guia de saques](/guides/withdrawals) e na
+  [lista de erros](/guides/errors).
+</Update>
+
+<Update
   label="2026-11-01"
   tags={["Webhooks", "Pagamentos", "Cupons"]}
   rss={{

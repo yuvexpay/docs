@@ -64,6 +64,18 @@ from there rather than hardcoding `2.49`.
 
   Both caps are compared against `amount + feeAmount`, so the largest `amount`
   you can request is the cap minus the fee.
+- **Unavailable for the day**: when the payout cannot be processed today, the
+  create call fails with `400 WITHDRAWAL_UNAVAILABLE_TODAY` before anything
+  reaches the network. The request is recorded as a `CANCELLED` withdrawal, the
+  amount stays in your available balance, and `details.retryAt` is the next
+  00:00 in Brasília. Do not retry before it.
+- **Repeated refusals**: when the network refuses the same `amount` to the same
+  destination 3 times within 1 hour, that combination is blocked for 6 hours
+  from the third refusal. During the block the create call fails with
+  `400 WITHDRAWAL_REPEATED_FAILURE_BLOCKED` without creating a withdrawal, and
+  `details.blockedUntil` says when it is accepted again. A different amount or
+  destination is accepted right away. Platform-side failures (no route
+  available, timeouts) do not count as refusals.
 - **Daily and nightly limits**: Each account has a daily limit. After
   business hours (BRT) a smaller "nightly" limit applies. Use
   [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits) to fetch
@@ -289,6 +301,8 @@ even for a withdrawal id that belongs to your own account.
 | `INSUFFICIENT_BALANCE` | 400 | The available balance is too low, or the amount is above a withdrawal ceiling that applies to your account. |
 | `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
+| `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` | 400 | The same `amount` to the same destination was refused 3 times within 1 hour, so that combination is blocked for 6 hours from the third refusal. No withdrawal is created and nothing is sent to the network. `details.blockedUntil` (ISO 8601) is when it is accepted again; a different amount or destination is accepted right away. |
+| `WITHDRAWAL_UNAVAILABLE_TODAY` | 400 | The withdrawal cannot be processed today. Nothing is sent to the network: the request is recorded as a `CANCELLED` withdrawal and the amount stays in your available balance. Do not retry before `details.retryAt` (ISO 8601, the next 00:00 in Brasília). |
 | `WITHDRAWALS_BLOCKED` | 403 | Withdrawals are currently disabled for this account. |
 | `INVALID_PIX_KEY` | 400 | The destination PIX key is not a well-formed CPF, CNPJ, e-mail, phone, or random key. Format only — existence is checked by the network after acceptance. |
 | `INVALID_RECIPIENT_DOCUMENT` | 400 | `destination.recipientDocument` is not a valid CPF or CNPJ once punctuation is stripped. |
