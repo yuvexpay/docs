@@ -57,10 +57,11 @@ from there rather than hardcoding `2.49`.
   (`null` means no account-level cap). A second, lower ceiling can apply at
   the network side depending on which PIX route sends the payout. That
   one is not knowable before submission, but it is still evaluated
-  synchronously: it comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or
-  `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call, after the
-  account-level checks have passed. Requests above `R$ 1,000,000.00` are
-  rejected by request validation before any of this is evaluated.
+  synchronously, after the account-level checks have passed: above it the
+  create call fails with `400 WITHDRAWAL_UNAVAILABLE_TODAY` (see below), and
+  below the route minimum with `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM`.
+  Requests above `R$ 1,000,000.00` are rejected by request validation before
+  any of this is evaluated.
 
   Both caps are compared against `amount + feeAmount`, so the largest `amount`
   you can request is the cap minus the fee.
@@ -299,7 +300,7 @@ even for a withdrawal id that belongs to your own account.
 | `PROVIDER_ERROR` | 400 | The PIX network rejected the payout deterministically during the create call — most often a key that does not exist or an account that cannot receive. No money moved. |
 | `WITHDRAWAL_BELOW_MINIMUM` | 400 | `amount` is below the minimum that applies to your account — `R$ 10.00` unless it has been raised. Read `minAmount` from [`GET /v1/withdrawals/limits`](/api-reference/withdrawals/limits). |
 | `INSUFFICIENT_BALANCE` | 400 | The available balance is too low, or the amount is above a withdrawal ceiling that applies to your account. |
-| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or a per-transaction cap. |
+| `WITHDRAWAL_LIMIT_EXCEEDED` | 400 | The amount exceeds the remaining daily or nightly limit, or your account's per-transaction limit. |
 | `WITHDRAWAL_BELOW_PROVIDER_MINIMUM` | 400 | The amount is below the minimum of the PIX route that sends the payout. |
 | `WITHDRAWAL_REPEATED_FAILURE_BLOCKED` | 400 | The same `amount` to the same destination was refused 3 times within 1 hour, so that combination is blocked for 6 hours from the third refusal. No withdrawal is created and nothing is sent to the network. `details.blockedUntil` (ISO 8601) is when it is accepted again; a different amount or destination is accepted right away. |
 | `WITHDRAWAL_UNAVAILABLE_TODAY` | 400 | The withdrawal cannot be processed today. Nothing is sent to the network: the request is recorded as a `CANCELLED` withdrawal and the amount stays in your available balance. Do not retry before `details.retryAt` (ISO 8601, the next 00:00 in Brasília). |

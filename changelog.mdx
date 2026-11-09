@@ -6,6 +6,28 @@ rss: true
 
 <Update
   label="2026-11-09"
+  tags={["Saques"]}
+  rss={{
+    title: "2026-11-09: teto por saque da rota PIX responde WITHDRAWAL_UNAVAILABLE_TODAY",
+    description: "Um saque acima do teto por saque da rota PIX que envia o pagamento passa a responder 400 WITHDRAWAL_UNAVAILABLE_TODAY, com a mesma mensagem neutra e details.retryAt, em vez de WITHDRAWAL_LIMIT_EXCEEDED com o teto da rota em details.limit. WITHDRAWAL_LIMIT_EXCEEDED fica só para os limites da sua conta."
+  }}
+>
+  ## Teto por saque da rota PIX
+
+  - Quando o valor passa do teto por saque da rota PIX que envia o pagamento,
+    `POST /v1/withdrawals` responde `400 WITHDRAWAL_UNAVAILABLE_TODAY` com a
+    mensagem neutra e `details.retryAt`. Antes, a resposta era
+    `400 WITHDRAWAL_LIMIT_EXCEEDED` com o teto da rota em `details.limit`.
+  - Nada é enviado à rede: o pedido fica registrado como saque `CANCELLED` e o
+    valor continua no saldo disponível.
+  - `WITHDRAWAL_LIMIT_EXCEEDED` continua valendo para os limites diário, noturno
+    e por saque da sua conta, que `GET /v1/withdrawals/limits` retorna.
+
+  Detalhes no [guia de saques](/guides/withdrawals).
+</Update>
+
+<Update
+  label="2026-11-09"
   tags={["Checkout"]}
   rss={{
     title: "2026-11-09: o checkout deixa de guardar a origem da visita no navegador",

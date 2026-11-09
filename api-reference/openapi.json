@@ -5633,7 +5633,7 @@
               "number",
               "null"
             ],
-            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously and comes back as a `400 WITHDRAWAL_LIMIT_EXCEEDED` or `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM` on the create call."
+            "description": "Largest single withdrawal your account may request, in BRL, or `null` when no account-level cap applies. Like the daily limit it is compared against `amount + fee`, so the largest `amount` you can request is `perTransactionLimit - fee`. A second, lower ceiling can apply on the PIX route that sends the payout; it depends on live routing and is not returned here, but it is still evaluated synchronously: above it the create call fails with `400 WITHDRAWAL_UNAVAILABLE_TODAY`, and below the route minimum with `400 WITHDRAWAL_BELOW_PROVIDER_MINIMUM`."
           }
         }
       },
