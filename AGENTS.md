@@ -31,3 +31,10 @@
 
 {/* Define what should and shouldn't be documented */}
 {/* Example: Don't document internal admin features */}
+
+## Git and publishing
+
+- Commit and push straight to `main`. There are no PRs and no CI; Mintlify publishes docs.yuvexpay.com from `main` about a minute after the push.
+- Run `mint broken-links` before pushing.
+- Commit titles: English, Conventional Commits, header at most 100 characters (`git config core.hooksPath .githooks` once per clone enables the check).
+- Stage explicit paths. Never `git add -A`. No `Co-Authored-By` trailers.
