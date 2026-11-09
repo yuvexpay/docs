@@ -195,7 +195,30 @@
   "footer": {
     "socials": {
       "github": "https://github.com/yuvexpay"
-    }
+    },
+    "links": [
+      {
+        "header": "Legal",
+        "items": [
+          {
+            "label": "Terms of Use",
+            "href": "https://yuvexpay.com/en/terms"
+          },
+          {
+            "label": "Privacy Policy",
+            "href": "https://yuvexpay.com/en/privacy"
+          },
+          {
+            "label": "Cookie Policy",
+            "href": "https://yuvexpay.com/en/cookies"
+          },
+          {
+            "label": "AML/CTF Policy",
+            "href": "https://yuvexpay.com/en/aml"
+          }
+        ]
+      }
+    ]
   },
   "api": {
     "baseUrl": "https://api.yuvexpay.com",
@@ -203,5 +226,10 @@
       "method": "bearer"
     }
   },
-  "openapi": "api-reference/openapi.json"
+  "openapi": "api-reference/openapi.json",
+  "integrations": {
+    "telemetry": {
+      "enabled": false
+    }
+  }
 }
