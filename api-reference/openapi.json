@@ -68,7 +68,7 @@
       "get": {
         "operationId": "getPublicPricing",
         "summary": "Get standard pricing",
-        "description": "Standard prices for the payment methods currently offered, the withdrawal fee, plan facts and sign-up availability. No authentication. Money values are decimal strings with two places. Responses are cacheable for 5 minutes.",
+        "description": "Standard prices for the payment methods currently offered, the PIX price for accounts opened with a CPF or CNPJ never registered at YuvexPay, the withdrawal fee, plan facts and sign-up availability. No authentication. Money values are decimal strings with two places. Responses are cacheable for 5 minutes.",
         "tags": [
           "Public"
         ],
@@ -112,6 +112,12 @@
                       "settlementDays": 3
                     }
                   ],
+                  "newDocument": {
+                    "method": "PIX",
+                    "percent": null,
+                    "fixed": "0.80",
+                    "minimumFee": null
+                  },
                   "withdrawal": {
                     "fee": "2.49",
                     "minAmount": "10.00",
@@ -3989,6 +3995,7 @@
         "required": [
           "currency",
           "methods",
+          "newDocument",
           "withdrawal",
           "plan",
           "signup",
@@ -4063,6 +4070,51 @@
                   "minimum": 0,
                   "description": "Days until a paid amount becomes available."
                 }
+              }
+            }
+          },
+          "newDocument": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Standard PIX price for an account opened with a CPF never registered at YuvexPay, or with a CNPJ never registered whose partners are not linked to any existing account. It is set when the account is created and withdrawn if the identity or company verification finds an earlier registration before the first paid payment; `methods` keeps the price of every other account. `null` while it is not offered.",
+            "required": [
+              "method",
+              "percent",
+              "fixed",
+              "minimumFee"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "PIX"
+                ]
+              },
+              "percent": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d+\\.\\d{2}$",
+                "description": "Percentage fee; `null` when there is none."
+              },
+              "fixed": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d+\\.\\d{2}$",
+                "description": "Fixed fee per payment in BRL. `null` when there is none."
+              },
+              "minimumFee": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d+\\.\\d{2}$",
+                "description": "Minimum fee per payment in BRL. `null` when there is none."
               }
             }
           },

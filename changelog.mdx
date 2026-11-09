@@ -6,6 +6,24 @@ rss: true
 
 <Update
   label="2026-11-09"
+  tags={["Preços"]}
+  rss={{
+    title: "2026-11-09: preço PIX para documentos novos em GET /public/pricing",
+    description: "GET /public/pricing ganha newDocument, o preço PIX padrão de uma conta aberta com um CPF nunca cadastrado na YuvexPay, ou com um CNPJ nunca cadastrado cujos sócios não estão ligados a nenhuma conta existente: R$ 0,80 por pagamento, sem parte percentual. methods continua com o preço das demais contas e a taxa de saque não muda. newDocument é null quando esse preço não é oferecido."
+  }}
+>
+  ## Preço PIX para documentos novos
+
+  `GET /public/pricing` ganha `newDocument`, o preço PIX padrão de uma conta
+  aberta com um CPF nunca cadastrado na YuvexPay, ou com um CNPJ nunca
+  cadastrado cujos sócios não estão ligados a nenhuma conta existente:
+  `percent: null` e `fixed: "0.80"`, ou seja, R$ 0,80 por pagamento, sem parte
+  percentual. `methods` continua com o preço das demais contas e a taxa de saque
+  não muda. `newDocument` é `null` quando esse preço não é oferecido.
+</Update>
+
+<Update
+  label="2026-11-09"
   tags={["Webhooks"]}
   rss={{
     title: "2026-11-09: URLs de webhook do Discord e com redirecionamento são recusadas",
