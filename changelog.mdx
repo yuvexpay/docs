@@ -5,6 +5,36 @@ rss: true
 ---
 
 <Update
+  label="2026-11-09"
+  tags={["Webhooks"]}
+  rss={{
+    title: "2026-11-09: URLs de webhook do Discord e com redirecionamento são recusadas",
+    description: "Ao criar um endpoint ou trocar a URL dele, a YuvexPay envia um evento TEST assinado para conferir se a URL responde direto. URLs do Discord, URLs que respondem com redirecionamento (3xx) e URLs já cadastradas na empresa são recusadas. Uma entrega respondida com 3xx deixa de ser repetida."
+  }}
+>
+  ## URLs de webhook recusadas
+
+  - URLs do Discord (`discord.com`, `discordapp.com`, `discord.gg` e
+    subdomínios) são recusadas ao salvar o endpoint. Webhooks do Discord não
+    aceitam eventos da YuvexPay.
+  - Ao criar um endpoint ou trocar a URL dele, enviamos um evento `TEST`
+    assinado, com `X-Webhook-Delivery-Id: probe-<webhookId>`. Se a resposta
+    for um redirecionamento (`3xx`), o cadastro responde `400` com
+    `WEBHOOK_URL_REDIRECTS` e o status em `details.status`. Qualquer outra
+    resposta, ou nenhuma, não impede o cadastro.
+  - Uma URL que a empresa já cadastrou responde `409` com
+    `WEBHOOK_URL_EXISTS`, e não mais `500`.
+
+  ## Entregas respondidas com redirecionamento
+
+  - Uma entrega respondida com `3xx` é marcada `FAILED` na hora e não é
+    repetida, como um `4xx`. Redirecionamentos nunca foram seguidos, então as
+    novas tentativas não tinham como dar certo.
+
+  Detalhes no [guia de webhooks](/guides/webhooks#which-urls-are-accepted).
+</Update>
+
+<Update
   label="2026-11-08"
   tags={["Saques"]}
   rss={{

@@ -14,6 +14,16 @@ Webhooks let your application receive HTTP POST notifications when events happen
 
 A company can register up to **two webhook endpoints in total**, active or paused, whatever events they subscribe to.
 
+### Which URLs are accepted
+
+When you create an endpoint, or change its URL, we send the URL one signed `TEST` request, a `webhook.test` event with `X-Webhook-Delivery-Id: probe-<webhookId>`, to check that it answers directly. The URL is refused when:
+
+- it is a Discord URL (`discord.com`, `discordapp.com`, `discord.gg` or any of their subdomains). Discord webhooks do not accept YuvexPay events: point the endpoint at your own system;
+- the test is answered with a redirect (`3xx`). The save returns `400` with code `WEBHOOK_URL_REDIRECTS` and the status in `details.status`. Register the final address;
+- the company already has an endpoint with the same URL. The save returns `409` with code `WEBHOOK_URL_EXISTS`.
+
+Any other answer to the test, an error status or no answer at all, does not block the save, so you can register an endpoint before your server is live.
+
 <Warning>
   **Webhooks are delivered for production activity only.** Sandbox payments and
   withdrawals do not send webhooks to your configured endpoints, for any event
@@ -53,8 +63,9 @@ exactly what arrives in the `X-Webhook-Event` header.
 | `WITHDRAWAL_FAILED` | A withdrawal failed and the funds were returned to your balance. |
 
 A fifteenth value, `TEST`, is not subscribable. It is used for the test ping
-you can fire from the dashboard and for the probe that reactivates a suspended
-endpoint; it arrives as `X-Webhook-Event: TEST`.
+you can fire from the dashboard, for the URL check when an endpoint is saved and
+for the probe that reactivates a suspended endpoint; it arrives as
+`X-Webhook-Event: TEST`.
 
 <Note>
   `PAYMENT_EXPIRED` is not always final for **boleto**. A boleto paid on or shortly after its due date can settle late, so you may receive `PAYMENT_EXPIRED` and then `PAYMENT_PAID` for the same charge. The same can happen with `PAYMENT_CONFIRMED` for a **card** whose 3D Secure answer arrives after the payment expired. Always treat the body's `status` field as the source of truth rather than assuming `PAYMENT_EXPIRED` is terminal.
@@ -482,7 +493,7 @@ YuvexPay aims to deliver every event at least once. A few characteristics worth 
 - **Every attempt is signed again.** A retry sends the same body, byte for byte, as the first attempt, with a new `X-Webhook-Timestamp` and `X-Webhook-Signature`, so a retry sent hours later still passes the timestamp check. Verify each attempt against its own raw body and headers.
 - **Order is not guaranteed.** Deliveries are dispatched in parallel; under retry, a `PAYMENT_REFUNDED` may arrive before its prior `PAYMENT_PAID`. Always reconcile against the resource state in the body's `status` field, not against the order of arrival.
 - **Synchronous timeout: 10 seconds.** Return `2xx` within 10 seconds. Process work asynchronously if you need longer.
-- **Redirects are not followed.** Your endpoint must respond directly.
+- **Redirects are not followed.** Your endpoint must respond directly. A `3xx` answer fails the delivery and is not retried.
 
 ## Retry behavior
 
@@ -491,6 +502,7 @@ Whether a failed delivery is retried depends on **how** it failed.
 | Response | Retried? |
 |----------|----------|
 | `2xx` | No — delivered |
+| `3xx` | **No — terminal.** Redirects are not followed, so the delivery is marked `FAILED` immediately |
 | `408 Request Timeout` | Yes |
 | `429 Too Many Requests` | Yes |
 | Any other `4xx` | **No — terminal.** The delivery is marked `FAILED` immediately |
