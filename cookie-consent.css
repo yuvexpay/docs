@@ -1,0 +1,88 @@
+.yvx-cookie-banner {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  display: flex;
+  justify-content: center;
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.yvx-cookie-banner__box {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 560px;
+  padding: 20px;
+  border: 1px solid rgb(229 231 235);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 0.97);
+  color: rgb(55 65 81);
+  box-shadow: 0 20px 50px -20px rgb(0 0 0 / 0.35);
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+}
+
+.yvx-cookie-banner__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.yvx-cookie-banner__text a {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.yvx-cookie-banner__accept {
+  flex-shrink: 0;
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 9999px;
+  background: #16a34a;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.yvx-cookie-banner__accept:hover {
+  background: #15803d;
+}
+
+.yvx-cookie-banner__accept:focus-visible {
+  outline: 2px solid #16a34a;
+  outline-offset: 2px;
+}
+
+html.dark .yvx-cookie-banner__box {
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(15 17 19 / 0.97);
+  color: rgb(209 213 219);
+}
+
+html.dark .yvx-cookie-banner__accept:focus-visible {
+  outline-color: #07c983;
+}
+
+@media (min-width: 640px) {
+  .yvx-cookie-banner {
+    padding: 0 24px 24px;
+  }
+
+  .yvx-cookie-banner__box {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    padding: 16px 16px 16px 20px;
+  }
+}
