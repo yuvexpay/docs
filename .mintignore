@@ -4,5 +4,3 @@ drafts/
 mcp-server/
 .githooks/
 .nvmrc
-commitlint.config.cjs
-renovate.json
